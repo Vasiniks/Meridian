@@ -1,0 +1,22 @@
+/* responsive */
+@media (max-width:900px){
+  nav.links{display:none}
+  .hero-grid{grid-template-columns:1fr}
+  #sceneLabel{display:none}
+  .buy-grid{grid-template-columns:1fr}
+  .right{margin-left:0}
+  .tall .card{max-width:100%;background:rgba(245,243,238,.82);backdrop-filter:blur(8px);
+    border:1px solid var(--hairline);border-radius:var(--radius);padding:22px}
+  .variant{flex-basis:86vw}
+}
+@media (max-width:520px){
+  .nav-inner{gap:12px;padding:0 16px}
+  .nav-cta{margin-left:auto;white-space:nowrap}
+  .motion-toggle{display:none}
+  .brand small{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  .rv{opacity:1;transform:none;transition:none}
+  .scroll-cue .tick{animation:none}
+  *{transition-duration:.01ms !important}
+}

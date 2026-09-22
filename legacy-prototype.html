@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Meridian 0.5 — Precision Mechanical Pencil</title>
+<meta name="description" content="Meridian 0.5. A precision mechanical pencil. Fewer parts. Tighter tolerances.">
+<meta name="theme-color" content="#F5F3EE">
+<link rel="preconnect" href="https://esm.sh">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='13' y='2' width='6' height='26' rx='3' fill='%23141412'/%3E%3Cpath d='M13 28 L16 31 L19 28Z' fill='%23A63D22'/%3E%3C/svg%3E">
+<style>
+:root{
+  --paper:#F5F3EE; --card:#FFFFFF; --ink:#141412; --muted:#6E6C66;
+  --hairline:#E2DFD6; --fill:#EBE8E0; --accent:#A63D22; --accent-ink:#7E2C16;
+  --radius:2px; --max:1200px; --font:"Inter Tight",-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",Arial,sans-serif;
+  --mono:"IBM Plex Mono",SFMono-Regular,Menlo,Consolas,monospace;
+  --ease-out:cubic-bezier(0.16,1,0.3,1); --ease-standard:cubic-bezier(0.22,1,0.36,1);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){ html{scroll-behavior:auto} }
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--font);
+  font-size:17px;line-height:1.6;letter-spacing:-0.005em;-webkit-font-smoothing:antialiased;
+  overflow-x:hidden}
+::selection{background:var(--ink);color:var(--paper)}
+h1,h2,h3{text-wrap:balance;line-height:1.05;letter-spacing:-0.03em;margin:0}
+p{margin:0;max-width:58ch}
+.mono{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+a{color:inherit}
+button{font:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:2px}
+.skip{position:fixed;top:-60px;left:12px;z-index:200;background:var(--ink);color:var(--paper);
+  padding:10px 16px;border-radius:var(--radius);transition:top .18s var(--ease-out);text-decoration:none}
+.skip:focus{top:12px}
+/* ---------- WebGL stage ---------- */
+#gl{position:fixed;inset:0;width:100%;height:100dvh;display:block;touch-action:none;z-index:0}
+#gl[aria-hidden="true"]{pointer-events:none}
+.scrim{position:fixed;inset:0;z-index:1;pointer-events:none;
+  background:radial-gradient(120% 90% at 50% 42%, rgba(245,243,238,0) 55%, rgba(245,243,238,.55) 100%)}
+/* ---------- loader ---------- */
+#loader{position:fixed;inset:0;z-index:100;background:var(--paper);display:flex;align-items:center;justify-content:center;
+  flex-direction:column;gap:14px;transition:opacity .5s var(--ease-out)}
+#loader.done{opacity:0;pointer-events:none;visibility:hidden}
+#loader .bar{width:148px;height:2px;background:var(--hairline);overflow:hidden;border-radius:2px}
+#loader .bar i{display:block;height:100%;width:30%;background:var(--ink);transition:width .3s ease}
+/* ---------- progress ---------- */
+#progress{position:fixed;top:0;left:0;right:0;z-index:60;height:2px;background:transparent}
+#progress i{display:block;height:100%;width:100%;background:var(--ink);transform-origin:0 50%;transform:scaleX(0)}
+#sceneLabel{position:fixed;top:76px;right:20px;z-index:60;font-family:var(--mono);font-size:11px;
+  letter-spacing:.14em;color:var(--muted);text-transform:uppercase}
+/* ---------- nav ---------- */
+header#nav{position:fixed;top:0;left:0;right:0;z-index:50;height:64px;
+  display:flex;align-items:center;border-bottom:1px solid transparent;
+  transition:background .3s ease,border-color .3s ease}
+header#nav.scrolled{background:rgba(245,243,238,.86);backdrop-filter:blur(12px);border-color:var(--hairline)}
+.nav-inner{width:100%;max-width:var(--max);margin:0 auto;padding:0 24px;display:flex;align-items:center;gap:28px}
+.brand{font-weight:700;letter-spacing:-0.02em;font-size:17px;text-decoration:none;white-space:nowrap}
+.brand small{font-family:var(--mono);font-weight:400;font-size:11px;color:var(--muted);margin-left:8px;letter-spacing:.1em}
+nav.links{display:flex;gap:22px;margin-left:auto}
+nav.links a{font-size:14px;text-decoration:none;color:var(--muted);transition:color .18s var(--ease-out);white-space:nowrap}
+nav.links a:hover{color:var(--ink)}
+.nav-cta{font-size:14px;font-weight:600;text-decoration:none;border-bottom:2px solid var(--accent);padding-bottom:1px}
+.motion-toggle{margin-left:4px;border:1px solid var(--hairline);background:var(--card);border-radius:var(--radius);
+  font-family:var(--mono);font-size:11px;letter-spacing:.08em;padding:7px 10px;cursor:pointer;color:var(--muted);
+  transition:color .18s ease,border-color .18s ease,transform .18s var(--ease-out)}
+.motion-toggle:hover{color:var(--ink);border-color:var(--ink)}
+.motion-toggle:active{transform:scale(.98)}
+/* ---------- content shell ---------- */
+main{position:relative;z-index:2}
+section{position:relative}
+.wrap{max-width:var(--max);margin:0 auto;padding:0 24px}
+.panel{pointer-events:none}
+.panel a,.panel button,.panel input,.panel label{pointer-events:auto}
+/* reveal */
+.rv{opacity:0;transform:translateY(24px);transition:opacity .48s var(--ease-out),transform .48s var(--ease-out)}
+.rv.is-visible{opacity:1;transform:none}
+/* ---------- hero ---------- */
+#hero{min-height:100dvh;display:flex;align-items:flex-end;padding:120px 0 56px}
+.hero-grid{width:100%;display:grid;grid-template-columns:1.2fr .8fr;gap:32px;align-items:end}
+#hero h1{font-size:clamp(44px,7vw,84px);font-weight:600;line-height:1.0;letter-spacing:-0.035em}
+#hero h1 em{font-style:italic;font-weight:500}
+.hero-sub{margin-top:18px;color:var(--muted);font-size:18px;max-width:34ch}
+.hero-actions{margin-top:26px;display:flex;gap:18px;align-items:center}
+.btn-solid{display:inline-block;background:var(--ink);color:var(--paper);text-decoration:none;font-weight:600;
+  font-size:15px;padding:14px 26px;border-radius:var(--radius);transition:transform .18s var(--ease-out),background .18s ease}
+.btn-solid:hover{background:#000;transform:translateY(-1px)}
+.btn-solid:active{transform:scale(.98)}
+.btn-line{display:inline-block;font-weight:600;font-size:15px;text-decoration:none;border-bottom:2px solid var(--hairline);
+  padding-bottom:3px;transition:border-color .18s ease}
+.btn-line:hover{border-color:var(--ink)}
+.hero-spec{border-top:1px solid var(--hairline);padding-top:18px;display:grid;gap:6px}
+.scroll-cue{margin-top:34px;display:flex;align-items:center;gap:10px;color:var(--muted)}
+.scroll-cue .tick{width:1px;height:34px;background:var(--ink);display:block;animation:cue 1.8s var(--ease-out) infinite}
+@keyframes cue{0%{transform:scaleY(0);transform-origin:top}45%{transform:scaleY(1);transform-origin:top}55%{transform:scaleY(1);transform-origin:bottom}100%{transform:scaleY(0);transform-origin:bottom}}
+/* ---------- tall narrative sections ---------- */
+.tall{display:flex;align-items:center;padding:18dvh 0}
+.tall .card{max-width:400px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:14px}
+h2{font-size:clamp(30px,4vw,44px);font-weight:600}
+.lede{margin-top:14px;color:var(--muted)}
+.spec-list{margin:22px 0 0;padding:18px 0 0;border-top:1px solid var(--hairline);list-style:none;display:grid;gap:12px}
+.spec-list li{display:flex;justify-content:space-between;gap:16px;font-size:14px}
+.spec-list li b{font-weight:600}
+.spec-list li span{font-family:var(--mono);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.right{margin-left:auto}
+.anno{font-family:var(--mono);font-size:11.5px;color:var(--muted);letter-spacing:.06em;border-left:2px solid var(--accent);
+  padding-left:12px;margin-top:18px;line-height:1.7}
+/* exploded labels */
+#exploded{min-height:230dvh;display:block;padding:20dvh 0}
+.exp-labels{margin-top:26px;display:grid;gap:0;border-top:1px solid var(--hairline)}
+.exp-labels div{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--hairline);font-size:13.5px}
+.exp-labels div span:last-child{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+/* mechanism steps */
+#mechanism{min-height:170dvh}
+.steps{margin-top:26px;display:grid;gap:0;border-top:1px solid var(--hairline)}
+.step{display:grid;grid-template-columns:52px 1fr;gap:14px;padding:15px 0;border-bottom:1px solid var(--hairline);
+  opacity:.38;transition:opacity .3s ease}
+.step[data-on="true"]{opacity:1}
+.step .n{font-family:var(--mono);font-size:12px;color:var(--accent);padding-top:3px;font-variant-numeric:tabular-nums}
+.step h3{font-size:17px;letter-spacing:-0.01em}
+.step p{font-size:14px;color:var(--muted);margin-top:3px}
+/* philosophy */
+#philosophy{padding:22dvh 0;text-align:left}
+#philosophy h2{font-size:clamp(34px,5vw,58px);max-width:16ch}
+.phil-rows{margin-top:48px;border-top:1px solid var(--hairline)}
+.phil-rows div{display:grid;grid-template-columns:64px 1fr auto;gap:18px;align-items:baseline;
+  padding:26px 0;border-bottom:1px solid var(--hairline)}
+.phil-rows .idx{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.phil-rows p{font-size:19px;max-width:34ch}
+.phil-rows .val{font-family:var(--mono);font-size:12px;color:var(--ink);white-space:nowrap}
+/* ---------- horizontal lineup ---------- */
+#lineup{position:relative}
+.pin{position:sticky;top:0;height:100dvh;overflow:hidden;display:flex;align-items:center}
+.track{display:flex;gap:0;will-change:transform;padding-left:max(24px,calc((100vw - 1200px)/2 + 24px))}
+.variant{flex:0 0 min(78vw,560px);padding-right:56px}
+.variant .shot{height:300px;border:1px solid var(--hairline);background:var(--card);border-radius:var(--radius);
+  display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
+.variant .shot svg{width:70%;height:auto}
+.variant .dot{position:absolute;top:14px;left:14px;font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--muted)}
+.variant h3{font-size:30px;margin-top:20px}
+.variant .mat{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:6px;letter-spacing:.06em}
+.variant p{color:var(--muted);margin-top:10px;font-size:15px}
+.variant .row{display:flex;align-items:center;gap:16px;margin-top:16px}
+.price{font-variant-numeric:tabular-nums;font-weight:700;font-size:17px}
+.swatch{width:22px;height:22px;border-radius:50%;border:1px solid var(--hairline);display:inline-block}
+.lineup-hint{position:absolute;bottom:26px;left:0;right:0;text-align:center}
+/* ---------- buy ---------- */
+#buy{padding:20dvh 0 16dvh}
+.buy-grid{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:start}
+.buy-box{border:1px solid var(--hairline);background:var(--card);border-radius:var(--radius);padding:32px}
+fieldset{border:0;margin:0 0 6px;padding:0}
+legend{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+.opt{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--hairline);border-radius:var(--radius);
+  margin-bottom:10px;cursor:pointer;transition:border-color .18s ease,transform .18s var(--ease-out)}
+.opt:hover{border-color:var(--ink)}
+.opt:has(input:checked){border-color:var(--ink);border-width:2px;padding:11px 13px}
+.opt input{accent-color:var(--accent);width:18px;height:18px}
+.opt .t{font-weight:600;font-size:15px}
+.opt .d{font-size:13px;color:var(--muted)}
+.opt .p{margin-left:auto;font-variant-numeric:tabular-nums;font-weight:700}
+.buy-cta{width:100%;margin-top:14px;background:var(--ink);color:var(--paper);border:0;border-radius:var(--radius);
+  padding:17px;font-weight:700;font-size:16px;cursor:pointer;transition:transform .18s var(--ease-out),background .18s ease}
+.buy-cta:hover{background:#000;transform:translateY(-1px)}
+.buy-cta:active{transform:scale(.98)}
+.fine{font-size:13px;color:var(--muted);margin-top:12px;text-align:center}
+#toast{margin-top:12px;font-size:14px;color:var(--accent-ink);min-height:22px;text-align:center}
+  footer{border-top:1px solid var(--hairline);padding:34px 0 48px;position:relative;z-index:2;background:transparent}
+.foot{display:flex;gap:20px;align-items:baseline;flex-wrap:wrap}
+.foot .mono{margin-left:auto}
+/* fallback poster */
+#fallback{display:none;position:fixed;inset:0;z-index:0;align-items:center;justify-content:center;background:var(--paper)}
+#fallback svg{width:min(60vw,420px)}
+/* responsive */
+@media (max-width:900px){
+  nav.links{display:none}
+  .hero-grid{grid-template-columns:1fr}
+  #sceneLabel{display:none}
+  .buy-grid{grid-template-columns:1fr}
+  .right{margin-left:0}
+  .tall .card{max-width:100%;background:rgba(245,243,238,.82);backdrop-filter:blur(8px);
+    border:1px solid var(--hairline);border-radius:var(--radius);padding:22px}
+  .variant{flex-basis:86vw}
+}
+@media (max-width:520px){
+  .nav-inner{gap:12px;padding:0 16px}
+  .nav-cta{margin-left:auto;white-space:nowrap}
+  .motion-toggle{display:none}
+  .brand small{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  .rv{opacity:1;transform:none;transition:none}
+  .scroll-cue .tick{animation:none}
+  *{transition-duration:.01ms !important}
+}
+/* motion paused / reduced-motion fallback: lineup becomes native horizontal scroll */
+.reduced #lineup{height:auto !important}
+.reduced .pin{position:static;height:auto;overflow-x:auto;overflow-y:hidden}
+.reduced .track{transform:none !important}
+.reduced .lineup-hint{display:none}
+</style>
+<script type="importmap">
+{"imports":{
+  "three":"https://esm.sh/three@0.184.0",
+  "three/addons/":"https://esm.sh/three@0.184.0/examples/jsm/"
+}}
+</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div id="loader" role="status" aria-label="Loading product viewer"><div class="mono">Meridian 0.5</div><div class="bar"><i id="loadFill"></i></div></div>
+<div id="progress" aria-hidden="true"><i id="progressFill"></i></div>
+<div id="sceneLabel" aria-hidden="true">01 — Reveal</div>
+<canvas id="gl" aria-hidden="true"></canvas>
+<div class="scrim" aria-hidden="true"></div>
+<div id="fallback" role="img" aria-label="Mechanical pencil illustration">
+  <svg viewBox="0 0 200 600" fill="none" aria-hidden="true"><rect x="85" y="20" width="30" height="560" rx="14" fill="#141412"/><rect x="88" y="390" width="24" height="90" rx="8" fill="#3a3a38"/><path d="M85 560 L100 595 L115 560Z" fill="#9aa0a8"/></svg>
+</div>
+
+<header id="nav">
+  <div class="nav-inner">
+    <a class="brand" href="#hero">Meridian<small>0.5&nbsp;MM</small></a>
+    <nav class="links" aria-label="Sections">
+      <a href="#detail">Detail</a><a href="#exploded">Exploded</a><a href="#mechanism">Mechanism</a><a href="#lineup">Lineup</a>
+    </nav>
+    <a class="nav-cta" href="#buy">Buy — $48+</a>
+    <button class="motion-toggle" id="motionBtn" aria-pressed="false" aria-label="Pause motion">Pause motion</button>
+  </div>
+</header>
+
+<main id="main">
+  <!-- HERO -->
+  <section id="hero" aria-labelledby="h-hero">
+    <div class="wrap hero-grid panel">
+      <div class="rv">
+        <div class="eyebrow">Precision mechanical pencil — Nº 01</div>
+        <h1 id="h-hero">Precision you feel.<br><em>A mechanism you keep.</em></h1>
+        <p class="hero-sub">Thirty-two parts. One axis. Zero wobble. Machined to ±0.02&nbsp;mm and balanced at the grip.</p>
+        <div class="hero-actions">
+          <a class="btn-solid" href="#buy">Buy — $48</a>
+          <a class="btn-line" href="#exploded">See it come apart</a>
+        </div>
+        <div class="scroll-cue" aria-hidden="true"><span class="tick"></span><span class="mono">Scroll — the camera moves</span></div>
+      </div>
+      <div class="hero-spec rv">
+        <div class="mono">Meridian 0.5 / Graphite</div>
+        <div class="mono">Body — Anodized 6061 · 18 g</div>
+        <div class="mono">Lead — 0.5 mm · Clutch feed</div>
+        <div class="mono">Tolerance — ±0.02 mm</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DETAIL -->
+  <section id="detail" class="tall" aria-labelledby="h-detail">
+    <div class="wrap panel">
+      <div class="card rv">
+        <h2 id="h-detail">The grip is the instrument.</h2>
+        <p class="lede">A 63&nbsp;mm knurled section, cut in a diamond pattern deep enough to hold and shallow enough to disappear. The nose tapers 12° so the lead meets paper exactly where the eye expects it.</p>
+        <ul class="spec-list">
+          <li><b>Knurl depth</b><span>0.18 mm</span></li>
+          <li><b>Nose taper</b><span>12° · steel</span></li>
+          <li><b>Sleeve runout</b><span>&lt; 0.03 mm</span></li>
+        </ul>
+        <p class="anno">01 / TOLERANCE — every seam is a 0.03 mm shadow gap, not a stack-up error.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- EXPLODED -->
+  <section id="exploded" aria-labelledby="h-exploded">
+    <div class="wrap panel">
+      <div class="card rv" style="max-width:420px">
+        <div class="eyebrow">Exploded view — every part on one axis</div>
+        <h2 id="h-exploded">Comes apart on one axis.</h2>
+        <p class="lede">No hidden clips. No glue. Each component slides off the central reservoir in assembly order. Servicing takes ninety seconds with no tools.</p>
+        <div class="exp-labels" aria-label="Component list">
+          <div><span>Button + stem · eraser</span><span>+3.8 / +3.0</span></div>
+          <div><span>Actuator · collar · springs</span><span>+2.9 / +2.5</span></div>
+          <div><span>Clutch · 3 jaws · retainer</span><span>+2.4 / +2.1</span></div>
+          <div><span>Return spring · seats · rod</span><span>+1.7 / +1.3</span></div>
+          <div><span>Reservoir + plug</span><span>+0.9</span></div>
+          <div><span>Barrel · 6061 · clip</span><span>datum</span></div>
+          <div><span>Grip · knurled · rings</span><span>−0.8</span></div>
+          <div><span>Nose · insert · washer</span><span>−1.6</span></div>
+          <div><span>Lead sleeve · 0.5 lead</span><span>−3.2 / −3.8</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- XRAY -->
+  <section id="xray" class="tall" aria-labelledby="h-xray">
+    <div class="wrap panel">
+      <div class="card right rv">
+        <h2 id="h-xray">The shell goes quiet.</h2>
+        <p class="lede">The outer body turns to glass. What remains is the working core: reservoir, spring, clutch and lead path, held on the same axis they run on.</p>
+        <p class="anno">02 / SECTION — shell opacity 15%. Nothing is hidden, nothing is faked.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- MECHANISM -->
+  <section id="mechanism" class="tall" aria-labelledby="h-mech">
+    <div class="wrap panel">
+      <div class="card rv">
+        <h2 id="h-mech">Five moves. One click.</h2>
+        <div class="steps" id="steps">
+          <div class="step" data-i="0"><span class="n">01</span><div><h3>Press</h3><p>One click engages the clutch.</p></div></div>
+          <div class="step" data-i="1"><span class="n">02</span><div><h3>Compress</h3><p>Spring stores controlled energy.</p></div></div>
+          <div class="step" data-i="2"><span class="n">03</span><div><h3>Release</h3><p>Jaws open with exact clearance.</p></div></div>
+          <div class="step" data-i="3"><span class="n">04</span><div><h3>Advance</h3><p>Lead feeds one precise increment.</p></div></div>
+          <div class="step" data-i="4"><span class="n">05</span><div><h3>Reset</h3><p>Clutch reseats. Zero wobble remains.</p></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- REASSEMBLY -->
+  <section id="reassembly" class="tall" aria-labelledby="h-re">
+    <div class="wrap panel">
+      <div class="card rv" style="text-align:center;margin:0 auto">
+        <h2 id="h-re">Snaps back. Exactly.</h2>
+        <p class="lede" style="margin:14px auto 0">Eleven parts return to datum with a single damped motion. No bounce. No rattle. A pencil that sounds like a caliper closing.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- PHILOSOPHY -->
+  <section id="philosophy" aria-labelledby="h-phil">
+    <div class="wrap panel">
+      <div class="rv">
+        <h2 id="h-phil">Fewer parts.<br>Tighter tolerances.</h2>
+        <div class="phil-rows">
+          <div><span class="idx">01</span><p>Weight serves balance, not decoration.</p><span class="val">18 g @ grip</span></div>
+          <div><span class="idx">02</span><p>Built to be serviced, not replaced.</p><span class="val">90 s teardown</span></div>
+          <div><span class="idx">03</span><p>Precision engineering disguised as everyday beauty.</p><span class="val">±0.02 mm</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LINEUP : horizontal -->
+  <section id="lineup" aria-labelledby="h-line">
+    <div class="pin" id="lineupPin">
+      <div class="track" id="lineupTrack">
+        <div class="variant" data-color="0x2b2f36" data-name="Core">
+          <div class="wrap" style="padding:0 0 26px"><h2 id="h-line">One form. Four tempers.</h2></div>
+          <div class="shot"><span class="dot">01 / CORE</span>
+            <svg viewBox="0 0 300 120" aria-hidden="true"><rect x="20" y="52" width="200" height="16" rx="2" fill="#23272e"/><rect x="220" y="50" width="44" height="20" rx="2" fill="#3c4048"/><path d="M264 50 L292 60 L264 70Z" fill="#9aa0a8"/><rect x="14" y="50" width="14" height="20" rx="2" fill="#0e0e10"/></svg></div>
+          <h3>Core</h3><div class="mat">STAINLESS · CLUTCH FEED</div>
+          <p>The everyday workhorse. Brushed steel barrel, clutch mechanism, tuned for long sessions.</p>
+          <div class="row"><span class="swatch" style="background:#23272e"></span><span class="price">$48</span></div>
+        </div>
+        <div class="variant" data-color="0x6b5a3e" data-name="Pro">
+          <div class="shot"><span class="dot">02 / PRO</span>
+            <svg viewBox="0 0 300 120" aria-hidden="true"><rect x="20" y="52" width="200" height="16" rx="2" fill="#8a6b3a"/><rect x="220" y="50" width="44" height="20" rx="2" fill="#6e562f"/><path d="M264 50 L292 60 L264 70Z" fill="#c9ced6"/><rect x="14" y="50" width="14" height="20" rx="2" fill="#0e0e10"/></svg></div>
+          <h3>Pro</h3><div class="mat">BRASS · CLUTCH FEED</div>
+          <p>Weighted forward for control. Solid brass that patinas with use. Drafts like a ruling pen.</p>
+          <div class="row"><span class="swatch" style="background:#8a6b3a"></span><span class="price">$86</span></div>
+        </div>
+        <div class="variant" data-color="0x1e2f4f" data-name="Studio">
+          <div class="shot"><span class="dot">03 / STUDIO</span>
+            <svg viewBox="0 0 300 120" aria-hidden="true"><rect x="20" y="52" width="200" height="16" rx="2" fill="#1e2f4f"/><rect x="220" y="50" width="44" height="20" rx="2" fill="#16233c"/><path d="M264 50 L292 60 L264 70Z" fill="#c9ced6"/><rect x="14" y="50" width="14" height="20" rx="2" fill="#0e0e10"/></svg></div>
+          <h3>Studio</h3><div class="mat">ALUMINUM · AUTO-ADVANCE</div>
+          <p>Anodized 6061 in deep ink blue. Auto-advance feed for uninterrupted drafting flow.</p>
+          <div class="row"><span class="swatch" style="background:#1e2f4f"></span><span class="price">$64</span></div>
+        </div>
+        <div class="variant" data-color="0x4a4e55" data-name="Limited">
+          <div class="shot"><span class="dot">04 / LIMITED · 500</span>
+            <svg viewBox="0 0 300 120" aria-hidden="true"><rect x="20" y="52" width="200" height="16" rx="2" fill="#4a4e55"/><rect x="220" y="50" width="44" height="20" rx="2" fill="#33363c"/><path d="M264 50 L292 60 L264 70Z" fill="#e2e5ea"/><rect x="14" y="50" width="14" height="20" rx="2" fill="#0e0e10"/></svg></div>
+          <h3>Limited</h3><div class="mat">TITANIUM · AUTO-ADVANCE</div>
+          <p>Numbered run of five hundred. Blasted titanium, auto-advance, presented in a steel tube.</p>
+          <div class="row"><span class="swatch" style="background:#4a4e55"></span><span class="price">$148</span></div>
+        </div>
+        <div class="variant" aria-hidden="true" style="flex-basis:20vw"></div>
+      </div>
+      <div class="lineup-hint mono panel">Vertical scroll drives horizontal travel</div>
+    </div>
+  </section>
+
+  <!-- BUY -->
+  <section id="buy" aria-labelledby="h-buy">
+    <div class="wrap buy-grid panel">
+      <div class="rv">
+        <div class="eyebrow">Own it</div>
+        <h2 id="h-buy">Choose your instrument.</h2>
+        <p class="lede">Ships worldwide in a steel tube with three spare leads and a teardown card. 30-day returns, lifetime service.</p>
+        <ul class="spec-list">
+          <li><b>In the tube</b><span>pencil + 3 leads</span></li>
+          <li><b>Service</b><span>lifetime · 90 s</span></li>
+          <li><b>Returns</b><span>30 days</span></li>
+        </ul>
+      </div>
+      <form class="buy-box rv" id="buyForm">
+        <fieldset>
+          <legend>Variant</legend>
+          <label class="opt"><input type="radio" name="variant" value="Core" checked><span><span class="t">Core — Stainless</span><br><span class="d">Clutch feed · everyday</span></span><span class="p">$48</span></label>
+          <label class="opt"><input type="radio" name="variant" value="Studio" data-color="0x1e2f4f"><span><span class="t">Studio — Aluminum</span><br><span class="d">Auto-advance · drafting</span></span><span class="p">$64</span></label>
+          <label class="opt"><input type="radio" name="variant" value="Pro"><span><span class="t">Pro — Brass</span><br><span class="d">Clutch feed · weighted</span></span><span class="p">$86</span></label>
+          <label class="opt"><input type="radio" name="variant" value="Limited"><span><span class="t">Limited — Titanium</span><br><span class="d">Numbered · 500 pcs</span></span><span class="p">$148</span></label>
+        </fieldset>
+        <button class="buy-cta" type="submit" id="buyBtn">Add to Cart — $48</button>
+        <p class="fine">Free shipping over $75 · Carbon-neutral delivery</p>
+        <p id="toast" aria-live="polite"></p>
+      </form>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap foot">
+    <span class="brand">Meridian</span>
+    <span class="mono">Designed on one axis · Built for decades</span>
+    <span class="mono">© 2026 Meridian Instrument Co.</span>
+  </div>
+</footer>
+
+<script type="module">
+import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+
+/* ============ config / quality ============ */
+const canvas = document.getElementById('gl');
+const loader = document.getElementById('loader');
+const loadFill = document.getElementById('loadFill');
+const progressFill = document.getElementById('progressFill');
+const sceneLabel = document.getElementById('sceneLabel');
+const nav = document.getElementById('nav');
+const motionBtn = document.getElementById('motionBtn');
+const mqReduce = matchMedia('(prefers-reduced-motion: reduce)');
+const isTouch = navigator.maxTouchPoints > 0;
+const isSmall = matchMedia('(max-width: 900px)').matches;
+const isLow = (navigator.hardwareConcurrency || 8) <= 4;
+let quality = (isTouch && isSmall) || isLow ? 'low' : 'high';
+let motionOK = !mqReduce.matches;
+let lastY = -1, shellX = false; // shared scroll-render state (module scope)
+const DPR_CAP = quality === 'high' ? 2 : 1.5;
+
+/* ============ renderer / scene ============ */
+let renderer = null, scene, camera, composer, pencil, parts = [], mats = {};
+const V = { pos: new THREE.Vector3(), tgt: new THREE.Vector3(), tmp: new THREE.Vector3(), tmp2: new THREE.Vector3() };
+try {
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+} catch (e) { renderer = null; }
+if (!renderer) {
+  document.getElementById('fallback').style.display = 'flex';
+  canvas.style.display = 'none'; loader.classList.add('done');
+} else {
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, DPR_CAP));
+  renderer.setSize(innerWidth, innerHeight, false);
+  renderer.shadowMap.enabled = quality === 'high';
+  renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.0;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.setClearColor(0x000000, 0);
+
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(35, innerWidth / innerHeight, 0.1, 100);
+  camera.position.set(3.6, 1.6, 8.0);
+
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  if ('environmentIntensity' in scene) scene.environmentIntensity = 0.6;
+  pmrem.dispose();
+
+  const key = new THREE.DirectionalLight(0xfffbf2, 2.6);
+  key.position.set(3.5, 5.5, 4.0); key.castShadow = quality === 'high';
+  key.shadow.mapSize.set(quality === 'high' ? 2048 : 1024, quality === 'high' ? 2048 : 1024);
+  key.shadow.bias = -0.00015; key.shadow.normalBias = 0.02; key.shadow.radius = 4;
+  key.shadow.camera.left = -3.5; key.shadow.camera.right = 3.5; key.shadow.camera.top = 6; key.shadow.camera.bottom = -6;
+  key.shadow.camera.near = 1; key.shadow.camera.far = 20;
+  const rim = new THREE.DirectionalLight(0xd9e6ff, 1.7); rim.position.set(-5, 3.5, -4.5);
+  const fill = new THREE.DirectionalLight(0xfff1e0, 0.55); fill.position.set(-2.5, 1.2, 5.0);
+  const kicker = new THREE.DirectionalLight(0xffffff, 0.9); kicker.position.set(0.5, 6, -2.0);
+  scene.add(key, rim, fill, kicker);
+
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(40, 40),
+    new THREE.ShadowMaterial({ opacity: 0.16 })
+  );
+  ground.rotation.x = -Math.PI / 2; ground.position.y = -4.8; ground.receiveShadow = true;
+  scene.add(ground);
+
+  /* ============ procedural pencil (Y axis, tip -7 → button +7) ============ */
+  const maxAniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  function canvasTex(size, draw, rx = 1, ry = 1) {
+    const c = document.createElement('canvas'); c.width = c.height = size;
+    draw(c.getContext('2d'), size);
+    const t = new THREE.CanvasTexture(c);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx, ry);
+    t.anisotropy = maxAniso;
+    return t;
+  }
+  const brushedRoughTex = canvasTex(512, (x, s) => {
+    x.fillStyle = '#7a7a7a'; x.fillRect(0, 0, s, s);
+    for (let i = 0; i < 2200; i++) {
+      const px = Math.random() * s, w = Math.random() * 1.4 + 0.3, l = Math.random() * 60 + 20;
+      const v = 110 + Math.random() * 90 | 0;
+      x.strokeStyle = `rgb(${v},${v},${v})`; x.lineWidth = w;
+      x.beginPath(); x.moveTo(px, Math.random() * s); x.lineTo(px, l); x.stroke();
+    }
+  }, 2, 1);
+  const anodizedRoughTex = canvasTex(256, (x, s) => {
+    x.fillStyle = '#5e5e5e'; x.fillRect(0, 0, s, s);
+    const d = x.getImageData(0, 0, s, s);
+    for (let i = 0; i < d.data.length; i += 4) { const n = (Math.random() - 0.5) * 22; d.data[i] += n; d.data[i + 1] += n; d.data[i + 2] += n; }
+    x.putImageData(d, 0, 0);
+  }, 3, 1);
+  const knurlTex = canvasTex(512, (x, s) => {
+    x.fillStyle = '#808080'; x.fillRect(0, 0, s, s);
+    x.lineWidth = 11; x.lineCap = 'square';
+    x.strokeStyle = '#f2f2f2';
+    for (let i = -8; i < 16; i++) { x.beginPath(); x.moveTo(i * 64, 0); x.lineTo(i * 64 + s, s); x.stroke(); }
+    x.strokeStyle = '#0a0a0a';
+    for (let i = -8; i < 16; i++) { x.beginPath(); x.moveTo(i * 64 + s, 0); x.lineTo(i * 64, s); x.stroke(); }
+    x.fillStyle = 'rgba(128,128,128,0.35)';
+    for (let py = 0; py < 8; py++) for (let px = 0; px < 8; px++) { x.fillRect(px * 64 + 28, py * 64 + 28, 8, 8); }
+  }, 32, 5);
+  const knurlRoughTex = knurlTex.clone(); knurlRoughTex.needsUpdate = true;
+  const porousTex = canvasTex(256, (x, s) => {
+    x.fillStyle = '#808080'; x.fillRect(0, 0, s, s);
+    for (let i = 0; i < 9000; i++) {
+      const v = Math.random() > 0.5 ? 255 : 0;
+      x.fillStyle = `rgba(${v},${v},${v},${0.05 + Math.random() * 0.12})`;
+      x.fillRect(Math.random() * s, Math.random() * s, 1.3, 1.3);
+    }
+  }, 2, 2);
+
+  mats.barrel = new THREE.MeshPhysicalMaterial({ color: 0x1e2f4f, metalness: 0.9, roughness: 0.34, roughnessMap: anodizedRoughTex, clearcoat: 0.8, clearcoatRoughness: 0.22, envMapIntensity: 1.0 });
+  mats.brushed = new THREE.MeshPhysicalMaterial({ color: 0xc9ced6, metalness: 1.0, roughness: 0.32, roughnessMap: brushedRoughTex, envMapIntensity: 1.0 });
+  mats.nose = new THREE.MeshPhysicalMaterial({ color: 0xd6d9de, metalness: 1.0, roughness: 0.14, roughnessMap: brushedRoughTex, envMapIntensity: 1.25 });
+  mats.steel = mats.nose;
+  mats.brass = new THREE.MeshStandardMaterial({ color: 0xb08d57, metalness: 1.0, roughness: 0.3, envMapIntensity: 1.0 });
+  mats.spring = new THREE.MeshStandardMaterial({ color: 0x9aa0a8, metalness: 1.0, roughness: 0.38, envMapIntensity: 0.9 });
+  mats.grip = new THREE.MeshPhysicalMaterial({ color: 0x17181a, metalness: 0.85, roughness: 0.42, roughnessMap: knurlRoughTex, bumpMap: quality === 'high' ? knurlTex : null, bumpScale: 0.35, clearcoat: 0.35, clearcoatRoughness: 0.3, envMapIntensity: 0.9 });
+  mats.polymer = new THREE.MeshStandardMaterial({ color: 0x111214, metalness: 0.0, roughness: 0.42, roughnessMap: porousTex, envMapIntensity: 0.7 });
+  mats.plastic = mats.polymer;
+  mats.mech = new THREE.MeshStandardMaterial({ color: 0x1c1e20, metalness: 0.2, roughness: 0.5, envMapIntensity: 0.7 });
+  mats.reservoir = new THREE.MeshPhysicalMaterial({ color: 0x3a3d42, metalness: 0.1, roughness: 0.15, transparent: true, opacity: 0.45, depthWrite: false, clearcoat: 1.0, clearcoatRoughness: 0.1, envMapIntensity: 1.0 });
+  mats.core = mats.reservoir;
+  mats.eraser = new THREE.MeshStandardMaterial({ color: 0xd98aa0, metalness: 0, roughness: 0.92, bumpMap: porousTex, bumpScale: 0.12, envMapIntensity: 0.35 });
+  mats.lead = new THREE.MeshStandardMaterial({ color: 0x2e3134, metalness: 0.25, roughness: 0.55, envMapIntensity: 0.5 });
+  mats.dark = new THREE.MeshStandardMaterial({ color: 0x1a1a1c, metalness: 0.9, roughness: 0.45, envMapIntensity: 0.8 });
+  const shellMats = [mats.barrel, mats.grip, mats.polymer];
+  shellMats.forEach(m => { m.transparent = true; });
+
+  pencil = new THREE.Group();
+  const add = (mesh, baseY, explode, opts = {}) => {
+    mesh.position.y = baseY; mesh.castShadow = quality === 'high';
+    mesh.matrixAutoUpdate = true;
+    if (opts.radial) { mesh.position.x = opts.radial[0]; mesh.position.z = opts.radial[1] || 0; }
+    pencil.add(mesh);
+    parts.push({ obj: mesh, baseY, explode, baseX: mesh.position.x, baseZ: mesh.position.z, radialEx: opts.radialEx || 0, shell: !!opts.shell, inner: !!opts.inner, name: opts.name || '' });
+    return mesh;
+  };
+  const SEG = quality === 'high' ? 64 : 32, SEG_S = quality === 'high' ? 48 : 24;
+  const lathe = (pts, mat, seg) => new THREE.Mesh(new THREE.LatheGeometry(pts.map(p => new THREE.Vector2(p[0], p[1])), seg || SEG), mat);
+  class Helix extends THREE.Curve {
+    constructor(coils, r, h) { super(); this.c = coils; this.r = r; this.h = h; }
+    getPoint(t) { const a = this.c * Math.PI * 2 * t; return new THREE.Vector3(Math.cos(a) * this.r, (t - 0.5) * this.h, Math.sin(a) * this.r); }
+  }
+  const helixMesh = (coils, r, h, wire, mat, tub) => new THREE.Mesh(new THREE.TubeGeometry(new Helix(coils, r, h), tub || (quality === 'high' ? 220 : 110), wire, 8), mat);
+
+  // ---- lead path: lead + precision tip pipe ----
+  const leadMesh = add(new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 1.3, 12), mats.lead), -6.55, -3.1, { inner: true, name: 'lead' });
+  const sleeveMesh = add(lathe([[0.035, 0], [0.035, 0.7], [0.055, 0.85], [0.06, 1.0]], mats.nose, SEG_S), -6.15, -2.7, { inner: true, name: 'sleeve' });
+  // ---- nose: stepped machined cone (shell) + brass funnel insert ----
+  const noseInsert = add(lathe([[0.045, 0], [0.055, 0.3], [0.075, 0.6], [0.095, 0.8]], mats.brass, SEG_S), -5.35, -2.2, { inner: true, name: 'noseInsert' });
+  const noseMesh = add(lathe([[0.055, 0], [0.075, 0.12], [0.1, 0.35], [0.16, 0.8], [0.26, 1.35], [0.36, 1.85], [0.42, 2.1], [0.45, 2.2], [0.45, 2.32], [0.42, 2.38]], mats.nose), -5.55, -1.6, { shell: true, name: 'nose' });
+  // nose preload washer
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.1, SEG_S), mats.mech), -3.55, -1.25, { inner: true, name: 'noseWasher' });
+  // ---- grip zone: knurled sleeve + retainer rings + real diamond studs ----
+  const gripMesh = add(lathe([[0.4, 0], [0.44, 0.06], [0.45, 0.2], [0.45, 2.1], [0.43, 2.35], [0.42, 2.5], [0.38, 2.56]], mats.grip), -3.25, -0.8, { shell: true, name: 'grip' });
+  const ringGeo = new THREE.TorusGeometry(0.44, 0.028, 12, SEG);
+  add(new THREE.Mesh(ringGeo, mats.brushed), -3.1, -1.0, { name: 'ringBot' }).rotation.x = Math.PI / 2;
+  add(new THREE.Mesh(ringGeo, mats.brushed), -0.62, 0.6, { name: 'ringB' }).rotation.x = Math.PI / 2;
+  if (quality === 'high') {
+    const studGeo = new THREE.OctahedronGeometry(0.02);
+    const rows = 9, cols = 36;
+    const knurl = new THREE.InstancedMesh(studGeo, mats.dark, rows * cols);
+    const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), S = new THREE.Vector3(1, 1, 0.55), P = new THREE.Vector3(), E = new THREE.Euler();
+    let k = 0;
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+      const a = c / cols * Math.PI * 2 + (r % 2) * 0.087;
+      P.set(Math.cos(a) * 0.44, -2.95 + r * 0.235, Math.sin(a) * 0.44);
+      E.set(0, -a, Math.PI / 4); Q.setFromEuler(E);
+      M.compose(P, Q, S); knurl.setMatrixAt(k++, M);
+    }
+    knurl.instanceMatrix.needsUpdate = true;
+    add(knurl, 0, -0.8, { shell: true, name: 'knurl' });
+    knurl.position.y = 0;
+    parts[parts.length - 1].baseY = 0;
+  }
+  // ---- internal guide + thread insert ----
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 1.6, SEG_S, 1, true), mats.brass), -1.6, -0.3, { inner: true, name: 'guide' });
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.6, SEG_S, 1, true), mats.brass), -0.15, 0.35, { inner: true, name: 'threadRing' });
+  // fine thread ridges on insert (3 tori)
+  for (let i = 0; i < 3; i++) add(new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.012, 8, SEG_S), mats.brass), -0.3 + i * 0.14, 0.35, { inner: true, name: 'thread' + i }).rotation.x = Math.PI / 2;
+  // ---- barrel: anodized body as chamfered lathe + engraved grooves ----
+  const barrelMesh = add(lathe([[0.38, 0], [0.44, 0.08], [0.45, 0.25], [0.45, 5.9], [0.44, 6.1], [0.38, 6.25], [0.36, 6.3]], mats.barrel), -0.55, 0, { shell: true, name: 'barrel' });
+  for (let i = 0; i < 2; i++) add(new THREE.Mesh(new THREE.TorusGeometry(0.452, 0.012, 8, SEG), mats.dark), 4.55 + i * 0.14, 0, { name: 'barrelGroove' + i }).rotation.x = Math.PI / 2;
+  // ---- clip: blade + anchor foot + screw (rides datum) ----
+  const clipCurve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0, 5.9, 0.42), new THREE.Vector3(0, 4.6, 0.54),
+    new THREE.Vector3(0, 3.0, 0.54), new THREE.Vector3(0, 2.1, 0.46)
+  ]);
+  const clipMesh = add(new THREE.Mesh(new THREE.TubeGeometry(clipCurve, 32, 0.055, 10), mats.brushed), 0, 0.15, { name: 'clip' });
+  clipMesh.position.y = 0; clipMesh.scale.x = 1.7;
+  parts[parts.length - 1].baseY = 0;
+  add(new THREE.Mesh(new THREE.SphereGeometry(0.075, 16, 12), mats.brushed), 2.1, -0.1, { name: 'clipBall', radial: [0, 0.46] });
+  parts[parts.length - 1].obj.position.y = 2.1;
+  add(new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.34, 0.1), mats.dark), 5.75, 0.3, { name: 'clipFoot', radial: [0, 0.44] });
+  parts[parts.length - 1].obj.position.y = 5.75;
+  const clipScrew = add(new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.06, 16), mats.dark), 5.75, 0.55, { inner: true, name: 'clipScrew', radial: [0, 0.5] });
+  clipScrew.rotation.x = Math.PI / 2; parts[parts.length - 1].obj.position.y = 5.75;
+  // ---- lead reservoir (translucent) + end plug ----
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.31, 0.31, 3.0, SEG_S, 1, true), mats.reservoir), 2.0, 0.9, { inner: true, name: 'reservoir' });
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.31, 0.28, 0.35, SEG_S), mats.mech), 3.6, 1.15, { inner: true, name: 'resPlug' });
+  // ---- feed rod (hollow knock shaft) ----
+  const feedRod = add(new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 1.2, 24, 1, true), mats.nose), 3.9, 1.3, { inner: true, name: 'feedRod' });
+  // ---- return spring + seats ----
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.08, SEG_S), mats.dark), 3.95, 1.5, { inner: true, name: 'seatLow' });
+  const springMesh = add(helixMesh(8, 0.26, 1.1, 0.032, mats.spring), 4.55, 1.6, { inner: true, name: 'spring' });
+  springMesh.castShadow = false;
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.08, SEG_S), mats.dark), 5.15, 1.9, { inner: true, name: 'seatUp' });
+  // ---- clutch: housing + retainer + 3 tapered jaws ----
+  const clutchHousing = add(lathe([[0.16, 0], [0.24, 0.06], [0.26, 0.2], [0.26, 0.65], [0.22, 0.8], [0.16, 0.85]], mats.brass, SEG_S), 5.35, 1.95, { inner: true, name: 'clutch' });
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.23, 0.28, SEG_S, 1, true), mats.dark), 5.42, 2.25, { inner: true, name: 'retainer' });
+  const jawGeo = new THREE.BoxGeometry(0.11, 0.62, 0.08);
+  const jaws = [];
+  for (let i = 0; i < 3; i++) {
+    const j = new THREE.Mesh(jawGeo, mats.brass); j.castShadow = quality === 'high';
+    const a = i / 3 * Math.PI * 2;
+    j.userData.base = new THREE.Vector3(Math.cos(a) * 0.11, 5.15, Math.sin(a) * 0.11);
+    j.position.copy(j.userData.base); j.rotation.y = -a; j.rotation.z = 0.06;
+    pencil.add(j); jaws.push(j);
+    parts.push({ obj: j, baseY: 5.15, baseX: j.userData.base.x, baseZ: j.userData.base.z, explode: 2.2 + (i - 1) * 0.14, inner: true, jaw: true, angle: a, name: 'jaw' + i });
+  }
+  // ---- actuator cone + stroke washer ----
+  const actuatorMesh = add(lathe([[0.12, 0], [0.18, 0.1], [0.3, 0.45], [0.3, 0.6]], mats.mech, SEG_S), 6.05, 2.4, { inner: true, name: 'actuator' });
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.09, SEG_S), mats.mech), 6.4, 2.6, { inner: true, name: 'washerTop' });
+  // ---- button return spring (small) ----
+  const buttonSpringMesh = add(helixMesh(5, 0.2, 0.5, 0.026, mats.spring), 6.62, 2.9, { inner: true, name: 'buttonSpring' });
+  buttonSpringMesh.castShadow = false;
+  // ---- eraser stack: brass carrier + eraser + top collar + button ----
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.72, SEG_S, 1, true), mats.brass), 6.85, 2.85, { inner: true, name: 'eraserSleeve' });
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.62, SEG_S), mats.eraser), 6.95, 2.8, { name: 'eraser' });
+  add(lathe([[0.3, 0], [0.36, 0.06], [0.37, 0.18], [0.37, 0.4], [0.34, 0.5]], mats.polymer, SEG_S), 6.15, 2.5, { shell: true, name: 'collar' });
+  const buttonMesh = add(lathe([[0.28, 0], [0.32, 0.08], [0.32, 0.9], [0.28, 1.05], [0.2, 1.1]], mats.polymer, SEG_S), 7.0, 3.3, { name: 'button' });
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.9, 20, 1, true), mats.nose), 6.75, 3.5, { inner: true, name: 'buttonStem' });
+
+  pencil.rotation.z = -0.42; pencil.rotation.x = 0.08;
+  pencil.position.y = 0.2;
+  pencil.scale.setScalar(0.6);
+  scene.add(pencil);
+
+  composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+  composer.addPass(new OutputPass());
+
+  addEventListener('resize', () => {
+    camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight, false);
+    composer.setSize(innerWidth, innerHeight);
+    lastY = -1; // force a fresh frame after layout changes
+  });
+
+  /* ============ camera keyframes ============ */
+  const mob = (isSmall ? 1.45 : 1);
+  const KEYS = [
+    { p: 0.00, pos: [3.6, 1.6, 8.8 * mob], tgt: [0, 0, 0], fov: 35, label: '01 — Reveal' },
+    { p: 0.08, pos: [1.5, -1.2, 3.4 * mob], tgt: [0, -1.7, 0], fov: 28, label: '02 — Detail' },
+    { p: 0.20, pos: [0, 0.7, 19.2 * mob], tgt: [0, 0.7, 0], fov: 40, label: '03 — Exploded' },
+    { p: 0.335, pos: [0, 0.7, 17.8 * mob], tgt: [0, 0.7, 0], fov: 40, label: '04 — X-Ray' },
+    { p: 0.44, pos: [2.2, 4.4, 2.6 * mob], tgt: [0, 3.9, 0], fov: 25, label: '05 — Mechanism' },
+    { p: 0.56, pos: [-3.4, 1.3, 6.4 * mob], tgt: [0, 0, 0], fov: 35, label: '06 — Reassembly' },
+    { p: 0.63, pos: [2.8, 1.0, 5.8 * mob], tgt: [0, -0.1, 0], fov: 32, label: '07 — Object' },
+    { p: 1.00, pos: [2.4, 0.7, 6.4 * mob], tgt: [0, 0, 0], fov: 33, label: '08 — Lineup' }
+  ];
+  // whole-pencil keys: the final key is reached at p=0.90 and held through buy
+  KEYS[KEYS.length - 1].p = 0.90;
+  const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  const explodeF = p => sstep(0.15, 0.24, p) * (1 - sstep(0.38, 0.45, p));
+  const xrayF = p => sstep(0.32, 0.36, p) * (1 - sstep(0.52, 0.57, p));
+  const mechF = p => sstep(0.44, 0.48, p) * (1 - sstep(0.52, 0.56, p));
+  const detailF = p => sstep(0.05, 0.08, p) * (1 - sstep(0.13, 0.16, p));
+
+  const camPos = new THREE.Vector3(3.6, 1.6, 8.8), camTgt = new THREE.Vector3(0, 0, 0);
+  let camFov = 35, cur = 0, tgtP = 0, firstFrame = true, lastOp = -1;
+
+  function sampleCam(p, outP, outT, kf) {
+    let i = 0;
+    while (i < KEYS.length - 2 && p > KEYS[i + 1].p) i++;
+    const a = KEYS[i], b = KEYS[i + 1];
+    const t = sstep(a.p, b.p, p);
+    outP.set(
+      a.pos[0] + (b.pos[0] - a.pos[0]) * t,
+      a.pos[1] + (b.pos[1] - a.pos[1]) * t,
+      a.pos[2] + (b.pos[2] - a.pos[2]) * t);
+    outT.set(
+      a.tgt[0] + (b.tgt[0] - a.tgt[0]) * t,
+      a.tgt[1] + (b.tgt[1] - a.tgt[1]) * t,
+      a.tgt[2] + (b.tgt[2] - a.tgt[2]) * t);
+    camFov += ((a.fov + (b.fov - a.fov) * t) - camFov) * kf;
+    let li = 0; while (li < KEYS.length - 1 && p > KEYS[li + 1].p) li++;
+    sceneLabel.textContent = KEYS[li].label + (location.search.includes('dbg') ? ' · p=' + p.toFixed(3) : '');
+  }
+
+  /* ============ scroll → progress ============ */
+  const lineupSec = document.getElementById('lineup');
+  const track = document.getElementById('lineupTrack');
+  const variants = [...document.querySelectorAll('.variant[data-color]')];
+  const steps = [...document.querySelectorAll('.step')];
+  function readProgress() {
+    const y = scrollY;
+    if (y === lastY && Math.abs(tgtP - cur) < 0.0006) return false; // settled: skip DOM + render
+    lastY = y;
+    const max = document.documentElement.scrollHeight - innerHeight;
+    tgtP = max > 0 ? Math.min(1, Math.max(0, y / max)) : 0;
+    progressFill.style.transform = `scaleX(${tgtP})`;
+    nav.classList.toggle('scrolled', y > 40);
+    // horizontal lineup
+    const r = lineupSec.getBoundingClientRect();
+    const total = r.height - innerHeight;
+    const lp = total > 0 ? Math.min(1, Math.max(0, -r.top / total)) : 0;
+    if (motionOK) {
+      const dist = Math.max(0, track.scrollWidth - innerWidth + 60);
+      track.style.transform = `translate3d(${-dist * lp}px,0,0)`;
+    }
+    // active variant → recolor barrel
+    const vi = Math.min(variants.length - 1, Math.floor(lp * variants.length));
+    variants.forEach((v, i) => {
+      if (i === vi && v.dataset.color) mats.barrel.color.setHex(parseInt(v.dataset.color));
+    });
+    // mechanism steps highlight
+    const mechSec = document.getElementById('mechanism').getBoundingClientRect();
+    const mp = Math.min(1, Math.max(0, (innerHeight * 0.6 - mechSec.top) / mechSec.height));
+    const si = Math.min(4, Math.floor(mp * 5));
+    steps.forEach((s, i) => s.dataset.on = motionOK ? String(i <= si) : 'true');
+    return true;
+  }
+
+  /* ============ frame loop (allocation-free, no deprecated Clock) ============ */
+  let last = performance.now();
+  let raf = 0, visible = true;
+  // reveal-on-scroll
+  document.querySelectorAll('.rv').forEach(el => {
+    new IntersectionObserver((es, o) => es.forEach(e => {
+      if (e.isIntersecting) { e.target.classList.add('is-visible'); o.disconnect(); }
+    }), { threshold: 0.18 }).observe(el);
+  });
+  document.addEventListener('visibilitychange', () => {
+    visible = !document.hidden;
+    if (visible) { last = performance.now(); tick(); } else cancelAnimationFrame(raf);
+  });
+
+  function tick() {
+    raf = requestAnimationFrame(tick);
+    if (!visible) return;
+    const now = performance.now();
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    const kf = motionOK ? 1 - Math.exp(-6 * dt) : 1;
+    if (!readProgress() && !firstFrame) return; // settled: save GPU + battery
+    cur += (tgtP - cur) * (motionOK ? 1 - Math.exp(-4 * dt) : 1);
+    if (Math.abs(tgtP - cur) < 0.0004) cur = tgtP;
+    const p = cur;
+    const ex = explodeF(p), xr = xrayF(p), mc = mechF(p);
+    // camera (+ runtime close-up tracking: macro targets follow the actual parts,
+    // guaranteeing a true side view that can never stare down the pencil axis)
+    sampleCam(p, V.pos, V.tgt, kf);
+    const df = detailF(p);
+    if (df > 0.001 && jaws.length) {
+      gripMesh.getWorldPosition(V.tmp);
+      V.tmp2.set(2.9 * mob, 0, 3.9 * mob).add(V.tmp);
+      V.pos.lerp(V.tmp2, df); V.tgt.lerp(V.tmp, df);
+      V.tgt.x -= 0.35 * df * mob;
+      camFov += ((35 + (31 - 35) * df) - camFov) * kf;
+    }
+    if (mc > 0.001 && jaws.length) {
+      jaws[0].getWorldPosition(V.tmp);
+      V.tmp2.set(2.0 * mob, 0.55, 2.4 * mob).add(V.tmp);
+      V.pos.lerp(V.tmp2, mc); V.tgt.lerp(V.tmp, mc);
+      V.tgt.x -= 0.25 * mc * mob;
+      camFov += (24 - camFov) * kf * mc;
+    }
+    if (firstFrame) { camPos.copy(V.pos); camTgt.copy(V.tgt); firstFrame = false; }
+    const k = motionOK ? 1 - Math.exp(-5 * dt) : 1;
+    camPos.lerp(V.pos, k); camTgt.lerp(V.tgt, k);
+    camera.position.copy(camPos); camera.lookAt(camTgt);
+    if (Math.abs(camera.fov - camFov) > 0.01) { camera.fov = camFov; camera.updateProjectionMatrix(); }
+    // pencil attitude (+ hero offset so the headline sits clear of the barrel)
+    const pk = motionOK ? 1 - Math.exp(-3.5 * dt) : 1;
+    const heroOff = 1 - sstep(0.02, 0.10, p);
+    const reOff = sstep(0.55, 0.58, p) * (1 - sstep(0.63, 0.68, p));
+    pencil.position.x = (isSmall ? 1.7 : 1.05) * Math.max(heroOff, reOff * 0.8);
+    pencil.position.y = 0.2 + (isSmall ? 1.5 * heroOff : 0);
+    pencil.rotation.y += ((p * 2.4 - 0.4 + ex * 0.5) - pencil.rotation.y) * pk;
+    pencil.rotation.z += ((-0.42 + ex * 0.42 + mc * 0.1) - pencil.rotation.z) * pk;
+    // parts
+    const mScale = 0.7;
+    for (let i = 0; i < parts.length; i++) {
+      const pt = parts[i], o = pt.obj;
+      let y = pt.baseY + pt.explode * ex * mScale;
+      if (pt.jaw) {
+        const open = mc * 0.16 + ex * 0.1;
+        o.position.set(
+          Math.cos(pt.angle) * (0.11 + open),
+          y + mc * -0.12,
+          Math.sin(pt.angle) * (0.11 + open));
+        continue;
+      }
+      if (pt.name === 'button') y += mc * -0.22;
+      if (pt.name === 'buttonStem') y += mc * -0.22;
+      if (pt.name === 'actuator') y += mc * -0.18;
+      if (pt.name === 'feedRod') y += mc * -0.14;
+      if (pt.name === 'clutch') y += mc * -0.06;
+      if (pt.name === 'buttonSpring') o.scale.y = 1 - mc * 0.32;
+      if (pt.name === 'spring') o.scale.y = 1 - mc * 0.28;
+      if (pt.name === 'lead') y += mc * 0.34;
+      if (pt.name === 'sleeve') y += mc * 0.1;
+      if (pt.radialEx) { o.position.x = pt.baseX + pt.radialEx * ex; }
+      o.position.y = y;
+    }
+    // x-ray fades (+ inner-core legibility boost; shells leave the transparent pass when solid)
+    const wantX = xr > 0.003;
+    if (wantX !== shellX) {
+      shellX = wantX;
+      for (const m of shellMats) { m.transparent = wantX; m.needsUpdate = true; }
+    }
+    for (const m of shellMats) {
+      m.opacity = 1 - xr * 0.85;
+      m.depthWrite = xr < 0.4;
+    }
+    mats.core.emissive.setRGB(xr * 0.16, xr * 0.07, xr * 0.03);
+    mats.spring.emissive.setRGB(xr * 0.12, xr * 0.12, xr * 0.13);
+    if (mats.brass && mats.brass.emissive) mats.brass.emissive.setRGB(xr * 0.1, xr * 0.06, xr * 0.02);
+    // lineup + buy: settle the canvas to a quiet backdrop so cards stay legible
+    const op = 1 - 0.7 * sstep(0.67, 0.72, p);
+    if (Math.abs(op - lastOp) > 0.002) { canvas.style.opacity = op.toFixed(3); lastOp = op; }
+    key.intensity = 2.6 + Math.sin(p * Math.PI * 2) * 0.25 + xr * 0.6;
+    // render
+    composer.render();
+    if (loadFill) loadFill.style.width = '100%';
+    if (!loader.classList.contains('done')) {
+      loader.classList.add('done');
+      loader.setAttribute('aria-hidden', 'true');
+    }
+  }
+  // lineup section needs scroll room for horizontal travel
+  lineupSec.style.height = (innerHeight * 4) + 'px';
+  renderer.compile(scene, camera);
+  tick();
+}
+
+/* ============ buy / motion toggle (work with or without WebGL) ============ */
+const PRICES = { Core: 48, Studio: 64, Pro: 86, Limited: 148 };
+const buyForm = document.getElementById('buyForm');
+const buyBtn = document.getElementById('buyBtn');
+const toast = document.getElementById('toast');
+buyForm.addEventListener('change', () => {
+  const v = new FormData(buyForm).get('variant') || 'Core';
+  buyBtn.textContent = `Add to Cart — $${PRICES[v]}`;
+  if (mats.barrel) {
+    const map = { Core: 0x2b2f36, Studio: 0x1e2f4f, Pro: 0x6b5a3e, Limited: 0x4a4e55 };
+    mats.barrel.color.setHex(map[v] ?? 0x1e2f4f);
+  }
+});
+buyForm.addEventListener('submit', e => {
+  e.preventDefault();
+  const v = new FormData(buyForm).get('variant') || 'Core';
+  toast.textContent = `${v} added to cart — ships in a steel tube with 3 leads…`;
+  buyBtn.textContent = 'Added ✓';
+  setTimeout(() => { buyBtn.textContent = `Add to Cart — $${PRICES[v]}`; }, 2200);
+});
+motionBtn.addEventListener('click', () => {
+  motionOK = !motionOK;
+  motionBtn.textContent = motionOK ? 'Pause motion' : 'Resume motion';
+  motionBtn.setAttribute('aria-pressed', String(!motionOK));
+  document.body.classList.toggle('reduced', !motionOK);
+  lastY = -1; // force one fresh frame so the toggle takes effect immediately
+});
+function applyReducedInit() {
+  document.body.classList.toggle('reduced', !motionOK);
+}
+if (mqReduce.matches) { motionOK = false; motionBtn.textContent = 'Resume motion'; motionBtn.setAttribute('aria-pressed', 'true'); }
+applyReducedInit();
+</script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+/* ---------- horizontal lineup ---------- */
+#lineup{position:relative}
+.pin{position:sticky;top:0;height:100dvh;overflow:hidden;display:flex;align-items:center}
+.track{display:flex;gap:0;will-change:transform;padding-left:max(24px,calc((100vw - 1200px)/2 + 24px))}
+.variant{flex:0 0 min(78vw,560px);padding-right:56px}
+.variant .shot{height:300px;border:1px solid var(--hairline);background:var(--card);border-radius:var(--radius);
+  display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
+.variant .shot svg{width:70%;height:auto}
+.variant .shot img{width:92%;height:auto;display:block}
+.variant .dot{position:absolute;top:14px;left:14px;font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--muted)}
+.variant h3{font-size:30px;margin-top:20px}
+.variant .mat{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:6px;letter-spacing:.06em}
+.variant p{color:var(--muted);margin-top:10px;font-size:15px}
+.variant .row{display:flex;align-items:center;gap:16px;margin-top:16px}
+.price{font-variant-numeric:tabular-nums;font-weight:700;font-size:17px}
+.swatch{width:22px;height:22px;border-radius:50%;border:1px solid var(--hairline);display:inline-block}
+.lineup-hint{position:absolute;bottom:26px;left:0;right:0;text-align:center}
+/* motion paused / reduced-motion fallback: lineup becomes native horizontal scroll */
+.reduced #lineup{height:auto !important}
+.reduced .pin{position:static;height:auto;overflow-x:auto;overflow-y:hidden}
+.reduced .track{transform:none !important}
+.reduced .lineup-hint{display:none}

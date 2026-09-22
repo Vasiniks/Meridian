@@ -1,0 +1,20 @@
+/* ---------- buy ---------- */
+#buy{padding:20dvh 0 16dvh}
+.buy-grid{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:start}
+.buy-box{border:1px solid var(--hairline);background:var(--card);border-radius:var(--radius);padding:32px}
+fieldset{border:0;margin:0 0 6px;padding:0}
+legend{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+.opt{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--hairline);border-radius:var(--radius);
+  margin-bottom:10px;cursor:pointer;transition:border-color .18s ease,transform .18s var(--ease-out)}
+.opt:hover{border-color:var(--ink)}
+.opt:has(input:checked){border-color:var(--ink);border-width:2px;padding:11px 13px}
+.opt input{accent-color:var(--accent);width:18px;height:18px}
+.opt .t{font-weight:600;font-size:15px}
+.opt .d{font-size:13px;color:var(--muted)}
+.opt .p{margin-left:auto;font-variant-numeric:tabular-nums;font-weight:700}
+.buy-cta{width:100%;margin-top:14px;background:var(--ink);color:var(--paper);border:0;border-radius:var(--radius);
+  padding:17px;font-weight:700;font-size:16px;cursor:pointer;transition:transform .18s var(--ease-out),background .18s ease}
+.buy-cta:hover{background:#000;transform:translateY(-1px)}
+.buy-cta:active{transform:scale(.98)}
+.fine{font-size:13px;color:var(--muted);margin-top:12px;text-align:center}
+#toast{margin-top:12px;font-size:14px;color:var(--accent-ink);min-height:22px;text-align:center}

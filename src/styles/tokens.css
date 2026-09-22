@@ -1,0 +1,7 @@
+:root{
+  --paper:#F5F3EE; --card:#FFFFFF; --ink:#141412; --muted:#6E6C66;
+  --hairline:#E2DFD6; --fill:#EBE8E0; --accent:#A63D22; --accent-ink:#7E2C16;
+  --radius:2px; --max:1200px; --font:"Inter Tight",-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",Arial,sans-serif;
+  --mono:"IBM Plex Mono",SFMono-Regular,Menlo,Consolas,monospace;
+  --ease-out:cubic-bezier(0.16,1,0.3,1); --ease-standard:cubic-bezier(0.22,1,0.36,1);
+}
