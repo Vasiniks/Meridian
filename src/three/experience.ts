@@ -174,17 +174,22 @@ export class PencilExperience {
       }
       const variants = [...document.querySelectorAll<HTMLElement>('.variant[data-color]')]
       const vi = Math.min(variants.length - 1, Math.floor(lp * variants.length))
-      variants.forEach((v, i) => {
-        if (i === vi && v.dataset.color) {
-          // Target only — the loop chases it smoothly, so scrubbing
-          // either direction never snaps.
-          const hex = parseInt(v.dataset.color)
-          if (this.colorTarget.getHex() !== hex) {
-            this.colorTarget.setHex(hex)
-            this.colorDirty = true
-          }
+      // Chase card colors only while the lineup is actually on screen.
+      // Past it (buy section), the buy form owns the tint — otherwise any
+      // scroll tick would yank the color back to the last card.
+      // Above it, settle back to the hero Core.
+      const setTarget = (hex: number): void => {
+        if (this.colorTarget.getHex() !== hex) {
+          this.colorTarget.setHex(hex)
+          this.colorDirty = true
         }
-      })
+      }
+      if (lp > 0 && lp < 1) {
+        const v = variants[vi]
+        if (v?.dataset.color) setTarget(parseInt(v.dataset.color))
+      } else if (r.top >= window.innerHeight) {
+        setTarget(ANODIZED.Core)
+      }
     }
     // mechanism steps highlight
     const mechSec = document.getElementById('mechanism')
