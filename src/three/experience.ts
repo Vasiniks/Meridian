@@ -281,26 +281,27 @@ export class PencilExperience {
       (p * 2.4 - 0.4 + ex * 0.5 + this.spin - asm.group.rotation.y) * pk
     // Lineup: lay the pencil flatter so it floats behind the cards like
     // the card renders (ramps both directions with the dolly weight).
+    // Undone through the buy range so the finale stands upright again.
     const lineupTilt = sstep(0.62, 0.72, p)
+    const buyUp = sstep(0.96, 1.0, p)
     asm.group.rotation.z +=
-      (-0.42 + ex * 0.42 + mc * 0.1 - 0.8 * lineupTilt - asm.group.rotation.z) * pk
+      (-0.42 + ex * 0.42 + mc * 0.1 - 0.8 * lineupTilt * (1 - buyUp) - asm.group.rotation.z) * pk
     // Gradual barrel tint chase — smooth in both scroll directions.
     if (asm.barrelMat) {
       asm.barrelMat.color.lerp(this.colorTarget, 1 - Math.exp(-8 * dt))
     }
-    // Buy pose: the single model shrinks and settles bottom-left while
-    // the turntable keeps spinning. Camera-space offset (left + down,
-    // distance-aware) so it lands correctly at any window size. All
-    // weights ramp both directions — scrolling back restores smoothly
-    // from any rotation via the exponential chases below.
-    const buyW = sstep(0.93, 0.985, p)
+    // Buy pose: the single model shrinks and settles into the left
+    // whitespace while the turntable keeps spinning. Stand back upright
+    // (undo the lineup lean) so the spin reads as a turntable, and land
+    // centered in the open area at any window size.
+    const buyW = sstep(0.96, 1.0, p)
     {
       const cam = this.stage.camera
       const dist = cam.position.distanceTo(asm.group.position)
       this.vTmp.setFromMatrixColumn(cam.matrixWorld, 0)
       this.vTmp2.setFromMatrixColumn(cam.matrixWorld, 1)
-      const ox = -0.22 * dist * buyW
-      const oy = -0.12 * dist * buyW
+      const ox = -0.30 * dist * buyW
+      const oy = -0.02 * dist * buyW
       asm.group.position.x += this.vTmp.x * ox + this.vTmp2.x * oy
       asm.group.position.y += this.vTmp.y * ox + this.vTmp2.y * oy
       // base z is always 0 (attitude never touches it), so assign —
