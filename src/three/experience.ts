@@ -47,6 +47,9 @@ export class PencilExperience {
   // forth stays continuous) + smooth color chase toward the active card.
   private spin = 0
   private colorTarget = new THREE.Color(ANODIZED.Core)
+  // True while a tint chase still has visible distance to cover — keeps
+  // the loop ticking after scroll settles so variant clicks always play.
+  private colorDirty = true
   private refreshViewport(): void {
     const w = window.innerWidth
     const h = window.innerHeight
@@ -125,7 +128,11 @@ export class PencilExperience {
   }
 
   setVariant(name: string): void {
-    this.colorTarget.setHex(ANODIZED[name] ?? 0x1e2f4f)
+    const hex = ANODIZED[name] ?? 0x1e2f4f
+    if (this.colorTarget.getHex() !== hex) {
+      this.colorTarget.setHex(hex)
+      this.colorDirty = true
+    }
   }
 
   setMotionOK(ok: boolean): void {
@@ -171,7 +178,11 @@ export class PencilExperience {
         if (i === vi && v.dataset.color) {
           // Target only — the loop chases it smoothly, so scrubbing
           // either direction never snaps.
-          this.colorTarget.setHex(parseInt(v.dataset.color))
+          const hex = parseInt(v.dataset.color)
+          if (this.colorTarget.getHex() !== hex) {
+            this.colorTarget.setHex(hex)
+            this.colorDirty = true
+          }
         }
       })
     }
@@ -199,7 +210,13 @@ export class PencilExperience {
     const dt = Math.min(0.05, (now - this.last) / 1000)
     this.last = now
     const kf = this.motionOK ? 1 - Math.exp(-6 * dt) : 1
-    if (!this.readProgress() && !this.firstFrame) return
+    // Settled-frame optimization — BUT keep ticking while the turntable
+    // spins or a tint chase is in flight, otherwise the spin would freeze
+    // the moment scrolling stops and variant clicks would never animate.
+    if (!this.readProgress() && !this.firstFrame) {
+      const idleSpin = this.motionOK && sstep(0.62, 0.72, this.cur) > 0
+      if (!idleSpin && !this.colorDirty) return
+    }
     const asm = this.asm
     const mob = this.mobEff
     const edge = this.edgeK
@@ -288,7 +305,15 @@ export class PencilExperience {
       (-0.42 + ex * 0.42 + mc * 0.1 - 0.8 * lineupTilt * (1 - buyUp) - asm.group.rotation.z) * pk
     // Gradual barrel tint chase — smooth in both scroll directions.
     if (asm.barrelMat) {
-      asm.barrelMat.color.lerp(this.colorTarget, 1 - Math.exp(-8 * dt))
+      const c = asm.barrelMat.color
+      c.lerp(this.colorTarget, 1 - Math.exp(-8 * dt))
+      const dr = c.r - this.colorTarget.r
+      const dg = c.g - this.colorTarget.g
+      const db = c.b - this.colorTarget.b
+      if (dr * dr + dg * dg + db * db < 1e-8) {
+        c.copy(this.colorTarget)
+        this.colorDirty = false
+      }
     }
     // Buy pose: the single model shrinks and settles into the left
     // whitespace while the turntable keeps spinning. Stand back upright
