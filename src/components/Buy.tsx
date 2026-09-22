@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { PRICES, buyEyebrow, buyFine, buyLede, buyOptions, buySpecs, buyTitle } from "../data/content";
+import BuySpinner from "./BuySpinner";
 
 export interface BuyProps {
   onVariantChange?: (variantName: string) => void;
@@ -28,7 +29,7 @@ export default function Buy({ onVariantChange }: BuyProps) {
   return (
     <section id="buy" aria-labelledby="h-buy">
       <div className="wrap buy-grid panel">
-        <div className="rv">
+        <div className="rv buy-copy">
           <div className="eyebrow">{buyEyebrow}</div>
           <h2 id="h-buy">{buyTitle}</h2>
           <p className="lede">{buyLede}</p>
@@ -40,6 +41,7 @@ export default function Buy({ onVariantChange }: BuyProps) {
               </li>
             ))}
           </ul>
+          <BuySpinner variant={variant} />
         </div>
         <form className="buy-box rv" id="buyForm" onSubmit={handleSubmit}>
           <fieldset>

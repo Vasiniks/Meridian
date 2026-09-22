@@ -35,4 +35,4 @@ export const detailF = (p: number): number =>
 export const heroOffF = (p: number): number => 1 - sstep(0.02, 0.1, p)
 export const reOffF = (p: number): number =>
   sstep(0.55, 0.58, p) * (1 - sstep(0.63, 0.68, p))
-export const canvasDimF = (p: number): number => 1 - sstep(0.67, 0.72, p)
+export const canvasDimF = (_p: number): number => 1

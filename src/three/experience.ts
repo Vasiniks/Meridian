@@ -10,6 +10,7 @@ import {
   heroOffF,
   mechF,
   reOffF,
+  sstep,
   xrayF,
 } from '../data/scroll'
 
@@ -42,6 +43,10 @@ export class PencilExperience {
   private aspect = 1
   private mobEff = 1
   private edgeK = 1
+  // Lineup turntable: accumulated spin (time-based, so scrubbing back and
+  // forth stays continuous) + smooth color chase toward the active card.
+  private spin = 0
+  private colorTarget = new THREE.Color(ANODIZED.Core)
   private refreshViewport(): void {
     const w = window.innerWidth
     const h = window.innerHeight
@@ -120,7 +125,7 @@ export class PencilExperience {
   }
 
   setVariant(name: string): void {
-    this.asm?.barrelMat?.color.setHex(ANODIZED[name] ?? 0x1e2f4f)
+    this.colorTarget.setHex(ANODIZED[name] ?? 0x1e2f4f)
   }
 
   setMotionOK(ok: boolean): void {
@@ -163,8 +168,10 @@ export class PencilExperience {
       const variants = [...document.querySelectorAll<HTMLElement>('.variant[data-color]')]
       const vi = Math.min(variants.length - 1, Math.floor(lp * variants.length))
       variants.forEach((v, i) => {
-        if (i === vi && v.dataset.color && this.asm?.barrelMat) {
-          this.asm.barrelMat.color.setHex(parseInt(v.dataset.color))
+        if (i === vi && v.dataset.color) {
+          // Target only — the loop chases it smoothly, so scrubbing
+          // either direction never snaps.
+          this.colorTarget.setHex(parseInt(v.dataset.color))
         }
       })
     }
@@ -235,6 +242,29 @@ export class PencilExperience {
       this.firstFrame = false
     }
     const k = this.motionOK ? 1 - Math.exp(-5 * dt) : 1
+    // Lineup backdrop: tuck the spinning pencil behind/right and dolly out
+    // so the cards stay readable (no fade-out anymore). Applied to the
+    // FRESH per-frame targets (vPos/vTgt are reset by sampleCam every
+    // frame) — never to the smoothed camPos/camTgt, which would integrate
+    // the offset every frame and drift out of frame.
+    const lineupDolly = sstep(0.62, 0.72, p)
+    if (lineupDolly > 0.001) {
+      this.vTgt.x -= 2.2 * lineupDolly
+      this.vTgt.y += 1.6 * lineupDolly
+      this.vTmp.copy(this.vPos).sub(this.vTgt)
+      this.vTmp.multiplyScalar(1 + 1.4 * lineupDolly)
+      this.vPos.copy(this.vTgt).add(this.vTmp)
+    }
+    // Buy handoff: drift the main pencil further out toward the right
+    // edge as the buy card arrives, yielding the stage to the spinner.
+    // Ramps both directions with scroll.
+    const buyF = sstep(0.92, 0.97, p)
+    if (buyF > 0.001) {
+      this.vTgt.x -= 2.2 * buyF
+      this.vTmp.copy(this.vPos).sub(this.vTgt)
+      this.vTmp.multiplyScalar(1 + 1.2 * buyF)
+      this.vPos.copy(this.vTgt).add(this.vTmp)
+    }
     this.camPos.lerp(this.vPos, k)
     this.camTgt.lerp(this.vTgt, k)
     this.stage.camera.position.copy(this.camPos)
@@ -252,8 +282,21 @@ export class PencilExperience {
     asm.group.position.x =
       (isSmall ? 1.7 : 1.05) * Math.max(heroOff, reOff * 0.8)
     asm.group.position.y = 0.2 + (isSmall ? 1.5 * heroOff : 0)
-    asm.group.rotation.y += (p * 2.4 - 0.4 + ex * 0.5 - asm.group.rotation.y) * pk
-    asm.group.rotation.z += (-0.42 + ex * 0.42 + mc * 0.1 - asm.group.rotation.z) * pk
+    // Lineup turntable: continuous time-based spin layered over the scroll
+    // pose (ramps in with the lineup, stays on through buy).
+    const lineupF = sstep(0.62, 0.72, p)
+    if (this.motionOK) this.spin += dt * 0.55 * lineupF
+    asm.group.rotation.y +=
+      (p * 2.4 - 0.4 + ex * 0.5 + this.spin - asm.group.rotation.y) * pk
+    // Lineup: lay the pencil flatter so it floats behind the cards like
+    // the card renders (ramps both directions with the dolly weight).
+    const lineupTilt = sstep(0.62, 0.72, p)
+    asm.group.rotation.z +=
+      (-0.42 + ex * 0.42 + mc * 0.1 - 0.8 * lineupTilt - asm.group.rotation.z) * pk
+    // Gradual barrel tint chase — smooth in both scroll directions.
+    if (asm.barrelMat) {
+      asm.barrelMat.color.lerp(this.colorTarget, 1 - Math.exp(-8 * dt))
+    }
 
     // parts — the multi-stage knock sequence drives related components
     const mScale = 0.7

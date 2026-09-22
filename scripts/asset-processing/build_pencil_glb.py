@@ -323,17 +323,20 @@ def build_part_geometry(name, q):
         return mb, "anodized"
     if name == "barrelGrooves":
         # two recessed hex groove rings near the top of the barrel
+        # r=0.465: deliberately ~0.015 proud of the hull (r=0.45) so the
+        # bands interpenetrate the hull instead of hovering 0.002 above it
         for dy in (2.30, 2.46):
-            hex_stack(mb, [(dy - 0.035, 0.452), (dy + 0.035, 0.452)],
+            hex_stack(mb, [(dy - 0.035, 0.465), (dy + 0.035, 0.465)],
                        capped=True)
         return mb, "recess"
     if name == "gripSleeve":
-        hex_stack(mb, [(-1.35, 0.40), (-1.25, 0.44), (1.25, 0.44),
-                       (1.35, 0.40)])
+        hex_stack(mb, [(-1.35, 0.40), (-1.25, 0.44), (1.28, 0.44),
+                       (1.42, 0.40)])
         return mb, "dlc"
     if name == "gripUnderlay":
         # same metal as the sleeve: knurling is cut into one material
-        hex_stack(mb, [(-1.30, 0.425), (1.30, 0.425)], capped=False)
+        # r=0.410 keeps a clear 0.03 gap to the sleeve wall (r=0.44)
+        hex_stack(mb, [(-1.30, 0.410), (1.30, 0.410)], capped=False)
         return mb, "dlc"
     if name == "gripLattice":
         # Seamless honeycomb knurl: truncated HEXAGONAL pyramids (flat tops)
@@ -400,8 +403,11 @@ def build_part_geometry(name, q):
                 ci += 1
         return mb, "dlc"
     if name in ("gripRingTop", "gripRingBot"):
-        # chamfered hex collar ring
-        hex_stack(mb, [(-0.10, 0.40), (-0.05, 0.465), (0.05, 0.465),
+        # chamfered hex collar ring; bottom extended 0.02 on gripRingTop
+        # so its face interpenetrates the barrel end instead of sitting
+        # coplanar with it (gripRingBot already straddles the sleeve end)
+        lo = -0.12 if name == "gripRingTop" else -0.10
+        hex_stack(mb, [(lo, 0.40), (-0.05, 0.465), (0.05, 0.465),
                        (0.10, 0.40)])
         return mb, "steel"
     if name == "noseHex":
@@ -415,13 +421,17 @@ def build_part_geometry(name, q):
         # tip ferrule: tapers toward the lead (down). Top (cone-side)
         # r=0.075 meets the cone's narrow end flush; bottom r=0.055 meets
         # the leadSleeve (r=0.055) flush. (Previously inverted.)
-        hex_stack(mb, [(-0.15, 0.055), (0.10, 0.070), (0.15, 0.075)])
+        # tip ferrule: tapers toward the lead (down). Top r=0.075 sinks
+        # 0.03 INTO the cone's narrow end instead of ending flush at its face
+        hex_stack(mb, [(-0.15, 0.055), (0.10, 0.070), (0.18, 0.075)])
         return mb, "polished"
     if name == "noseInsert":
         hex_stack(mb, [(-0.40, 0.045), (0.0, 0.055), (0.40, 0.095)])
         return mb, "brass"
     if name == "leadSleeve":
-        cyl(mb, -0.50, 0.50, 0.055, seg=cyl_seg)
+        # r=0.048: clear 0.007 step inside the tip bore (r=0.055),
+        # was exactly coplanar (0.055/0.055) over the 0.10 overlap
+        cyl(mb, -0.50, 0.50, 0.048, seg=cyl_seg)
         return mb, "steel"
     if name == "lead":
         cyl(mb, -0.65, 0.65, 0.025, seg=8)
@@ -438,22 +448,29 @@ def build_part_geometry(name, q):
                        (0.48, 0.30), (0.55, 0.22)])
         return mb, "polymer"
     if name == "buttonStem":
-        hex_stack(mb, [(-0.45, 0.13), (0.45, 0.13)], capped=True)
+        # bottom extended 0.07 so it sinks into washerTop instead of
+        # floating 0.055 above it
+        hex_stack(mb, [(-0.52, 0.13), (0.45, 0.13)], capped=True)
         return mb, "steel"
     if name == "eraser":
         cyl(mb, -0.31, 0.31, 0.18, seg=cyl_seg)
         return mb, "eraser"
     if name == "eraserSleeve":
-        open_hex_tube(mb, -0.36, 0.36, 0.22)
+        # bottom extended 0.06 to sink INTO washerTop (was a 0.045 float)
+        open_hex_tube(mb, -0.42, 0.36, 0.22)
         return mb, "brass"
     if name == "buttonSpring":
         helix_tube(mb, 5, 0.20, -0.25, 0.25, 0.026, spc, ws)
         return mb, "spring"
     if name == "returnSpring":
-        helix_tube(mb, 8, 0.26, -0.55, 0.55, 0.032, spc, ws)
+        # ends extended 0.03 so coils sink 0.02 INTO seatLow/seatUp
+        # instead of hovering 0.01 off their faces
+        helix_tube(mb, 8, 0.26, -0.58, 0.58, 0.032, spc, ws)
         return mb, "spring"
     if name == "stabilizerSpring":
-        helix_tube(mb, 6, 0.33, -0.40, 0.40, 0.022, spc, ws)
+        # R 0.33->0.35: coil inner clears the reservoir vertices (0.31)
+        # by 0.018 (was a 0.002 graze)
+        helix_tube(mb, 6, 0.35, -0.40, 0.40, 0.022, spc, ws)
         return mb, "spring"
     if name == "actuatorCone":
         hex_stack(mb, [(-0.30, 0.12), (-0.20, 0.18), (0.15, 0.30),
@@ -481,14 +498,20 @@ def build_part_geometry(name, q):
         return mb, "brass"
     if name in ("jawA", "jawB", "jawC"):
         # tapered clutch jaw wedge with chamfered tip
+        # each jaw rotated by its jawAngle: the three wedges were built
+        # identical at the origin (triple-coplanar) — now clocked 120°
+        # apart so faces interpenetrate at angles instead of coinciding
+        ang = {"jawA": 0.0, "jawB": 2.0944, "jawC": 4.1888}[name]
         mb2 = mb
         # wedge: box tapering toward -Y tip
         yT, yB = 0.31, -0.31
         wT, wB = 0.055, 0.075
         d = 0.045
         # 8 corners
-        T = [(-wT, yT, -d), (wT, yT, -d), (wT, yT, d), (-wT, yT, d)]
-        B = [(-wB, yB, -d), (wB, yB, -d), (wB, yB, d), (-wB, yB, d)]
+        T = [_rot_y(p, ang) for p in
+             [(-wT, yT, -d), (wT, yT, -d), (wT, yT, d), (-wT, yT, d)]]
+        B = [_rot_y(p, ang) for p in
+             [(-wB, yB, -d), (wB, yB, -d), (wB, yB, d), (-wB, yB, d)]]
         faces = [
             (T[0], T[1], T[2], T[3]),
             (B[0], B[3], B[2], B[1]),
@@ -508,7 +531,9 @@ def build_part_geometry(name, q):
         hex_stack(mb, [(-0.04, 0.30), (0.04, 0.30)], capped=True)
         return mb, "mechdark"
     if name == "washerTop":
-        hex_stack(mb, [(-0.045, 0.32), (0.045, 0.32)], capped=True)
+        # bottom sinks 0.015 into the actuator cone top; top stands 0.025
+        # proud of the collar face (was 0.005/0.015 near-touching both)
+        hex_stack(mb, [(-0.065, 0.32), (0.055, 0.32)], capped=True)
         return mb, "mechdark"
     if name == "noseWasher":
         hex_stack(mb, [(-0.05, 0.36), (0.05, 0.36)], capped=True)
@@ -522,15 +547,15 @@ def build_part_geometry(name, q):
     if name == "threadRing":
         hex_stack(mb, [(-0.30, 0.38), (-0.22, 0.40), (0.22, 0.40),
                        (0.30, 0.38)])
-        # thread ridges
+        # thread ridges: 0.012 proud of the ring wall (was 0.005 hover)
         for dy in (-0.12, 0.0, 0.12):
             r0, r1 = [], []
             for k in range(6):
                 a0 = k * TAU / 6
-                r0.append((0.405 * math.cos(a0), dy - 0.018,
-                           0.405 * math.sin(a0)))
-                r1.append((0.405 * math.cos(a0), dy + 0.018,
-                           0.405 * math.sin(a0)))
+                r0.append((0.412 * math.cos(a0), dy - 0.018,
+                           0.412 * math.sin(a0)))
+                r1.append((0.412 * math.cos(a0), dy + 0.018,
+                           0.412 * math.sin(a0)))
             for k in range(6):
                 mb.quad(r0[k], r0[(k + 1) % 6], r1[(k + 1) % 6], r1[k],
                          out_ref=(0, dy, 0))
@@ -545,7 +570,7 @@ def build_part_geometry(name, q):
                 (0.08, 0.4, 0.0), (-0.08, 0.4, 0.0)]
         # offset outward in +Z by standoff, with thickness via two faces
         t = 0.035
-        for (y0, y1, zc) in ((-1.5, 0.4, 0.52),):
+        for (y0, y1, zc) in ((-1.5, 0.75, 0.52),):
             a = (-0.085, y0, zc)
             b = (0.085, y0, zc)
             c = (0.085, y1, zc + 0.02)
@@ -554,6 +579,11 @@ def build_part_geometry(name, q):
             mb.quad((a[0], a[1], a[2] - t), (d[0], d[1], d[2] - t),
                      (c[0], c[1], c[2] - t), (b[0], b[1], b[2] - t),
                      out_ref=(0, (y0 + y1) / 2, zc - 1))
+        # top tab bends inward (-Z) to sink INTO the clip foot front
+        # (foot front z=0.47 after seating; tab ends at z=0.44, y=5.80)
+        mb.quad((-0.085, 0.75, 0.54), (0.085, 0.75, 0.54),
+                 (0.085, 0.95, 0.44), (-0.085, 0.95, 0.44),
+                 out_ref=(0, 0.85, 1))
         # bent tip tab
         mb.quad((-0.085, -1.5, 0.52), (0.085, -1.5, 0.52),
                  (0.085, -1.78, 0.46), (-0.085, -1.78, 0.46),
@@ -648,7 +678,9 @@ def write_glb(path, q):
         if spec["name"] == "clipBlade":
             n.translation = [0.0, 4.85, 0.0]
         if spec["name"] == "clipFoot":
-            n.translation = [0.0, 5.75, 0.44]
+            # seated 0.02 into the barrel face (was grazing it) —
+            # back face z=0.37 vs face apothem ~0.381
+            n.translation = [0.0, 5.75, 0.42]
         if spec["name"] == "clipScrew":
             n.translation = [0.0, 5.75, 0.50]
         g.nodes.append(n)
