@@ -1,6 +1,5 @@
 import { useState, type FormEvent } from "react";
 import { PRICES, buyEyebrow, buyFine, buyLede, buyOptions, buySpecs, buyTitle } from "../data/content";
-import BuySpinner from "./BuySpinner";
 
 export interface BuyProps {
   onVariantChange?: (variantName: string) => void;
@@ -41,7 +40,6 @@ export default function Buy({ onVariantChange }: BuyProps) {
               </li>
             ))}
           </ul>
-          <BuySpinner variant={variant} />
         </div>
         <form className="buy-box rv" id="buyForm" onSubmit={handleSubmit}>
           <fieldset>

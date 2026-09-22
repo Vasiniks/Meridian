@@ -26,6 +26,7 @@ export default function App() {
       canvasRef.current ?? (document.getElementById('gl') as HTMLCanvasElement)
     const exp = new PencilExperience(canvas)
     expRef.current = exp
+    ;(window as unknown as { __exp?: unknown }).__exp = exp
     setMotionPaused(!exp.isMotionOK())
     if (!exp.isMotionOK()) document.body.classList.add('reduced')
     let cancelled = false

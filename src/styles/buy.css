@@ -19,7 +19,3 @@ legend{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform
 .fine{font-size:13px;color:var(--muted);margin-top:12px;text-align:center}
 #toast{margin-top:12px;font-size:14px;color:var(--accent-ink);min-height:22px;text-align:center}
 .buy-copy{display:flex;flex-direction:column;min-width:0}
-.buy-spinner{margin-top:36px;max-width:440px;background:transparent}
-.buy-spinner-canvas{display:block;width:100%;aspect-ratio:1/1;height:auto;background:transparent}
-.buy-spinner-cap{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;
-  color:var(--muted);margin:10px 2px 0}

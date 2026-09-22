@@ -255,16 +255,7 @@ export class PencilExperience {
       this.vTmp.multiplyScalar(1 + 1.4 * lineupDolly)
       this.vPos.copy(this.vTgt).add(this.vTmp)
     }
-    // Buy handoff: drift the main pencil further out toward the right
-    // edge as the buy card arrives, yielding the stage to the spinner.
-    // Ramps both directions with scroll.
-    const buyF = sstep(0.92, 0.97, p)
-    if (buyF > 0.001) {
-      this.vTgt.x -= 2.2 * buyF
-      this.vTmp.copy(this.vPos).sub(this.vTgt)
-      this.vTmp.multiplyScalar(1 + 1.2 * buyF)
-      this.vPos.copy(this.vTgt).add(this.vTmp)
-    }
+    // (buy handoff runs after the attitude code below)
     this.camPos.lerp(this.vPos, k)
     this.camTgt.lerp(this.vTgt, k)
     this.stage.camera.position.copy(this.camPos)
@@ -297,6 +288,26 @@ export class PencilExperience {
     if (asm.barrelMat) {
       asm.barrelMat.color.lerp(this.colorTarget, 1 - Math.exp(-8 * dt))
     }
+    // Buy pose: the single model shrinks and settles bottom-left while
+    // the turntable keeps spinning. Camera-space offset (left + down,
+    // distance-aware) so it lands correctly at any window size. All
+    // weights ramp both directions — scrolling back restores smoothly
+    // from any rotation via the exponential chases below.
+    const buyW = sstep(0.93, 0.985, p)
+    {
+      const cam = this.stage.camera
+      const dist = cam.position.distanceTo(asm.group.position)
+      this.vTmp.setFromMatrixColumn(cam.matrixWorld, 0)
+      this.vTmp2.setFromMatrixColumn(cam.matrixWorld, 1)
+      const ox = -0.22 * dist * buyW
+      const oy = -0.12 * dist * buyW
+      asm.group.position.x += this.vTmp.x * ox + this.vTmp2.x * oy
+      asm.group.position.y += this.vTmp.y * ox + this.vTmp2.y * oy
+      // base z is always 0 (attitude never touches it), so assign —
+      // += would strand an offset when scrolling back.
+      asm.group.position.z = this.vTmp.z * ox + this.vTmp2.z * oy
+    }
+    asm.group.scale.setScalar(0.6 * (1 - buyW) + 0.35 * buyW)
 
     // parts — the multi-stage knock sequence drives related components
     const mScale = 0.7
@@ -347,7 +358,7 @@ export class PencilExperience {
     for (const m of asm.springMats) m.emissive.setRGB(xr * 0.12, xr * 0.12, xr * 0.13)
     asm.brassMat?.emissive.setRGB(xr * 0.1, xr * 0.06, xr * 0.02)
 
-    // lineup + buy: settle the canvas to a quiet backdrop
+    // Canvas stays live through lineup + buy (single model throughout).
     const op = canvasDimF(p)
     if (Math.abs(op - this.lastOp) > 0.002) {
       this.canvas.style.opacity = op.toFixed(3)
