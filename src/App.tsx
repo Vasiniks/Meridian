@@ -10,11 +10,29 @@ import Philosophy from './components/Philosophy'
 import Lineup from './components/Lineup'
 import Buy from './components/Buy'
 import Footer from './components/Footer'
+import FrameFallback from './components/FrameFallback'
 import { PencilExperience } from './three/experience'
+
+function useStaticMode(): boolean {
+  if (typeof window === 'undefined') return false
+  if (new URLSearchParams(window.location.search).has('static')) return true
+  try {
+    const test = document.createElement('canvas')
+    if (!test.getContext('webgl2') && !test.getContext('webgl')) return true
+  } catch {
+    return true
+  }
+  const cores = navigator.hardwareConcurrency || 8
+  const mem = (navigator as Navigator & { deviceMemory?: number }).deviceMemory || 8
+  const saveData = (navigator as Navigator & { connection?: { saveData?: boolean } })
+    .connection?.saveData
+  return cores <= 2 || mem <= 2 || saveData === true
+}
 
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const expRef = useRef<PencilExperience | null>(null)
+  const [staticMode] = useState(useStaticMode)
   const [motionPaused, setMotionPaused] = useState(
     () =>
       typeof window !== 'undefined' &&
@@ -22,6 +40,7 @@ export default function App() {
   )
 
   useEffect(() => {
+    if (staticMode) return
     const canvas =
       canvasRef.current ?? (document.getElementById('gl') as HTMLCanvasElement)
     const exp = new PencilExperience(canvas)
@@ -39,7 +58,7 @@ export default function App() {
       exp.dispose()
       if (expRef.current === exp) expRef.current = null
     }
-  }, [])
+  }, [staticMode])
 
   const toggleMotion = () => {
     const exp = expRef.current
@@ -52,6 +71,7 @@ export default function App() {
   return (
     <>
       <Chrome motionPaused={motionPaused} onToggleMotion={toggleMotion} />
+      {staticMode && <FrameFallback />}
       <main id="main">
         <Hero />
         <Detail />
