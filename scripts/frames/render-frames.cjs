@@ -20,13 +20,18 @@ try {
 
 const ROOT = path.resolve(__dirname, '..', '..')
 const TIERS = {
-  desktop: { w: 1440, h: 900, count: 80, quality: 82 },
-  mobile: { w: 390, h: 844, count: 60, quality: 80 },
+  // cores: detectConfig() drops to the mobile tier at <=4 cores, so force
+  // 8 for desktop frames (the build sandbox has 4) and keep mobile on its tier.
+  desktop: { w: 1440, h: 900, count: 80, quality: 82, cores: 8, settle: 900 },
+  mobile: { w: 390, h: 844, count: 60, quality: 80, cores: 4, settle: 450 },
 }
 
 async function renderTier(browser, base, name) {
   const t = TIERS[name]
   const page = await browser.newPage({ viewport: { width: t.w, height: t.h } })
+  await page.addInitScript((n) => {
+    Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => n })
+  }, t.cores)
   await page.goto(base, { waitUntil: 'networkidle' })
   await page.waitForFunction(() => document.getElementById('loader')?.classList.contains('done'), null, { timeout: 120000 })
   await page.addStyleTag({
@@ -40,8 +45,13 @@ async function renderTier(browser, base, name) {
   const max = await page.evaluate(() => document.documentElement.scrollHeight - innerHeight)
   for (let i = 0; i < t.count; i++) {
     const p = (i + 0.5) / t.count
-    await page.evaluate((y) => window.scrollTo(0, y), Math.round(max * p))
-    await page.waitForTimeout(450)
+    // Lenis owns scrolling when present; jump it directly (no easing)
+    await page.evaluate((y) => {
+      const l = window.__lenis
+      if (l) l.scrollTo(y, { immediate: true, force: true })
+      else window.scrollTo(0, y)
+    }, Math.round(max * p))
+    await page.waitForTimeout(t.settle)
     const file = path.join(ROOT, 'public', 'frames', name, `f${String(i).padStart(3, '0')}.jpg`)
     await page.screenshot({ path: file, type: 'jpeg', quality: t.quality })
     process.stdout.write(`\r${name} ${i + 1}/${t.count}`)

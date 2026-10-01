@@ -1,212 +1,403 @@
 # Handoff: Recreate the Meridian Hex Mechanical Pencil Site (Exact Rebuild)
 
-Target: a single-page, scroll-driven 3D product site for the Meridian Hex —
-a hexagonal-barrel mechanical pencil — that ends in a variant lineup and buy
-section. Read this entire file before writing any code. Every section marked
-**LOAD-BEARING** is something cheap rebuilds get wrong; do not skip it.
+Target: a single-page, scroll-driven 3D product site for the Meridian Hex.
+The product is a hexagonal-barrel mechanical pencil. The page is drawn in
+technical-drawing language: graphite, hairlines, one accent `#A63D22`. The
+pencil comes apart, gets x-rayed and runs its mechanism, then sells itself
+from a spinning ring of four variants.
+
+Read this entire file before writing any code. Every section marked
+**LOAD-BEARING** is something cheap rebuilds get wrong. Do not skip it.
+
+Companion docs: `handoff/awwwards-brief.md` (motion and design research,
+easing tokens, avoid list) and `handoff/recreate-any-object.md` (the
+transferable method).
 
 ---
 
 ## 1. What "good" looks like (the bar)
 
-The finished site must feel like a precision instrument being disassembled in
-front of you as you scroll — not a webpage with a 3D widget on it. Concretely:
+- **"The drawing becomes the object."** The site must feel like a precision
+  instrument drafted and then disassembled as you scroll, not a webpage with
+  a 3D widget on it. That means:
+  - a graphite cursor trail;
+  - a preloader that drafts the pencil from real load progress;
+  - SVG callouts anchored to real 3D parts;
+  - an x-ray scan line that inverts the page to ink.
+- **A real multi-part assembly**: 42 named parts, never a textured cylinder.
+  The exploded view separates into readable components: button, springs,
+  clutch jaws, feed rod, grip, nose cone and lead.
+- **The x-ray is a scan.** A hairline sweeps down the viewport. Above it, the
+  shells render as a hatched, rim-lit ghost and the page turns to ink. Below
+  it, the object is still solid on paper.
+- **The scroll is a camera choreography**: 9 sheets (Reveal, Detail,
+  Exploded, X-Ray, Mechanism, Reassembly, Principles, Lineup, Order), each
+  timed to the copy it sits under.
+- **The metal reads as frosted, bead-blasted anodized metal**, never chrome,
+  never matte plastic. That comes from Blender-authored micro-grain normal
+  and roughness maps plus lighting discipline.
+- **The grip is real geometry**: a machined diamond knurl, not a bump map.
+- **The lineup is a 3D ring of pencils that scroll spins**, not a horizontal
+  card track.
+- **Mobile gets a decimated asset and reduced effects**, not the desktop
+  scene with the canvas hidden.
+- **A zero-GPU path exists**: pre-rendered frames plus a static CSS prism.
 
-- The pencil is a **real multi-part assembly** (~40 named parts), not a
-  textured cylinder. The exploded view separates into individually readable
-  components (button, springs, clutch jaws, feed rod, grip, nose cone, lead).
-- The **x-ray view fades only the shell** and lights the internals with an
-  emissive lift, so the mechanism reads through the body.
-- The scroll is a **camera choreography**: 8 labeled chapters
-  (Reveal → Detail → Exploded → X-Ray → Mechanism → Reassembly → Object →
-  Lineup), each a camera keyframe with smoothstep-blended position, target,
-  and FOV.
-- The metal reads as **frosted/satin anodized metal**, never chrome, never
-  matte plastic. This comes from lighting + roughness discipline, not texture.
-- The grip is **real geometry** (instanced diamond-knurl lattice), not a
-  bump map.
-- Mobile gets a **decimated asset + reduced effects**, not the desktop scene
-  with the canvas hidden.
-
-If your rebuild has a single-mesh pencil, a generic orbit control, a
-RoomEnvironment-only light rig, or AI-purple glassmorphism UI — it failed.
-Start over from section 3.
+It has failed, and you should start over from §3, if your rebuild has any of
+these:
+- a single-mesh pencil
+- generic orbit controls
+- a RoomEnvironment-only light rig
+- bloom
+- AI-purple glassmorphism UI
 
 ---
 
 ## 2. Stack (exact)
 
-- **Vite + React 19 + TypeScript + three@0.184.0** (npm, bundled — never CDN
-  `esm.sh` in production; CDN imports cause duplicate-Three-instance bugs).
-- No Tailwind, no UI kit, no animation library. Styling is 8 hand-written CSS
-  files under `src/styles/` (tokens, base, stage, nav, sections, lineup, buy,
-  responsive). The visual language is warm paper (`#F5F3EE`), near-black ink,
-  hairline borders, sharp 2px radii, Inter Tight + IBM Plex Mono.
-- `@types/three` pinned to match the three version or `tsc` fails on addons.
-- Python 3 + `numpy` + `pygltflib` for the asset pipeline. Blender 5 headless
-  for `.blend` regeneration and render verification (NOT for primary modeling).
+- **Vite 7, React 19, TypeScript and three@0.184.0**, bundled from npm.
+  Never use CDN imports: they cause duplicate-Three-instance bugs.
+  `@types/three` must match the three version, or `tsc` fails on addons.
+- **Lenis** smooth scroll (`autoRaf`), exposed as `window.__lenis`. Anything
+  that jumps the scroll (ring detents, QA scripts) must go through
+  `__lenis.scrollTo(y, {immediate:true})`.
+- Fonts are self-hosted with `@fontsource`: Inter Tight, IBM Plex Mono and
+  Instrument Serif italic for emphasis. Fallbacks are metric-matched, which
+  brings CLS to about 0.0001.
+- No Tailwind, no UI kit, no animation library. CSS is hand-written:
+  - `src/styles/*`: tokens, base, stage, nav, sections, lineup, buy,
+    responsive
+  - `src/overlay/*.css`: drawing and x-ray
+  - Visual language: warm paper `#F5F3EE`, near-black ink, hairline borders,
+    sharp 2px radii.
+- **Every URL into `/public` goes through `asset('…')`** (`src/assetUrl.ts`,
+  which prefixes `import.meta.env.BASE_URL`). The site deploys to GitHub
+  Pages under `/Meridian/`, so a root-absolute `/models/x.glb` URL 404s
+  there, and the live site falls back to SVG.
+- Asset pipeline: Blender as a Python module (`pip3 install "bpy==4.5.*"`,
+  python3.11), plus numpy and pygltflib.
 
 ---
 
-## 3. Asset pipeline (LOAD-BEARING — this is 70% of the quality)
+## 3. Asset pipeline (LOAD-BEARING — this is most of the quality)
 
-### 3.1 The source of truth is a parametric builder, not a .blend
+### 3.1 Blender is the source of truth
 
-File: `scripts/asset-processing/build_pencil_glb.py` (~700 lines). It builds
-every part from math primitives and writes desktop + mobile GLBs plus a part
-manifest. This exists because a Blender-authored file can't be diffed,
-regenerated deterministically, or procedurally detailed (springs, knurling,
-threads). The `.blend` (`public/models/source/mechanical-pencil.blend`) is a
-DERIVED artifact regenerated from the GLB via `glb_to_blend.py` — never the
-other way around.
+`scripts/asset-processing/blender/build_pencil.py` builds every part in
+headless Blender:
+- real bevels with hardened normals
+- a machined diamond knurl and a turned-hex nose
+- laser-etched lettering and a formed clip
+- closed, ground coil springs and toothed collet jaws
+- helical threads
+- bead-blasted micro-grain textures
 
-### 3.2 Mesh primitives to implement (all flat-shaded, non-indexed triangles)
+It exports:
 
-- `MeshBuilder` class: collects `tri(a,b,c)` / `quad(a,b,c,d,out_ref)` calls.
-  `quad` **auto-flips winding** so the face normal points away from `out_ref`
-  — this eliminates 90% of inside-out-face bugs. `finish()` derives flat
-  per-face normals + **box-projected UVs** (dominant axis of face normal;
-  needed later for grain textures).
-- `hex_ring(y, r, rot)` / `hex_stack(levels)` — the entire exterior language.
-  The barrel is a true hexagonal prism (6 faces), NOT a high-segment cylinder.
-- `open_hex_tube`, `cyl`, `box` (with rot_y/tilt), `helix_tube` (springs swept
-  along a helix with parallel-transport frames — real coil geometry).
+| Output | Path |
+|---|---|
+| Desktop GLB | `public/models/desktop/mechanical-pencil.glb` (~90k tris, ~3.9 MB, 1024 maps) |
+| Mobile GLB | `public/models/mobile/mechanical-pencil-mobile.glb` (~41k tris, ~1.8 MB, 512 maps) |
+| Scene | `public/models/source/mechanical-pencil.blend` (desktop, live modifiers) |
+| Part registry and stats | `public/models/source/manifest.json` |
 
-### 3.3 The 42-part assembly (exact registry)
+The modules are `mh_geom` (primitives), `mh_parts` (the 42 builders and the
+registry), `mh_materials`, `mh_textures` and `render_views` (the Cycles
+renders of the lineup cards in `public/variants/*.png`).
 
-`define_assembly()` declares every part as
-`part(name, parent, baseY, explode, kind, mech, extra)` where `kind` is
-`shell|inner` and `mech` is one of
-`static|button|stem|actuator|rod|clutch|jaw|springMain|springBtn|springStab|lead|sleeve`.
-Y axis runs tip (−7, lead end) to button crown (+8). The exact table (name,
-baseY, explode scalar) lives in `define_assembly()` — reproduce it part for
-part, including: 3 separate clutch jaws at 120° (`jawAngle` 0/2.0944/4.1888),
-3 real springs (return/button/stabilizer), feed rod + mid shaft, actuator cone
-+ sleeve, reservoir + plug, washers/seats/stops, thread ring with thread
-ridges, nose cone + tip + brass insert + lead sleeve + lead, clip
-blade/foot/screw, grip sleeve + underlay + lattice + 2 rings, barrel + groove
-rings + top collar + button + stem + eraser + sleeve.
+`render_views` reads colour and roughness from `src/three/finishes.ts`. Never
+keep a second copy of the finishes.
 
-**Why this matters:** the exploded view, x-ray, and mechanism animation all
-read from this registry. A fake assembly (fewer, merged parts) collapses all
-three downstream features. Never merge parts to "simplify."
+`scripts/asset-processing/build_pencil_glb.py` (numpy) is the original
+parametric builder. It is kept as the **reference registry**:
+`define_assembly()` is the authoritative part table, and the validator checks
+the manifest against it.
 
-### 3.4 The grip lattice (the signature detail)
+Meshopt is opt-in (`--meshopt`), because the loader registers no
+`MeshoptDecoder`. Turn it on only together with
+`GLTFLoader.setMeshoptDecoder()`.
 
-`gripLattice`: ~192 raised diamond ribs over the 6 hex faces + edge rails so
-the pattern terminates intentionally (no chopped diamonds at boundaries).
-Rules: integer rib counts per face, plain bands top/bottom, ribs as beveled
-boxes oriented in the face plane. If it looks noisy at hero distance, reduce
-count and widen ribs — never replace it with a bump map.
+### 3.2 Mesh hygiene (each item burned us once)
 
-### 3.5 Materials (baked into the GLB, tuned at runtime)
+- **Triangulate every part in Blender** (Triangulate modifier, BEAUTY) before
+  its normals are final. The glTF exporter's own triangulation of long n-gons
+  creates zero-area triangles.
+- **Zero-area faces get the normal +Z in Blender.** That bent the
+  lettering-panel normals by up to 46° and caused the "wedge" streaks: dotted
+  seams in three.js, broken tangents in Cycles. Fill glyphs from exact,
+  collinear-free polylines. Never resample curves.
+- **Bevelled parts use `Bevel(harden_normals)`, not WeightedNormal**, which
+  tilted panel corners by about 7°.
+- Watch for folded or self-intersecting end rings, where normals point
+  144–180° off. They hit the barrel top, top collar, button crown, retainer
+  and reservoir.
+- Interpenetrate mating faces by 0.01–0.03 units. Coplanar faces z-fight.
+- Blender is Z-up and glTF is Y-up. Model the pencil axis along Blender +Z.
 
-GLB PBR table (`MATERIALS` dict): anodized barrel, DLC grip, brushed steel,
-polished nose steel, brass, spring steel, polymer, dark mech, translucent
-reservoir (`BLEND`, opacity 0.45), eraser, graphite lead, near-black recess.
-At load, `assembly.ts tuneLookdev()` retunes per role: anodized metalness 1.0
-/ roughness ~0.27–0.38 / envMapIntensity up to 2.4 with an albedo lift
-(dark albedo kills specular — lifting ~1.9× preserves the dark character
-while letting highlights survive). Keep roughness ≥0.22 everywhere or it
-slides into chrome.
+### 3.3 The 42-part assembly contract (LOAD-BEARING)
 
-### 3.6 Export tiers
+- **Hierarchy:** glTF root `Pencil` → `Exterior` / `Internal` → exactly 42
+  named part nodes.
+- **Per-part data:** each node has extras `{ex, kind, mech[, jawAngle]}` and
+  translation `[0, baseY, 0]`. The clip parts keep their special offsets.
+- **Axis:** Y runs from the tip (−7, lead end) to the button crown (+8).
+- **Kinds and roles:** `kind` is `shell` or `inner`. `mech` is one of
+  `static|button|stem|actuator|rod|clutch|jaw|springMain|springBtn|springStab|lead|sleeve`.
+- **Subassemblies:**
+  - 3 clutch jaws at 120°, with `jawAngle` 0, 2.0944 and 4.1888;
+  - 3 springs (return, button, stabilizer), each centred on its node origin,
+    because the runtime scales Y;
+  - feed rod and mid shaft, actuator cone and sleeve, reservoir and plug;
+  - washers, seats and stops; thread ring and ridges;
+  - nose cone, tip, brass insert, lead sleeve and lead;
+  - clip blade, foot and screw;
+  - grip sleeve, underlay, lattice and 2 rings;
+  - barrel, groove rings, top collar, button, stem, eraser and sleeve.
+- **Materials:** `barrelHex` carries `anodized` (the variant tint target)
+  plus `etch` (the lettering). Shell parts fade in the x-ray.
+- **Material roles:** anodized, dlc, steel, polished, brass, spring, recess,
+  mechdark, reservoir, eraser, lead, etch. Any new role must be handled in
+  `tuneLookdev()`.
 
-- Desktop: full tessellation (~11.5k tris total — yes, that low; flat facets
-  need few triangles), `mechanical-pencil.glb` ~1 MB.
-- Mobile: reduced spring steps/wire segments and simpler lattice (~6k tris).
-- Validate every build by re-loading the GLB in Python: assert 42 meshes,
-  42 extras-nodes, name match vs manifest. The builder already prints tri
-  counts — read them.
+The exploded view, x-ray, drawing callouts, mechanism and ring all read from
+this registry. **Never merge parts to "simplify."**
+
+**Validate every build** with `python3 scripts/asset-processing/validate_glb.py`
+(exit 1 on failure). It checks:
+- the hierarchy, extras and translations against the manifest, and the
+  manifest against `define_assembly()`;
+- that the springs are centred;
+- the material roles;
+- that there are no degenerate triangles or flipped normals;
+- the per-tier budgets: desktop ≤ ~6 MB and ≲150k tris, mobile ≤ ~2.5 MB
+  and ≲60k tris.
+
+### 3.4 Materials (baked into the GLB, tuned at runtime)
+
+`assembly.ts` `tuneLookdev()` is a per-role table:
+- **Maps:** it keeps the Blender normal and roughness maps and sets their
+  strength per role.
+- **Roughness:** it holds roughness at **≥ 0.22**, even after the roughness
+  map's minimum, or the metal slides into chrome.
+- **Dark metals:** they get an albedo lift (about 1.9×). Near-black albedo
+  kills specular highlights.
+- **Variant tint:** `barrelMat` takes **only** the anodized material of
+  barrelHex, never the etch. Otherwise the tint lands on the letters.
+- **Reservoir:** it uses `BLEND` alpha, never `transmission`.
 
 ---
 
-## 4. Runtime architecture (`src/three/`)
+## 4. Runtime architecture (`src/three/`, `src/fx/`)
 
-- `config.ts` — quality tiers: `high` unless (touch AND small screen) or
-  ≤4 CPU cores. DPR caps 2 / 1.5. MSAA 4× **only on desktop high tier** via a
-  custom multisampled composer render target (constructed with samples —
-  render-target textures are immutable after creation).
-- `stage.ts` — renderer (ACES tone mapping, exposure ~1.0–1.12, sRGB),
-  **custom procedural PMREM studio environment** (`buildStudioEnv()`:
-  near-black room + 8 HDR softbox/edge/bounce cards — this is what makes dark
-  metals reflect; RoomEnvironment alone leaves them near-black),
-  5-light rig (warm key 3.2 with shadows high-tier-only, cool rim 2.8, fill
-  0.65, top sheen 1.4, edge strip 1.0), shadow-catcher ground plane,
-  `EffectComposer(RenderPass + OutputPass)` only.
-- `assembly.ts` — loads the external GLB via `GLTFLoader` (never embedded in
-  JS). **Critical GLTFLoader fact:** meshes arrive nested under their named
-  nodes, so anchor the part registry on the extras-carrying node (which owns
-  the base translation), not the mesh. Shell materials get per-material clones
-  so x-ray fading never leaks into internal parts sharing a source material.
-  Thin springs/lead get `castShadow = false` (kills coil shadow acne).
-- `cameraRig.ts` — `sampleCam()`: smoothstep-interpolated position/target/FOV
-  across the 8 KEYS, plus runtime macro overrides that track the real grip /
-  jaw world positions for true side-view close-ups (never down-the-axis).
-- `experience.ts` — the frame loop. Allocation-free (preallocated temp
-  vectors), settled-frame early-out (skip render when scroll + animation state
-  are static — but keep ticking while turntable spin or tint chase is live),
-  damped camera (`1−exp(−5dt)`), pencil attitude, per-part explode offsets
-  (`baseY + explode·ex·0.7`) + mechanism special-cases (jaws open radially,
-  springs compress in Y, button/stem/actuator/rods dive, lead advances).
+### 4.1 Core
+
+- **`config.ts`:** the tier is `high` unless (touch AND a viewport ≤900px
+  wide) or ≤4 CPU cores. DPR caps are 2 and 1.5. MSAA 4× applies only on the
+  desktop high tier, through a multisampled composer target constructed with
+  samples.
+- **`stage.ts`:**
+  - Renderer: **NeutralToneMapping** at exposure 1.0. ACES desaturated the
+    brass and the ink blue.
+  - Environment: a procedural PMREM studio (`buildStudioEnv()`, a dark room
+    with HDR softbox, edge and bounce cards).
+  - Lights: 5 directional lights inside a `lightRig` group. The look module
+    rotates it together with `scene.environmentRotation`, so highlights stay
+    coherent.
+  - No shadow-map ground: contact shadows replace it.
+  - Composer: `RenderPass`, then look's post FX, then `OutputPass`. No bloom,
+    ever.
+- **`assembly.ts`:** loads the GLB with `GLTFLoader`, never embedded in JS.
+  - Anchor the part registry on the extras-carrying node, not the mesh.
+  - Clone each shell material once, so x-ray fading never leaks into
+    internal parts that share it.
+  - Thin springs and the lead get `castShadow = false`.
+- **`cameraRig.ts`:** `sampleCam()` smoothstep-interpolates position, target
+  and FOV across `KEYS` (`src/data/scroll.ts`). Runtime macro overrides
+  track the real grip and jaw world positions, for side views that never
+  look down the axis.
+- **`experience.ts`:** the frame loop.
+  - Allocation-free: temp vectors are preallocated.
+  - Damping: camera λ=9 (`1−exp(−9dt)`); attitude written absolutely each
+    frame.
+  - Parts: per-part explode offsets plus mechanism special cases.
+  - Settled-frame early-out: skip the render unless scroll moved or a module
+    returns `wantsFrame() === true`.
+
+### 4.2 Scene modules (`modules.ts`; LOAD-BEARING for parallel work)
+
+**Prefer writing a `SceneModule` over editing `experience.ts`.** The frame
+order is:
+1. `preUpdate(ctx)` undoes last frame's transient offsets.
+2. The built-in choreography runs.
+3. `update(ctx)` applies offsets, uniforms and DOM sync, then the frame
+   renders.
+
+Modules also get `wantsFrame`, `onResize` and `onMotionChange`. `FrameCtx`
+carries `p`, `rawP`, `scrollVel`, `dt`, `stage`, `asm`, `cfg` and
+`motionOK`. Registration lives in `registerModules.ts`, one block per area:
+- **look** (`src/three/look/`):
+  - `rig.ts`: pointer parallax.
+  - `light.ts`: environment-rotation light sweep, plus `streak()` on
+    reassembly and the Limited crescendo.
+  - `contactShadows.ts`: warm contact shadows.
+  - `postfx.ts`: velocity chromatic aberration and macro tilt-shift.
+- **drawing** (`src/three/drawing/`, `src/overlay/`):
+  - `overlay.ts`: the SVG overlay, with callouts projected from 3D anchors.
+  - `picking.ts`: exploded-part picking and cursor labels.
+  - `xray.ts`: the x-ray scan (clipping plane, ghost shader, DOM ink sheet).
+  - `mechanism.ts` and `spring.ts`: mechanism poses, spring physics and the
+    pencil click.
+- **lineup** (`ring.ts`):
+  - the hero glides into the ring's front slot;
+  - the 4 variants spin on scroll detents, with a dial, click and drag;
+  - finishes chase their targets (never snap);
+  - the presenter flies into the Buy slot.
+
+Shared contracts:
+- `src/fx/bus.ts` is a typed event bus: `cursor`, `variant:active`,
+  `variant:select`, `pencil:click`, `load:progress`, `intro`, `motion`,
+  `chapter`, `look:streak` and `mech:step`. Extend it; don't break it.
+- `src/fx/pointer.ts` holds the shared pointer state.
+- `src/three/finishes.ts` is the per-variant finish: colour, roughness,
+  metalness and envIntensity.
+
+### 4.3 DOM effects (`src/fx/`, `src/motion/`)
+
+- **Motion system:** tokens, damp and spring helpers, and a motion flag
+  (reduced motion plus the "Pause motion" toggle) on a shared DOM ticker.
+- **Graphite cursor** (`graphite.ts`, `cursor.ts`): a velocity-width pencil
+  trail, a nib, a context ring that renders bus `cursor` states, and
+  magnetic CTAs.
+- **Reveals** (`reveal.ts`, `odometer.ts`): attribute driven
+  (`data-reveal=…`), with line masks, body fades, mono type-on and odometers.
+- **Preloader** (`preloader.ts`, `loadProgress.ts`): drafts the pencil from
+  real GLB and HDR byte progress, never stalls, and lifts on `#loader.done`.
+- **Page chrome** (`chrome.ts`, `grain.ts`): a title-block nav ("SHEET 03/09
+  — EXPLODED"), CSS grain, a warm vignette and a spec marquee.
+
+### 4.4 Zero-GPU path
+
+`FrameFallback.tsx` takes over for `?static=1`, no WebGL, ≤2 cores or low
+memory, and save-data. It shows pre-rendered JPEGs (`public/frames/desktop`
+80, `mobile` 60) driven by scroll, and a CSS "static prism" ring for the
+lineup.
+
+Regenerate the frames LAST with `scripts/frames/render-frames.cjs`. It forces
+8 cores for the desktop tier and scrolls through Lenis.
 
 ---
 
-## 5. Scroll choreography (`src/data/scroll.ts` + sections)
+## 5. Scroll choreography (`src/data/scroll.ts`; LOAD-BEARING)
 
-- Progress `p` = scrollY / (scrollHeight − innerHeight), smoothed with
-  `1−exp(−4dt)` frame-rate-independent damping.
-- Envelope functions (all smoothstep products): `explodeF` (0.15→0.24 in,
-  0.38→0.45 out), `xrayF` (0.32→0.36 / 0.52→0.57), `mechF`
-  (0.44→0.48 / 0.52→0.56), `detailF` (0.05→0.08 / 0.13→0.16),
-  `heroOffF`, `reOffF`, `canvasDimF`.
-- Sections in order with matching copy in `src/data/content.ts`:
-  Hero → Detail (grip macro) → Exploded (tall, part legend) → Xray →
-  Mechanism (5 described steps, highlighted by scroll) → Reassembly →
-  Philosophy → Lineup (pinned horizontal scroll, 4 variants, live barrel
-  recolor by active card) → Buy (variant form recolors barrel + buy spinner).
-- Lineup mechanics: section height = 4× viewport, sticky pin, track
-  `translate3d` by scroll fraction; recompute on resize.
+**Global envelopes** (smoothstep products on page progress `p`; tuned at
+desktop 1440×900):
+
+| Envelope | Value |
+|---|---|
+| `explodeF` | `sstep(0.15,0.24)·(1−sstep(0.34,0.41))` |
+| `xrayF` | `sstep(0.32,0.36)·(1−sstep(0.48,0.53))` |
+| `mechF` | `sstep(0.40,0.44)·(1−sstep(0.46,0.50))` |
+| `detailF` | `sstep(0.05,0.08)·(1−sstep(0.13,0.16))` |
+| `reOffF` | `sstep(0.51,0.54)·(1−sstep(0.59,0.64))` |
+
+**Camera keys:** Reveal 0, Detail 0.08, Exploded 0.20, X-Ray 0.335,
+Mechanism 0.40, Reassembly 0.52, Object 0.63, Lineup 0.65.
+
+**Drawing thresholds** (`drawing/state.ts`):
+- the x-ray scan `SCAN` runs entry 0.285→0.33, ink retract 0.352→0.386 and
+  restore 0.482→0.522;
+- mechanism steps run from `MECH_P0` 0.412 in 0.012 increments to
+  `MECH_END` 0.48;
+- `REASSEMBLY_ON` is 0.532–0.586;
+- look's `REASSEMBLED_AT` is 0.545.
+
+**Rule:** a 3D beat must play while its copy is on screen. The mechanism
+macro runs while the Mechanism copy is pinned, and Reassembly lands under
+"Snaps back. Exactly." If a layout change moves sections, re-measure the
+section positions in a real browser and shift a whole block's constants
+together (camera key, envelope, drawing thresholds, light). Never move just
+one of them.
+
+**The lineup and buy mapping is section-local.** It uses `u` = viewport
+heights since `#lineup` pinned, so it survives layout changes. Constants:
+- `LINEUP_VH` 4
+- `RING_MOVES` and `RING_SNAPS` (detents; the move into Limited is about
+  1.3× longer, the crescendo)
+- `RING_IN` (the hero handoff), `RING_RISE`, `RING_SINK` and `RING_OUT`
+  (the flight into Buy)
+
+The 3D ring, the DOM overlay, the static CSS ring and the dial all read the
+same numbers.
+
+**Reversibility:** every animation value derives from scroll weights, never
+accumulated state. The one exception is the monotonic turntable spin.
 
 ---
 
 ## 6. X-ray implementation (exact recipe)
 
-1. Shell parts are flagged `kind: 'shell'` in the registry.
-2. At load, each unique shell GLB material is cloned once (shared clones per
-   material, assigned to all shell meshes using it).
-3. Per frame, `xr = xrayF(p)`: clone opacity = `1 − xr·0.85` (floor 0.15 —
-   silhouette preserved), `depthWrite = xr < 0.4`, `transparent` toggled only
-   on state change (+ `needsUpdate`).
-4. Inner legibility: emissive lift on reservoir/spring/brass materials
-   proportional to `xr`.
-5. The translucent reservoir uses `BLEND` alpha, never `transmission` (which
-   allocates a transmission target and kills scroll perf).
+1. Shell parts are flagged `kind: 'shell'`. Each unique shell material is
+   cloned once at load.
+2. **Entry sweep:** a screen-space hairline moves top to bottom. A world clip
+   plane through the camera and that screen line splits the scene:
+   - **above** it: shells render as a hatched, rim-lit ghost (a custom
+     shader with `uInkY0/1`, `uPitch`, `uLineW`), and a DOM ink sheet
+     (`#dr-ink`, `clip-path: inset(...)`) turns the page black. The x-ray
+     card swaps to a negative copy clipped to the sheet;
+   - **below** it: the solid object on paper.
+3. While fully in x-ray, the shell materials are hidden and the ghosts carry
+   the silhouette. Internals get an emissive lift proportional to the x-ray
+   weight.
+4. **Exit:** the ink retracts upward before the Mechanism copy, and a final
+   restore sweep brings back the solid shell.
+5. **Reduced motion:** no sweep. Shells cross-fade (opacity floor, with
+   `depthWrite` flipped only on state change).
+6. Never use `transmission`: it allocates a render target and kills scroll
+   performance.
 
 ---
 
-## 7. Anti-obvious-failure checklist ( Lil' Wayne: run these, don't eyeball)
+## 7. QA checklist (run these; don't eyeball)
 
-- `tsc` clean, `vite build` succeeds, three in its own chunk.
-- Playwright (desktop 1440×900 + mobile 390×844, real browser, screenshots):
-  all 8 scene labels in order; hero/detail/exploded/xray/mechanism/
-  reassembly/lineup/buy each screenshotted; exploded fits frame top-to-bottom;
-  tip connects to nose (no floating lead); nose insert doesn't poke through
-  the cone; zero console errors (React DevTools notice is fine).
-- Variant switching recolors the live barrel; buy form price follows.
-- `prefers-reduced-motion` + motion toggle degrade to static.
-- FPS: vsync-capped rAF on desktop; no jank during scroll sweep.
+- `npx tsc --noEmit -p .` is clean and `npm run build` succeeds, with three
+  in its own chunk.
+- `python3 scripts/asset-processing/validate_glb.py` exits 0.
+- **Playwright with real Chromium:**
+  - Launch with SwiftShader: `--use-angle=swiftshader
+    --enable-unsafe-swiftshader`.
+  - **Override `navigator.hardwareConcurrency` to 8 for desktop shots.**
+    Sandboxes often have 4 cores, which silently selects the mobile tier.
+  - Jump scroll through `__lenis.scrollTo(y,{immediate:true})`.
+  - High tier under SwiftShader renders slowly, and `dt` is clamped to
+    0.05 s, so wait 6–10 s per stop or frames show the previous pose.
+  - Sizes: desktop 1440×900, mobile 390×844, plus one awkward size.
+  - Screenshot every chapter in forward and **reverse** order, with
+    `reducedMotion: 'reduce'`, and with `?static=1`.
+  - Pass criteria: zero console errors, zero failed requests, no horizontal
+    overflow.
+- **Production under the subpath:** `npx vite build --base /Meridian/ &&
+  npx vite preview --base /Meridian/`. Expect no 404s and the 3D pencil, not
+  the SVG fallback.
+- Variant switching (ring click, dial, buy radio) recolors the presenter
+  with a chase. The buy price follows.
 
 ## 8. Known traps (each burned us once)
 
-- Duplicate Three instances from CDN/vite-mixed imports → single npm `three`,
-  check `renderer.info` sanity, heed the multi-instance warning.
-- `modifier_apply` context pitfalls in headless Blender; Array `fit_type`
-  must be `FIXED_COUNT` with explicit counts.
-- Blender Z-up vs glTF Y-up: model pencil-axis along Blender +Z or the
-  export lands rotated 90°.
-- Indexed vs non-indexed GLB parsing when merging geometry.
-- MSAA must be set at composer-target construction time.
-- `page.check` on an already-checked radio fires no events (QA false passes).
-- React StrictMode double-mounts effects → two WebGL contexts on one canvas;
-  either remove StrictMode or make init/dispose airtight.
+- Duplicate Three instances from CDN or mixed imports: use a single npm
+  `three`.
+- Root-absolute public URLs break under the GitHub Pages subpath: use
+  `asset()`.
+- **A fixed SVG overlay squashed into another compositor layer** (Chromium,
+  small screens, under the lineup stage) stops repainting moved or hidden
+  children. The result is ghost scan lines. `#drawing` has
+  `will-change: transform; transform: translateZ(0)`.
+- MSAA must be set when the composer target is constructed.
+- A `page.check` on an already-checked radio fires no events, which makes
+  QA pass falsely.
+- React StrictMode double-mounts effects, which puts two WebGL contexts on
+  one canvas. Keep init and dispose airtight.
+- `modifier_apply` context pitfalls in headless Blender. Array `fit_type`
+  must be `FIXED_COUNT`.
+- The Bevel modifier's UVs on bevel facets vary at float-noise level between
+  runs. Everything else is reproducible.
+- A stale-closure colour snap: always chase targets, never set them.

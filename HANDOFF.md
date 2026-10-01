@@ -1,5 +1,13 @@
 # HANDOFF — Meridian Awwwards upgrade (paused 2026-10-01)
 
+> **Status 2026-10-01 (resumed):** all five workstreams are now integrated on
+> `claude/sleepy-rubin-2wimfx` (PR https://github.com/Vasiniks/Meridian/pull/2,
+> which supersedes #1). The Blender model is finished for both tiers, and
+> the fallback frames were regenerated from the final scene.
+> `handoff/recreate-meridian-pencil.md` describes the current architecture.
+> The `handoff/wip/*.patch` files below are kept for history only; don't
+> re-apply them. Remaining step: merge into `main` and deploy.
+
 Work was **paused on request** mid-flight. Nothing is lost: every parallel workstream is saved as
 a patch in `handoff/wip/` against this branch's base commit `99a76b7`.
 
