@@ -6,7 +6,9 @@
 > the fallback frames were regenerated from the final scene.
 > `handoff/recreate-meridian-pencil.md` describes the current architecture.
 > The `handoff/wip/*.patch` files below are kept for history only; don't
-> re-apply them. Remaining step: merge into `main` and deploy.
+> re-apply them. PR #2 is merged into `main` and live at
+> https://vasiniks.github.io/Meridian/. GitHub Pages had never been
+> enabled; it is now set to serve the `gh-pages` branch. See `README.md`.
 
 Work was **paused on request** mid-flight. Nothing is lost: every parallel workstream is saved as
 a patch in `handoff/wip/` against this branch's base commit `99a76b7`.
