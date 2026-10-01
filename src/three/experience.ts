@@ -1,10 +1,12 @@
 import * as THREE from 'three'
-import { ANODIZED, detectConfig, type QualityConfig } from './config'
+import { detectConfig, type QualityConfig } from './config'
 import { createStage, type Stage } from './stage'
 import { loadAssembly, type Assembly } from './assembly'
 import { sampleCam } from './cameraRig'
 import type { FrameCtx, SceneModule } from './modules'
 import { beginLoadTracking } from '../fx/loadProgress'
+import type { RingModule } from './ring'
+import { sizeLineup } from '../components/lineupNav'
 import {
   canvasDimF,
   detailF,
@@ -12,7 +14,6 @@ import {
   heroOffF,
   mechF,
   reOffF,
-  sstep,
   xrayF,
 } from '../data/scroll'
 
@@ -44,13 +45,15 @@ export class PencilExperience {
   private aspect = 1
   private mobEff = 1
   private edgeK = 1
-  // Lineup turntable: accumulated spin (time-based, so scrubbing back and
-  // forth stays continuous) + smooth color chase toward the active card.
-  private spin = 0
-  private colorTarget = new THREE.Color(ANODIZED.Core)
-  // True while a tint chase still has visible distance to cover — keeps
-  // the loop ticking after scroll settles so variant clicks always play.
-  private colorDirty = true
+  // Pencil attitude, integrated here and written absolutely every frame so
+  // transient offsets (ring handoff, pointer rigs) never accumulate.
+  private attX = 0.08
+  private attY = 0
+  private attZ = -0.42
+  private baseScale = 0.6
+  // Lineup ring (src/three/ring.ts): owns the lineup camera, the hero
+  // handoff into the ring, the variant finishes and the buy pose.
+  private ring: RingModule | null = null
   // Pluggable scene modules (see modules.ts) + shared per-frame context.
   private modules: SceneModule[] = []
   private ready = false
@@ -79,8 +82,7 @@ export class PencilExperience {
     if (!this.stage) return
     this.refreshViewport()
     this.stage.setSize(window.innerWidth, window.innerHeight)
-    const lineupSec = document.getElementById('lineup')
-    if (lineupSec) lineupSec.style.height = `${window.innerHeight * 4}px`
+    sizeLineup(window.innerHeight)
     for (const m of this.modules) m.onResize?.(window.innerWidth, window.innerHeight)
     this.lastY = -1
   }
@@ -150,8 +152,11 @@ export class PencilExperience {
         }),
       { threshold: 0.18 }).observe(el)
     })
-    const lineupSec = document.getElementById('lineup')
-    if (lineupSec) lineupSec.style.height = `${window.innerHeight * 4}px`
+    sizeLineup(window.innerHeight)
+    this.attX = this.asm.group.rotation.x
+    this.attY = this.asm.group.rotation.y
+    this.attZ = this.asm.group.rotation.z
+    this.baseScale = this.asm.group.scale.x
     for (const m of this.modules) {
       try {
         await m.init?.(this.stage, this.asm, this.cfg)
@@ -166,12 +171,15 @@ export class PencilExperience {
     this.loop()
   }
 
+  /** Buy-form selection → the ring's presenter finish chase. */
   setVariant(name: string): void {
-    const hex = ANODIZED[name] ?? 0x1e2f4f
-    if (this.colorTarget.getHex() !== hex) {
-      this.colorTarget.setHex(hex)
-      this.colorDirty = true
-    }
+    this.ringModule()?.select(name, 'buy')
+    this.lastY = -1
+  }
+
+  private ringModule(): RingModule | null {
+    if (!this.ring) this.ring = this.getModule<RingModule>('ring') ?? null
+    return this.ring
   }
 
   setMotionOK(ok: boolean): void {
@@ -201,36 +209,7 @@ export class PencilExperience {
     const progressFill = document.getElementById('progressFill')
     if (progressFill) progressFill.style.transform = `scaleX(${this.tgtP})`
     document.getElementById('nav')?.classList.toggle('scrolled', y > 40)
-    // horizontal lineup
-    const lineupSec = document.getElementById('lineup')
-    const track = document.getElementById('lineupTrack')
-    if (lineupSec && track) {
-      const r = lineupSec.getBoundingClientRect()
-      const total = r.height - window.innerHeight
-      const lp = total > 0 ? Math.min(1, Math.max(0, -r.top / total)) : 0
-      if (this.motionOK) {
-        const dist = Math.max(0, track.scrollWidth - window.innerWidth + 60)
-        track.style.transform = `translate3d(${-dist * lp}px,0,0)`
-      }
-      const variants = [...document.querySelectorAll<HTMLElement>('.variant[data-color]')]
-      const vi = Math.min(variants.length - 1, Math.floor(lp * variants.length))
-      // Chase card colors only while the lineup is actually on screen.
-      // Past it (buy section), the buy form owns the tint — otherwise any
-      // scroll tick would yank the color back to the last card.
-      // Above it, settle back to the hero Core.
-      const setTarget = (hex: number): void => {
-        if (this.colorTarget.getHex() !== hex) {
-          this.colorTarget.setHex(hex)
-          this.colorDirty = true
-        }
-      }
-      if (lp > 0 && lp < 1) {
-        const v = variants[vi]
-        if (v?.dataset.color) setTarget(parseInt(v.dataset.color))
-      } else if (r.top >= window.innerHeight) {
-        setTarget(ANODIZED.Core)
-      }
-    }
+    // (lineup: the ring module maps section-local scroll itself)
     // mechanism steps highlight
     const mechSec = document.getElementById('mechanism')
     if (mechSec) {
@@ -255,9 +234,8 @@ export class PencilExperience {
     const dt = Math.min(0.05, (now - this.last) / 1000)
     this.last = now
     const kf = this.motionOK ? 1 - Math.exp(-6 * dt) : 1
-    // Settled-frame optimization — BUT keep ticking while the turntable
-    // spins or a tint chase is in flight, otherwise the spin would freeze
-    // the moment scrolling stops and variant clicks would never animate.
+    // Settled-frame optimization — modules (ring turntable, finish chase,
+    // detent spring) keep the loop alive through wantsFrame().
     const moved = this.readProgress()
     // scroll velocity (progress units / s), smoothed — feeds velocity FX
     const instVel = dt > 0 ? (this.tgtP - this.prevTgtP) / dt : 0
@@ -265,9 +243,8 @@ export class PencilExperience {
     this.scrollVel += (instVel - this.scrollVel) * (1 - Math.exp(-10 * dt))
     if (Math.abs(this.scrollVel) < 1e-4) this.scrollVel = 0
     if (!moved && !this.firstFrame) {
-      const idleSpin = this.motionOK && sstep(0.62, 0.72, this.cur) > 0
       const modWants = this.modules.some((m) => m.wantsFrame?.() === true)
-      if (!idleSpin && !this.colorDirty && !modWants && this.scrollVel === 0) return
+      if (!modWants && this.scrollVel === 0) return
     }
     const asm = this.asm
     const mob = this.mobEff
@@ -308,26 +285,19 @@ export class PencilExperience {
       this.vTgt.x -= 0.25 * mc * edge
       this.camFov += (24 - this.camFov) * kf * mc
     }
+    // Lineup + buy: blend into the ring's own framing (fresh targets only —
+    // camPos/camTgt are the smoothed state and must never be offset).
+    const ring = this.ringModule()
+    if (ring) {
+      const rw = ring.applyCamera(this.vPos, this.vTgt)
+      if (rw > 0) this.camFov += (ring.ringFov - this.camFov) * kf * rw
+    }
     if (this.firstFrame) {
       this.camPos.copy(this.vPos)
       this.camTgt.copy(this.vTgt)
       this.firstFrame = false
     }
     const k = this.motionOK ? 1 - Math.exp(-9 * dt) : 1 // λ=9 (was 5), see Lenis
-    // Lineup backdrop: tuck the spinning pencil behind/right and dolly out
-    // so the cards stay readable (no fade-out anymore). Applied to the
-    // FRESH per-frame targets (vPos/vTgt are reset by sampleCam every
-    // frame) — never to the smoothed camPos/camTgt, which would integrate
-    // the offset every frame and drift out of frame.
-    const lineupDolly = sstep(0.62, 0.72, p)
-    if (lineupDolly > 0.001) {
-      this.vTgt.x -= 2.2 * lineupDolly
-      this.vTgt.y += 1.6 * lineupDolly
-      this.vTmp.copy(this.vPos).sub(this.vTgt)
-      this.vTmp.multiplyScalar(1 + 1.4 * lineupDolly)
-      this.vPos.copy(this.vTgt).add(this.vTmp)
-    }
-    // (buy handoff runs after the attitude code below)
     this.camPos.lerp(this.vPos, k)
     this.camTgt.lerp(this.vTgt, k)
     this.stage.camera.position.copy(this.camPos)
@@ -342,53 +312,19 @@ export class PencilExperience {
     const heroOff = heroOffF(p)
     const reOff = reOffF(p)
     const isSmall = this.cfg.isSmall
-    asm.group.position.x =
-      (isSmall ? 1.7 : 1.05) * Math.max(heroOff, reOff * 0.8)
-    asm.group.position.y = 0.2 + (isSmall ? 1.5 * heroOff : 0)
-    // Lineup turntable: continuous time-based spin layered over the scroll
-    // pose (ramps in with the lineup, stays on through buy).
-    const lineupF = sstep(0.62, 0.72, p)
-    if (this.motionOK) this.spin += dt * 0.55 * lineupF
-    asm.group.rotation.y +=
-      (p * 2.4 - 0.4 + ex * 0.5 + this.spin - asm.group.rotation.y) * pk
-    // Lineup: lay the pencil flatter so it floats behind the cards like
-    // the card renders (ramps both directions with the dolly weight).
-    // Undone through the buy range so the finale stands upright again.
-    const lineupTilt = sstep(0.62, 0.72, p)
-    const buyUp = sstep(0.96, 1.0, p)
-    asm.group.rotation.z +=
-      (-0.42 + ex * 0.42 + mc * 0.1 - 0.8 * lineupTilt * (1 - buyUp) - asm.group.rotation.z) * pk
-    // Gradual barrel tint chase — smooth in both scroll directions.
-    if (asm.barrelMat) {
-      const c = asm.barrelMat.color
-      c.lerp(this.colorTarget, 1 - Math.exp(-8 * dt))
-      const dr = c.r - this.colorTarget.r
-      const dg = c.g - this.colorTarget.g
-      const db = c.b - this.colorTarget.b
-      if (dr * dr + dg * dg + db * db < 1e-8) {
-        c.copy(this.colorTarget)
-        this.colorDirty = false
-      }
-    }
-    // Buy pose: the single model shrinks and settles into the left
-    // whitespace while the turntable keeps spinning. Stand back upright
-    // (undo the lineup lean) so the spin reads as a turntable, and land
-    // centered in the open area at any window size.
-    const buyW = sstep(0.96, 1.0, p)
-    {
-      const cam = this.stage.camera
-      const dist = cam.position.distanceTo(asm.group.position)
-      this.vTmp.setFromMatrixColumn(cam.matrixWorld, 0)
-      this.vTmp2.setFromMatrixColumn(cam.matrixWorld, 1)
-      const ox = -0.30 * dist * buyW
-      const oy = -0.02 * dist * buyW
-      asm.group.position.x += this.vTmp.x * ox + this.vTmp2.x * oy
-      asm.group.position.y += this.vTmp.y * ox + this.vTmp2.y * oy
-      // base z is always 0 (attitude never touches it), so assign —
-      // += would strand an offset when scrolling back.
-      asm.group.position.z = this.vTmp.z * ox + this.vTmp2.z * oy
-    }
-    asm.group.scale.setScalar(0.6 * (1 - buyW) + 0.35 * buyW)
+    asm.group.position.set(
+      (isSmall ? 1.7 : 1.05) * Math.max(heroOff, reOff * 0.8),
+      0.2 + (isSmall ? 1.5 * heroOff : 0),
+      0,
+    )
+    this.attY += (p * 2.4 - 0.4 + ex * 0.5 - this.attY) * pk
+    this.attZ += (-0.42 + ex * 0.42 + mc * 0.1 - this.attZ) * pk
+    asm.group.rotation.set(this.attX, this.attY, this.attZ)
+    asm.group.scale.setScalar(this.baseScale)
+    // Lineup handoff: the hero glides into the ring's front slot, then the
+    // ring's Core clone takes over (identical pose + finish). The buy pose
+    // and every variant finish live in ring.ts.
+    ring?.poseHero(asm)
 
     // parts / mechanism springs + x-ray scan: src/three/drawing (modules)
 

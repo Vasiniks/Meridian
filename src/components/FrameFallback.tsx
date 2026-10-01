@@ -1,6 +1,9 @@
 import { useEffect, useRef } from 'react'
-import { KEYS } from '../data/scroll'
+import { KEYS, LINEUP_PIN, RING_IN, ringIndex, ringTarget, sstep } from '../data/scroll'
 import { asset } from '../assetUrl'
+import { bus } from '../fx/bus'
+import { VARIANT_ORDER } from '../three/finishes'
+import { sizeLineup } from './lineupNav'
 
 const DESKTOP_COUNT = 80
 const MOBILE_COUNT = 60
@@ -16,15 +19,6 @@ function driveDom(p: number): void {
   while (li < KEYS.length - 1 && p > KEYS[li + 1].p) li++
   const label = document.getElementById('sceneLabel')
   if (label) label.textContent = KEYS[li].label
-  const lineupSec = document.getElementById('lineup')
-  const track = document.getElementById('lineupTrack')
-  if (lineupSec && track) {
-    const r = lineupSec.getBoundingClientRect()
-    const total = r.height - window.innerHeight
-    const lp = total > 0 ? Math.min(1, Math.max(0, -r.top / total)) : 0
-    const dist = Math.max(0, track.scrollWidth - window.innerWidth + 60)
-    track.style.transform = `translate3d(${-dist * lp}px,0,0)`
-  }
   const mechSec = document.getElementById('mechanism')
   if (mechSec) {
     const r = mechSec.getBoundingClientRect()
@@ -34,6 +28,30 @@ function driveDom(p: number): void {
       s.dataset.on = String(i <= si)
     })
   }
+}
+
+// ---- lineup (static mode) ----------------------------------------------
+// Same section-local mapping as the 3D ring: --ring drives the CSS prism of
+// renders + the dial, `variant:active` drives the overlay text and the buy
+// form. The pre-rendered frames show the old single pencil, so they fade
+// out while the prism (and the buy-slot render) take over.
+let lastLineupIdx = 0
+function driveLineup(img: HTMLImageElement | null): void {
+  const sec = document.getElementById('lineup')
+  if (!sec) return
+  const u = -sec.getBoundingClientRect().top / Math.max(1, window.innerHeight)
+  const pos = ringTarget(u)
+  const reduced =
+    document.body.classList.contains('reduced') ||
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  sec.style.setProperty('--ring', String(reduced ? ringIndex(pos) : Math.round(pos * 1000) / 1000))
+  sec.style.setProperty('--lu-out', sstep(LINEUP_PIN + 0.02, LINEUP_PIN + 0.38, u).toFixed(3))
+  const i = ringIndex(pos)
+  if (u > RING_IN[0] && u < LINEUP_PIN + 0.15 && i !== lastLineupIdx) {
+    lastLineupIdx = i
+    bus.emit('variant:active', { name: VARIANT_ORDER[i] })
+  }
+  if (img) img.style.opacity = String(1 - sstep(-0.75, -0.25, u))
 }
 
 /**
@@ -75,6 +93,7 @@ export default function FrameFallback() {
       const p = max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0
       show(Math.min(count - 1, Math.floor(p * count)))
       driveDom(p)
+      driveLineup(img)
     }
     const onScroll = (): void => {
       if (!queued) {
@@ -83,6 +102,12 @@ export default function FrameFallback() {
       }
     }
 
+    document.body.classList.add('is-static')
+    sizeLineup()
+    const onResize = (): void => {
+      sizeLineup()
+      onScroll()
+    }
     show(0)
     driveDom(0)
     update()
@@ -101,12 +126,13 @@ export default function FrameFallback() {
     const gl = document.getElementById('gl')
     if (gl) gl.style.display = 'none'
     window.addEventListener('scroll', onScroll, { passive: true })
-    window.addEventListener('resize', onScroll)
+    window.addEventListener('resize', onResize)
     document.getElementById('loader')?.classList.add('done')
     return () => {
       cancelAnimationFrame(raf)
       window.removeEventListener('scroll', onScroll)
-      window.removeEventListener('resize', onScroll)
+      window.removeEventListener('resize', onResize)
+      document.body.classList.remove('is-static')
     }
   }, [])
 

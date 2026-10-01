@@ -19,9 +19,9 @@ export interface Finish {
 
 export const FINISHES: Record<VariantName, Finish> = {
   Core: { color: 0x2b2f36, roughness: 0.52, metalness: 1.0, envIntensity: 1.0 },
-  Pro: { color: 0x6b5a3e, roughness: 0.42, metalness: 1.0, envIntensity: 1.05 },
-  Studio: { color: 0x1e2f4f, roughness: 0.5, metalness: 1.0, envIntensity: 1.0 },
-  Limited: { color: 0x4a4e55, roughness: 0.58, metalness: 1.0, envIntensity: 1.0 },
+  Pro: { color: 0xc59b55, roughness: 0.32, metalness: 1.0, envIntensity: 1.2 },
+  Studio: { color: 0x1e2f4f, roughness: 0.4, metalness: 0.85, envIntensity: 1.1 },
+  Limited: { color: 0xb3b5b4, roughness: 0.56, metalness: 0.82, envIntensity: 1.55 },
 }
 
 export const VARIANT_ORDER: VariantName[] = ['Core', 'Pro', 'Studio', 'Limited']

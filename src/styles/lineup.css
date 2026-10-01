@@ -1,22 +1,152 @@
-/* ---------- horizontal lineup ---------- */
-#lineup{position:relative}
-.pin{position:sticky;top:0;height:100dvh;overflow:hidden;display:flex;align-items:center}
-.track{display:flex;gap:0;will-change:transform;padding-left:max(24px,calc((100vw - 1200px)/2 + 24px))}
-.variant{flex:0 0 min(78vw,560px);padding-right:56px}
-.variant .shot{height:300px;border:1px solid var(--hairline);background:var(--card);border-radius:var(--radius);
-  display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
-.variant .shot svg{width:70%;height:auto}
-.variant .shot img{width:92%;height:auto;display:block}
-.variant .dot{position:absolute;top:14px;left:14px;font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--muted)}
-.variant h3{font-size:30px;margin-top:20px}
-.variant .mat{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:6px;letter-spacing:.06em}
-.variant p{color:var(--muted);margin-top:10px;font-size:15px}
-.variant .row{display:flex;align-items:center;gap:16px;margin-top:16px}
-.price{font-variant-numeric:tabular-nums;font-weight:700;font-size:17px}
-.swatch{width:22px;height:22px;border-radius:50%;border:1px solid var(--hairline);display:inline-block}
-.lineup-hint{position:absolute;bottom:26px;left:0;right:0;text-align:center}
-/* motion paused / reduced-motion fallback: lineup becomes native horizontal scroll */
-.reduced #lineup{height:auto !important}
-.reduced .pin{position:static;height:auto;overflow-x:auto;overflow-y:hidden}
-.reduced .track{transform:none !important}
-.reduced .lineup-hint{display:none}
+/* ---------- lineup: 3D ring overlay ---------- */
+@property --ring{syntax:'<number>';inherits:true;initial-value:0}
+#lineup{position:relative;overflow-anchor:none;--ring:0;--gut:max(24px,calc((100vw - var(--max))/2 + 24px))}
+#lineup .pin{position:sticky;top:0;height:100dvh;overflow:hidden;touch-action:pan-y;
+  -webkit-user-select:none;user-select:none}
+#lineup .pin.is-dragging{cursor:grabbing}
+.lu-grid{position:relative;height:100%;display:grid;
+  grid-template-columns:minmax(0,.42fr) minmax(0,.58fr);grid-template-rows:auto minmax(0,1fr) auto;
+  padding:104px var(--gut) 40px;column-gap:24px}
+.lu-head{grid-column:1;grid-row:1;position:relative;z-index:1}
+/* the overlay dissolves as the ring collapses into Buy (--lu-out 0→1) */
+.lu-head,.lu-info,.lu-dial{opacity:calc(1 - var(--lu-out,0))}
+.lu-eyebrow{display:flex;align-items:baseline;gap:14px;color:var(--muted)}
+.lu-eyebrow>span:first-child::after{content:"";display:inline-block;width:28px;height:1px;background:var(--hairline);
+  vertical-align:middle;margin-left:14px}
+.lu-count{color:var(--ink);display:inline-flex;align-items:baseline}
+.lu-of{color:var(--muted);white-space:pre}
+#lineup h2{font-size:clamp(26px,2.4vw,34px);font-weight:600;margin-top:12px;max-width:16ch}
+
+/* the 3D ring renders into this box (ring.ts reads its pinned rect) */
+.lu-stage{grid-column:2;grid-row:1 / 4;position:relative;margin:-40px calc(-1 * var(--gut)) -40px 0;min-height:0}
+
+.lu-info{grid-column:1;grid-row:2;align-self:center;position:relative;z-index:1;padding-bottom:2vh}
+.lu-name{font-size:clamp(64px,8.4vw,136px);font-weight:500;letter-spacing:-0.05em;line-height:.9;margin:0 0 0 -0.04em}
+.lu-mat{margin-top:20px;color:var(--ink);letter-spacing:.12em;font-size:12px}
+.lu-desc{margin-top:14px;color:var(--muted);font-size:16px;line-height:1.55;max-width:33ch;min-height:3.1em;
+  animation:lu-desc-in .9s var(--ease-standard) both}
+.lu-buyrow{display:flex;align-items:center;gap:22px;margin-top:28px}
+.lu-price{display:inline-flex;align-items:baseline;font-size:24px;font-weight:600;letter-spacing:-0.02em;
+  font-variant-numeric:tabular-nums}
+.lu-cur{font-size:.72em;margin-right:2px;color:var(--muted);font-weight:500}
+.lu-cta{display:inline-flex;align-items:center;gap:12px;background:var(--ink);color:var(--paper);border:0;
+  border-radius:var(--radius);padding:14px 20px;font-weight:600;font-size:15px;cursor:pointer;
+  transition:background .18s ease,transform .18s var(--ease-out)}
+.lu-cta:hover{background:#000}
+.lu-cta:active{transform:scale(.98)}
+.lu-cta-a{display:inline-block;transition:transform .32s var(--ease-out)}
+.lu-cta:hover .lu-cta-a{transform:translateX(4px)}
+
+/* leader callout (ring.ts sets the endpoints + --lead-o) */
+.lu-leader{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:0;
+  opacity:calc(var(--lead-o,0) * (1 - var(--lu-out,0)))}
+.lu-leader line{stroke:var(--ink);stroke-opacity:.42;stroke-width:1;vector-effect:non-scaling-stroke}
+.lu-leader circle{fill:var(--accent);opacity:0;animation:lu-dot .3s ease .9s forwards}
+@keyframes lu-dot{to{opacity:1}}
+.is-static .lu-leader{display:none}
+/* masked character roll (direction-aware) */
+.roll{display:inline-grid;overflow:clip;overflow-clip-margin:.06em;vertical-align:top;
+  padding:0 .06em .08em 0;margin-bottom:-.08em}
+.roll-l{grid-area:1 / 1;white-space:nowrap}
+.rc{display:inline-block;will-change:transform}
+.roll-in .rc{animation:rc-in-up .8s var(--ease-out) both;animation-delay:calc(var(--i) * 24ms)}
+.roll-out .rc{animation:rc-out-up .6s var(--ease-out) both;animation-delay:calc(var(--i) * 16ms)}
+.roll[data-dir="down"] .roll-in .rc{animation-name:rc-in-down}
+.roll[data-dir="down"] .roll-out .rc{animation-name:rc-out-down}
+.lu-mat-roll .rc{animation-duration:.6s;animation-delay:calc(var(--i) * 8ms)}
+@keyframes rc-in-up{from{transform:translateY(108%)}to{transform:none}}
+@keyframes rc-out-up{from{transform:none}to{transform:translateY(-108%)}}
+@keyframes rc-in-down{from{transform:translateY(-108%)}to{transform:none}}
+@keyframes rc-out-down{from{transform:none}to{transform:translateY(108%)}}
+@keyframes lu-desc-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+/* odometer digits */
+.odo{display:inline-flex;font-variant-numeric:tabular-nums}
+.odo-slot{display:inline-block;height:1em;line-height:1em;overflow:clip;width:1ch;
+  transition:width .5s var(--ease-out),opacity .3s ease}
+.odo-slot.is-blank{width:0;opacity:0}
+.odo-col{display:flex;flex-direction:column;transform:translateY(calc(var(--d) * -1em));
+  transition:transform .9s var(--ease-out) calc(var(--k) * 40ms)}
+.odo-col span{display:block;height:1em}
+
+/* dial: a caliper scale; the needle follows the ring continuously */
+.lu-dial{grid-column:1;grid-row:3;position:relative;z-index:1;width:min(100%,420px);align-self:end}
+.lu-scale{position:relative;height:12px;margin:0 12.5%;
+  background:
+    linear-gradient(var(--ink),var(--ink)) 0% 100% / 1px 12px no-repeat,
+    linear-gradient(var(--ink),var(--ink)) 33.333% 100% / 1px 12px no-repeat,
+    linear-gradient(var(--ink),var(--ink)) 66.667% 100% / 1px 12px no-repeat,
+    linear-gradient(var(--ink),var(--ink)) 100% 100% / 1px 12px no-repeat,
+    repeating-linear-gradient(90deg,rgba(20,20,18,.32) 0 1px,transparent 1px calc(100% / 30)) 0 100% / 100% 5px no-repeat;
+  border-bottom:1px solid var(--hairline)}
+.lu-needle{position:absolute;bottom:-1px;left:calc(var(--ring) / 3 * 100%);width:1px;height:22px;background:var(--accent);
+  transform:translateX(-.5px)}
+.lu-needle::before{content:"";position:absolute;top:-5px;left:-3.5px;border:4px solid transparent;border-top:6px solid var(--accent);
+  border-bottom:0}
+.lu-stops{display:grid;grid-template-columns:repeat(4,1fr);margin-top:10px}
+.lu-stop{position:relative;display:flex;flex-direction:column;align-items:center;gap:1px;cursor:pointer;padding:4px 0;
+  color:var(--muted);transition:color .25s ease;border-radius:var(--radius)}
+.lu-stop input{position:absolute;opacity:0;width:1px;height:1px;margin:0;pointer-events:none}
+.lu-stop-n{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em}
+.lu-stop-t{font-size:13px;letter-spacing:-0.005em}
+.lu-stop:hover{color:var(--ink)}
+.lu-stop[data-on="true"]{color:var(--ink)}
+.lu-stop[data-on="true"] .lu-stop-t{font-weight:600}
+.lu-stop[data-on="true"] .lu-stop-n{color:var(--accent)}
+.lu-stop:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+#lineup .sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);
+  white-space:nowrap;border:0}
+
+/* ---------- static (zero-GPU) mode: CSS 3D prism of the four renders ---------- */
+.lu-prism{display:none}
+.is-static #lineup{transition:--ring .55s var(--ease-out)}
+.is-static .lu-stage{perspective:1500px}
+.is-static .lu-prism{display:block;position:absolute;inset:0;--cw:min(540px,34vw);
+  transform-style:preserve-3d;transform:rotateX(-9deg) rotateY(-18deg)}
+.lu-card{position:absolute;left:50%;top:50%;width:var(--cw);aspect-ratio:2.5;margin:0;
+  border:1px solid var(--hairline);background:#F3F2EE;border-radius:var(--radius);overflow:hidden;
+  backface-visibility:hidden;-webkit-backface-visibility:hidden;
+  transform:translate(-50%,-50%) rotateX(calc((var(--i) - var(--ring)) * -90deg)) translateZ(calc(var(--cw) / 5));
+  opacity:max(0,calc(1 - (var(--i) - var(--ring)) * (var(--i) - var(--ring)) * .6))}
+.lu-card img{display:block;width:100%;height:100%;object-fit:cover}
+.lu-card figcaption{position:absolute;top:10px;left:12px;font-size:10.5px}
+@media (prefers-reduced-motion:reduce){
+  .roll .rc,.lu-desc,.lu-leader circle{animation:none !important}
+  .lu-leader circle{opacity:1}
+  .roll-out{visibility:hidden}
+  .odo-col,.odo-slot{transition:none}
+  .is-static #lineup{transition:none}
+  .is-static .lu-prism{display:grid;grid-template-columns:1fr 1fr;align-content:center;gap:14px;transform:none;padding:0 var(--gut) 0 0}
+  .is-static .lu-card{position:relative;left:auto;top:auto;width:auto;transform:none;
+    opacity:max(.4,calc(1 - (var(--i) - var(--ring)) * (var(--i) - var(--ring)) * .6))}
+}
+.reduced .roll .rc,.reduced .lu-desc,.reduced .lu-leader circle{animation:none !important}
+.reduced .lu-leader circle{opacity:1}
+.reduced .roll-out{visibility:hidden}
+.reduced .odo-col,.reduced .odo-slot{transition:none}
+.reduced.is-static #lineup{transition:none}
+.reduced.is-static .lu-prism{display:grid;grid-template-columns:1fr 1fr;align-content:center;gap:14px;transform:none;padding:0 var(--gut) 0 0}
+.reduced.is-static .lu-card{position:relative;left:auto;top:auto;width:auto;transform:none;
+  opacity:max(.4,calc(1 - (var(--i) - var(--ring)) * (var(--i) - var(--ring)) * .6))}
+
+/* ---------- small screens: ring on top, labels stacked below ---------- */
+@media (max-width:900px){
+  .lu-grid{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto auto;
+    padding:80px 20px 18px;row-gap:0}
+  .lu-head{grid-column:1;grid-row:1}
+  #lineup h2{font-size:22px;margin-top:6px}
+  .lu-stage{grid-column:1;grid-row:2;margin:0 -20px}
+  .lu-info{grid-column:1;grid-row:3;align-self:end;padding-bottom:0}
+  .lu-name{font-size:clamp(46px,14vw,76px)}
+  .lu-mat{margin-top:10px;font-size:11px}
+  .lu-desc{font-size:14px;margin-top:8px;min-height:0;max-width:40ch}
+  .lu-buyrow{margin-top:14px;gap:16px}
+  .lu-price{font-size:20px}
+  .lu-cta{padding:12px 16px;font-size:14px}
+  .lu-dial{grid-column:1;grid-row:4;width:100%;margin-top:16px}
+  .lu-leader{display:none}
+  .is-static .lu-prism{--cw:84vw}
+}
+@media (max-width:900px) and (max-height:700px){
+  .lu-desc{display:none}
+}
