@@ -13,7 +13,9 @@ micro-grain textures. Exports:
   public/models/source/manifest.json                 (part registry + stats)
 
 Run:   python3 scripts/asset-processing/blender/build_pencil.py
-       (needs the `bpy` module, numpy, pygltflib; deterministic)
+       (needs the `bpy` module, numpy, pygltflib). Geometry, normals and
+       textures are reproducible run to run; UVs on Bevel-generated facets
+       can differ at float-noise level (Blender bevel UV interpolation).
 Flags: --tier desktop|mobile   build one tier only (no manifest rewrite)
        --no-blend              skip the .blend
        --meshopt               meshopt-compress geometry with gltfpack. OFF by
