@@ -1,4 +1,5 @@
 {
+ "generator": "scripts/asset-processing/blender/build_pencil.py (Blender 4.5.14 LTS)",
  "parts": [
   {
    "name": "buttonHex",
@@ -387,64 +388,195 @@
  ],
  "materials": {
   "anodized": {
-   "metallic": 0.9,
-   "roughness": 0.34,
-   "alpha": "OPAQUE"
+   "metallic": 1.0,
+   "roughness": 0.44,
+   "alpha": "OPAQUE",
+   "normalMap": "grain",
+   "normalScale": 0.3
   },
   "dlc": {
-   "metallic": 0.85,
-   "roughness": 0.42,
-   "alpha": "OPAQUE"
+   "metallic": 1.0,
+   "roughness": 0.46,
+   "alpha": "OPAQUE",
+   "normalMap": "grain",
+   "normalScale": 0.32
   },
   "steel": {
    "metallic": 1.0,
-   "roughness": 0.22,
-   "alpha": "OPAQUE"
+   "roughness": 0.32,
+   "alpha": "OPAQUE",
+   "normalMap": "grain",
+   "normalScale": 0.25
   },
   "polished": {
    "metallic": 1.0,
-   "roughness": 0.14,
-   "alpha": "OPAQUE"
+   "roughness": 0.3,
+   "alpha": "OPAQUE",
+   "normalMap": "turned",
+   "normalScale": 0.12
   },
   "brass": {
    "metallic": 1.0,
-   "roughness": 0.3,
-   "alpha": "OPAQUE"
+   "roughness": 0.34,
+   "alpha": "OPAQUE",
+   "normalMap": "grain",
+   "normalScale": 0.25
   },
   "spring": {
    "metallic": 1.0,
-   "roughness": 0.38,
-   "alpha": "OPAQUE"
+   "roughness": 0.34,
+   "alpha": "OPAQUE",
+   "normalMap": "grain",
+   "normalScale": 0.18
+  },
+  "recess": {
+   "metallic": 0.4,
+   "roughness": 0.55,
+   "alpha": "OPAQUE",
+   "normalMap": null,
+   "normalScale": 0.0
   },
   "polymer": {
    "metallic": 0.0,
-   "roughness": 0.45,
-   "alpha": "OPAQUE"
+   "roughness": 0.5,
+   "alpha": "OPAQUE",
+   "normalMap": null,
+   "normalScale": 0.0
   },
   "mechdark": {
-   "metallic": 0.4,
-   "roughness": 0.5,
-   "alpha": "OPAQUE"
+   "metallic": 0.8,
+   "roughness": 0.42,
+   "alpha": "OPAQUE",
+   "normalMap": "grain",
+   "normalScale": 0.28
   },
   "reservoir": {
    "metallic": 0.1,
    "roughness": 0.15,
-   "alpha": "BLEND"
+   "alpha": "BLEND",
+   "normalMap": null,
+   "normalScale": 0.0
   },
   "eraser": {
    "metallic": 0.0,
-   "roughness": 0.92,
-   "alpha": "OPAQUE"
+   "roughness": 0.9,
+   "alpha": "OPAQUE",
+   "normalMap": null,
+   "normalScale": 0.0
   },
   "lead": {
-   "metallic": 0.25,
-   "roughness": 0.55,
-   "alpha": "OPAQUE"
+   "metallic": 0.35,
+   "roughness": 0.45,
+   "alpha": "OPAQUE",
+   "normalMap": null,
+   "normalScale": 0.0
   },
-  "recess": {
-   "metallic": 0.6,
-   "roughness": 0.6,
-   "alpha": "OPAQUE"
+  "etch": {
+   "metallic": 1.0,
+   "roughness": 0.46,
+   "alpha": "OPAQUE",
+   "normalMap": "grain",
+   "normalScale": 0.45
+  }
+ },
+ "tiers": {
+  "mobile": {
+   "triangles": 41490,
+   "bytes": 1836672,
+   "meshopt": false,
+   "partTriangles": {
+    "buttonHex": 2520,
+    "buttonStem": 360,
+    "eraser": 336,
+    "eraserSleeve": 384,
+    "buttonSpring": 852,
+    "topCollar": 1296,
+    "actuatorCone": 432,
+    "actuatorSleeve": 432,
+    "washerTop": 480,
+    "feedRod": 288,
+    "shaftMid": 288,
+    "reservoirHex": 480,
+    "resPlug": 1188,
+    "clutchHousing": 672,
+    "jawA": 824,
+    "jawB": 824,
+    "jawC": 824,
+    "retainerHex": 672,
+    "seatLow": 384,
+    "returnSpring": 1356,
+    "seatUp": 384,
+    "stabilizerSpring": 1020,
+    "guideTube": 480,
+    "threadRing": 1670,
+    "spacerTube": 288,
+    "noseWasher": 264,
+    "stopCollar": 480,
+    "barrelHex": 2908,
+    "barrelGrooves": 384,
+    "clipBlade": 3752,
+    "clipFoot": 76,
+    "clipScrew": 348,
+    "gripSleeve": 780,
+    "gripUnderlay": 288,
+    "gripLattice": 7128,
+    "gripRingTop": 384,
+    "gripRingBot": 384,
+    "noseHex": 4500,
+    "noseTip": 432,
+    "noseInsert": 396,
+    "leadSleeve": 180,
+    "lead": 72
+   }
+  },
+  "desktop": {
+   "triangles": 90066,
+   "bytes": 3920984,
+   "meshopt": false,
+   "partTriangles": {
+    "buttonHex": 5184,
+    "buttonStem": 720,
+    "eraser": 672,
+    "eraserSleeve": 768,
+    "buttonSpring": 2820,
+    "topCollar": 2592,
+    "actuatorCone": 864,
+    "actuatorSleeve": 864,
+    "washerTop": 960,
+    "feedRod": 576,
+    "shaftMid": 576,
+    "reservoirHex": 792,
+    "resPlug": 2736,
+    "clutchHousing": 1344,
+    "jawA": 1790,
+    "jawB": 1790,
+    "jawC": 1790,
+    "retainerHex": 1440,
+    "seatLow": 768,
+    "returnSpring": 4500,
+    "seatUp": 768,
+    "stabilizerSpring": 3380,
+    "guideTube": 960,
+    "threadRing": 3342,
+    "spacerTube": 576,
+    "noseWasher": 480,
+    "stopCollar": 960,
+    "barrelHex": 5684,
+    "barrelGrooves": 768,
+    "clipBlade": 7704,
+    "clipFoot": 124,
+    "clipScrew": 672,
+    "gripSleeve": 1572,
+    "gripUnderlay": 576,
+    "gripLattice": 11880,
+    "gripRingTop": 672,
+    "gripRingBot": 672,
+    "noseHex": 13606,
+    "noseTip": 864,
+    "noseInsert": 792,
+    "leadSleeve": 360,
+    "lead": 108
+   }
   }
  }
 }
