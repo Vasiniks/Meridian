@@ -12,6 +12,8 @@ import Buy from './components/Buy'
 import Footer from './components/Footer'
 import FrameFallback from './components/FrameFallback'
 import { PencilExperience } from './three/experience'
+import { registerModules } from './three/registerModules'
+import { startPointer } from './fx/pointer'
 
 function useStaticMode(): boolean {
   if (typeof window === 'undefined') return false
@@ -39,11 +41,14 @@ export default function App() {
       window.matchMedia('(prefers-reduced-motion: reduce)').matches,
   )
 
+  useEffect(() => startPointer(), [])
+
   useEffect(() => {
     if (staticMode) return
     const canvas =
       canvasRef.current ?? (document.getElementById('gl') as HTMLCanvasElement)
     const exp = new PencilExperience(canvas)
+    registerModules(exp)
     expRef.current = exp
     ;(window as unknown as { __exp?: unknown }).__exp = exp
     setMotionPaused(!exp.isMotionOK())

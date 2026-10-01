@@ -3,6 +3,7 @@ import { ANODIZED, detectConfig, type QualityConfig } from './config'
 import { createStage, type Stage } from './stage'
 import { loadAssembly, type Assembly } from './assembly'
 import { sampleCam } from './cameraRig'
+import type { FrameCtx, SceneModule } from './modules'
 import {
   canvasDimF,
   detailF,
@@ -50,6 +51,13 @@ export class PencilExperience {
   // True while a tint chase still has visible distance to cover — keeps
   // the loop ticking after scroll settles so variant clicks always play.
   private colorDirty = true
+  // Pluggable scene modules (see modules.ts) + shared per-frame context.
+  private modules: SceneModule[] = []
+  private ready = false
+  private t0 = performance.now()
+  private prevTgtP = 0
+  private scrollVel = 0
+  private ctx: FrameCtx | null = null
   private refreshViewport(): void {
     const w = window.innerWidth
     const h = window.innerHeight
@@ -73,6 +81,7 @@ export class PencilExperience {
     this.stage.setSize(window.innerWidth, window.innerHeight)
     const lineupSec = document.getElementById('lineup')
     if (lineupSec) lineupSec.style.height = `${window.innerHeight * 4}px`
+    for (const m of this.modules) m.onResize?.(window.innerWidth, window.innerHeight)
     this.lastY = -1
   }
   private onVis = () => {
@@ -93,6 +102,21 @@ export class PencilExperience {
 
   get quality() {
     return this.cfg.quality
+  }
+
+  /** Register a scene module; initialised immediately if already loaded. */
+  addModule(m: SceneModule): void {
+    this.modules.push(m)
+    if (this.ready && this.stage && this.asm) {
+      void Promise.resolve(m.init?.(this.stage, this.asm, this.cfg)).catch((e) =>
+        console.error(`[module ${m.name}] init failed`, e),
+      )
+    }
+    this.lastY = -1
+  }
+
+  getModule<T extends SceneModule>(name: string): T | undefined {
+    return this.modules.find((m) => m.name === name) as T | undefined
   }
 
   async init(): Promise<void> {
@@ -121,6 +145,14 @@ export class PencilExperience {
     })
     const lineupSec = document.getElementById('lineup')
     if (lineupSec) lineupSec.style.height = `${window.innerHeight * 4}px`
+    for (const m of this.modules) {
+      try {
+        await m.init?.(this.stage, this.asm, this.cfg)
+      } catch (e) {
+        console.error(`[module ${m.name}] init failed`, e)
+      }
+    }
+    this.ready = true
     window.addEventListener('resize', this.onResize)
     document.addEventListener('visibilitychange', this.onVis)
     this.stage.composer.render()
@@ -138,6 +170,7 @@ export class PencilExperience {
   setMotionOK(ok: boolean): void {
     this.motionOK = ok
     document.body.classList.toggle('reduced', !ok)
+    for (const m of this.modules) m.onMotionChange?.(ok)
     this.lastY = -1
   }
 
@@ -218,9 +251,16 @@ export class PencilExperience {
     // Settled-frame optimization — BUT keep ticking while the turntable
     // spins or a tint chase is in flight, otherwise the spin would freeze
     // the moment scrolling stops and variant clicks would never animate.
-    if (!this.readProgress() && !this.firstFrame) {
+    const moved = this.readProgress()
+    // scroll velocity (progress units / s), smoothed — feeds velocity FX
+    const instVel = dt > 0 ? (this.tgtP - this.prevTgtP) / dt : 0
+    this.prevTgtP = this.tgtP
+    this.scrollVel += (instVel - this.scrollVel) * (1 - Math.exp(-10 * dt))
+    if (Math.abs(this.scrollVel) < 1e-4) this.scrollVel = 0
+    if (!moved && !this.firstFrame) {
       const idleSpin = this.motionOK && sstep(0.62, 0.72, this.cur) > 0
-      if (!idleSpin && !this.colorDirty) return
+      const modWants = this.modules.some((m) => m.wantsFrame?.() === true)
+      if (!idleSpin && !this.colorDirty && !modWants && this.scrollVel === 0) return
     }
     const asm = this.asm
     const mob = this.mobEff
@@ -228,6 +268,8 @@ export class PencilExperience {
     this.cur += (this.tgtP - this.cur) * (this.motionOK ? 1 - Math.exp(-4 * dt) : 1)
     if (Math.abs(this.tgtP - this.cur) < 0.0004) this.cur = this.tgtP
     const p = this.cur
+    const ctx = this.frameCtx(p, dt, now)
+    for (const m of this.modules) m.preUpdate?.(ctx)
     const ex = explodeF(p)
     const xr = xrayF(p)
     const mc = mechF(p)
@@ -397,6 +439,7 @@ export class PencilExperience {
     }
     this.stage.key.intensity = 3.2 + Math.sin(p * Math.PI * 2) * 0.25 + xr * 0.6
 
+    for (const m of this.modules) m.update?.(ctx)
     this.stage.composer.render()
     const loadFill = document.getElementById('loadFill')
     if (loadFill) loadFill.style.width = '100%'
@@ -407,8 +450,34 @@ export class PencilExperience {
     }
   }
 
+  private frameCtx(p: number, dt: number, now: number): FrameCtx {
+    const c =
+      this.ctx ??
+      (this.ctx = {
+        p,
+        rawP: this.tgtP,
+        scrollVel: 0,
+        dt,
+        time: 0,
+        stage: this.stage!,
+        asm: this.asm!,
+        cfg: this.cfg,
+        motionOK: this.motionOK,
+        aspect: this.aspect,
+      })
+    c.p = p
+    c.rawP = this.tgtP
+    c.scrollVel = this.scrollVel
+    c.dt = dt
+    c.time = (now - this.t0) / 1000
+    c.motionOK = this.motionOK
+    c.aspect = this.aspect
+    return c
+  }
+
   dispose(): void {
     this.disposed = true
+    for (const m of this.modules) m.dispose?.()
     cancelAnimationFrame(this.raf)
     window.removeEventListener('resize', this.onResize)
     document.removeEventListener('visibilitychange', this.onVis)
