@@ -1,4 +1,5 @@
 import { footer } from "../data/content";
+import BrandMark from "./BrandMark";
 
 /** Closing title block: the last sheet of the drawing set. */
 export default function Footer() {
@@ -6,7 +7,10 @@ export default function Footer() {
     <footer>
       <div className="wrap">
         <div className="foot-tb">
-          <span className="brand">{footer.brand}</span>
+          <span className="brand">
+            <BrandMark />
+            {footer.brand}
+          </span>
           <span className="mono">{footer.tagline}</span>
           <span className="mono">Drawn · Checked · Scale 1:1</span>
           <span className="mono">Sheet 09/09 · Rev C</span>

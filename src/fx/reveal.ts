@@ -315,10 +315,10 @@ export function startReveals(): () => void {
 
   const fontsReady = Promise.race([
     Promise.all([
-      document.fonts.load('500 1em "Inter Tight"'),
-      document.fonts.load('600 1em "Inter Tight"'),
-      document.fonts.load('italic 400 1em "Instrument Serif"'),
-      document.fonts.load('400 1em "IBM Plex Mono"'),
+      document.fonts.load('500 1em "Hanken Grotesk"'),
+      document.fonts.load('600 1em "Hanken Grotesk"'),
+      document.fonts.load('italic 400 1em "Newsreader"'),
+      document.fonts.load('400 1em "DM Mono"'),
     ]).then(() => document.fonts.ready),
     new Promise((r) => setTimeout(r, 2500)),
   ])

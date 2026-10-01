@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { startFx } from "../fx";
+import BrandMark from "./BrandMark";
 
 export interface ChromeProps {
   motionPaused?: boolean;
@@ -39,7 +40,8 @@ export default function Chrome({ motionPaused = false, onToggleMotion }: ChromeP
       </div>
       <header id="nav">
         <div className="nav-inner">
-          <a className="brand" href="#hero">
+          <a className="brand" href="#hero" aria-label="Meridian, back to top">
+            <BrandMark />
             Meridian<small>0.5&nbsp;MM</small>
           </a>
           <div className="sheet" aria-hidden="true">

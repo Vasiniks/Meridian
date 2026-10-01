@@ -1,15 +1,15 @@
 /* Metric-matched fallbacks (measured against the self-hosted faces) so the
    web-font swap doesn't move layout: widths via size-adjust, vertical
    metrics via overrides (both relative to the adjusted size). */
-@font-face{font-family:"Inter Tight Fallback";src:local("Arial"),local("ArialMT"),local("Liberation Sans");
-  font-weight:100 450;size-adjust:96%;ascent-override:101%;descent-override:25%;line-gap-override:0%}
-@font-face{font-family:"Inter Tight Fallback";src:local("Arial"),local("ArialMT"),local("Liberation Sans");
-  font-weight:451 900;size-adjust:98.1%;ascent-override:98.9%;descent-override:24.5%;line-gap-override:0%}
-@font-face{font-family:"Instrument Serif Fallback";font-style:italic;
+@font-face{font-family:"Hanken Grotesk Fallback";src:local("Arial"),local("ArialMT"),local("Liberation Sans");
+  font-weight:100 450;size-adjust:100.6%;ascent-override:99.4%;descent-override:30.1%;line-gap-override:0%}
+@font-face{font-family:"Hanken Grotesk Fallback";src:local("Arial Bold"),local("Arial-BoldMT"),local("Liberation Sans Bold");
+  font-weight:451 900;size-adjust:95%;ascent-override:105.3%;descent-override:31.9%;line-gap-override:0%}
+@font-face{font-family:"Newsreader Fallback";font-style:italic;
   src:local("Times New Roman Italic"),local("TimesNewRomanPS-ItalicMT"),local("Liberation Serif Italic");
-  size-adjust:87.2%;ascent-override:113.5%;descent-override:35.6%;line-gap-override:0%}
-@font-face{font-family:"IBM Plex Mono Fallback";src:local("Courier New"),local("CourierNewPSMT"),local("Liberation Mono");
-  size-adjust:100%;ascent-override:102.5%;descent-override:27.5%;line-gap-override:0%}
+  size-adjust:99.2%;ascent-override:74.1%;descent-override:26.7%;line-gap-override:0%}
+@font-face{font-family:"DM Mono Fallback";src:local("Courier New"),local("CourierNewPSMT"),local("Liberation Mono");
+  size-adjust:100%;ascent-override:99.2%;descent-override:31%;line-gap-override:0%}
 *{box-sizing:border-box}
 /* Lenis owns smooth scrolling; native smooth-behavior would fight it.
    A stable gutter keeps layout still when the preloader locks scrolling. */
@@ -20,9 +20,10 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--font);
   -moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility;overflow-x:hidden}
 ::selection{background:var(--ink);color:var(--paper)}
 h1,h2,h3{text-wrap:balance;line-height:1.05;letter-spacing:-0.03em;margin:0;font-weight:500}
-/* editorial emphasis: Instrument Serif italic, optically matched to Inter Tight */
+/* editorial emphasis: Newsreader italic, optically matched to Hanken Grotesk
+   (its larger x-height needs far less boost than a display serif would) */
 h1 em,h2 em{font-family:var(--serif);font-style:italic;font-weight:400;
-  font-size:1.1em;letter-spacing:-0.012em;line-height:0}
+  font-size:1.03em;letter-spacing:-0.015em;line-height:0}
 p{margin:0;max-width:58ch;text-wrap:pretty}
 .mono{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .tnum{font-variant-numeric:tabular-nums}
