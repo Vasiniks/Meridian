@@ -29,8 +29,8 @@ export async function createStage(
   renderer.setSize(window.innerWidth, window.innerHeight, false)
   renderer.shadowMap.enabled = cfg.quality === 'high'
   renderer.shadowMap.type = THREE.PCFShadowMap
-  renderer.toneMapping = THREE.ACESFilmicToneMapping
-  renderer.toneMappingExposure = 1.12
+  renderer.toneMapping = THREE.NeutralToneMapping
+  renderer.toneMappingExposure = 1.0
   renderer.outputColorSpace = THREE.SRGBColorSpace
   renderer.setClearColor(0x000000, 0)
 
