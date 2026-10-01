@@ -146,14 +146,14 @@ FINISH = {
     "jawA": ("bevel", 0.008),
     "jawB": ("bevel", 0.008),
     "jawC": ("bevel", 0.008),
-    "retainerHex": ("bevel", 0.018),
+    "retainerHex": ("bevel", 0.008),
     "seatUp": ("explicit", 0),
     "seatLow": ("explicit", 0),
     "stopCollar": ("explicit", 0),
     "feedRod": ("explicit", 0),
     "shaftMid": ("explicit", 0),
     "resPlug": ("bevel", 0.012),
-    "reservoirHex": ("bevel", 0.01),
+    "reservoirHex": ("bevel", 0.006),
     "spacerTube": ("explicit", 0),
     "threadRing": ("explicit", 0),
     "guideTube": ("explicit", 0),
@@ -188,8 +188,10 @@ def build_barrel(q):
          # exactly like a lathe groove on hex bar stock)
          H(4.884, R_BAR, 0.22), C(4.884, 0.371), C(4.916, 0.371), H(4.916, R_BAR, 0.22),
          H(5.044, R_BAR, 0.22), C(5.044, 0.371), C(5.076, 0.371), H(5.076, R_BAR, 0.22),
-         H(5.705, R_BAR, 0.45), H(5.75, 0.405, 0.35)],
-        [C(5.75, BORE_BAR, 0.12), C(-0.46, BORE_BAR, 0.12)],
+         # end chamfer: apothem 0.364 stays outside the 0.352 bore, and the
+         # two ring bevels (0.0064 + 0.0016) fit in the 0.012 annulus
+         H(5.705, R_BAR, 0.45), H(5.75, 0.420, 0.2)],
+        [C(5.75, BORE_BAR, 0.05), C(-0.46, BORE_BAR, 0.12)],
     )
     lathe(g, prof, "anodized", q["nseg"], closed=True, arris=1.0)
     # replace the lettering face segment with the etched face
@@ -222,41 +224,140 @@ def _text_splines(body, font_path, size, space=1.0):
     return spl, (min(xs), max(xs))
 
 
-def _fill_mesh(splines, res, rect=None):
+def _bez(p0, p1, p2, p3, t):
+    s = 1.0 - t
+    return tuple(s * s * s * p0[k] + 3 * s * s * t * p1[k] + 3 * s * t * t * p2[k] + t * t * t * p3[k]
+                 for k in range(2))
+
+
+def _seg_dist(p, a, b):
+    ax, ay = b[0] - a[0], b[1] - a[1]
+    L2 = ax * ax + ay * ay
+    if L2 < 1e-24:
+        return math.hypot(p[0] - a[0], p[1] - a[1])
+    return abs((p[0] - a[0]) * ay - (p[1] - a[1]) * ax) / math.sqrt(L2)
+
+
+def _clean_ring(pts, tol=2e-6):
+    """Drop near-duplicate and collinear points of a closed polyline, in
+    double precision. Collinear runs are what made the fill emit zero-area
+    triangles (Blender gives those the fallback normal +Z, which poisoned
+    the smooth vertex normals and the MikkTSpace tangents = the 'wedge')."""
+    pts = list(pts)
+    changed = True
+    while changed and len(pts) > 3:
+        changed = False
+        out = []
+        n = len(pts)
+        for i in range(n):
+            a, p, b = pts[i - 1] if not out else out[-1], pts[i], pts[(i + 1) % n]
+            if math.hypot(p[0] - a[0], p[1] - a[1]) < tol or _seg_dist(p, a, b) < tol:
+                changed = True
+                continue
+            out.append(p)
+        pts = out
+    return pts
+
+
+def _polylines(splines, res):
+    """Exact closed polylines from Bezier glyph splines: straight segments
+    contribute only their end points (no resampled collinear points),
+    curved segments `res` steps."""
+    rings = []
+    for s in splines:
+        n = len(s)
+        ring = []
+        for i in range(n):
+            p0 = s[i][0][:2]
+            p1 = s[i][2][:2]
+            p2 = s[(i + 1) % n][1][:2]
+            p3 = s[(i + 1) % n][0][:2]
+            ring.append(p0)
+            if max(_seg_dist(p1, p0, p3), _seg_dist(p2, p0, p3)) > 1e-7:
+                for k in range(1, res):
+                    ring.append(_bez(p0, p1, p2, p3, k / res))
+        ring = _clean_ring(ring)
+        if len(ring) >= 3:
+            rings.append(ring)
+    return rings
+
+
+def _tri_alt(verts, t):
+    a, b, c = (verts[i] for i in t)
+    dbl = abs((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]))
+    L = max(math.dist(a, b), math.dist(b, c), math.dist(c, a))
+    return dbl / max(L, 1e-30)
+
+
+def _fix_degenerate(verts, tris, eps=1e-6):
+    """Remove zero-area triangles from a planar triangulation without
+    opening cracks: a degenerate triangle (a, c, b) with c on its long edge
+    a-b is dropped and the neighbour across a-b is split at c. Blender's
+    scanfill emits these when glyph vertices are collinear (e.g. the feet
+    of an M on one baseline)."""
+    tris = [tuple(t) for t in tris]
+    for _ in range(10000):
+        bad = next((i for i, t in enumerate(tris) if _tri_alt(verts, t) < eps), None)
+        if bad is None:
+            return tris
+        t = tris[bad]
+        # c = the vertex opposite the longest edge
+        L = [math.dist(verts[t[(k + 1) % 3]], verts[t[(k + 2) % 3]]) for k in range(3)]
+        k = max(range(3), key=lambda j: L[j])
+        c, a, b = t[k], t[(k + 1) % 3], t[(k + 2) % 3]
+        del tris[bad]
+        for j, u in enumerate(tris):
+            for e in range(3):
+                x, y, z = u[e], u[(e + 1) % 3], u[(e + 2) % 3]
+                if {x, y} == {a, b}:
+                    tris[j] = (x, c, z)
+                    tris.append((c, y, z))
+                    break
+            else:
+                continue
+            break
+    raise RuntimeError("degenerate repair did not converge")
+
+
+def _fill_mesh(rings, rect=None):
+    """Triangulate closed 2D polylines (POLY splines, so Blender only fills,
+    never resamples). Output vertices are snapped back to the exact double
+    input points, so coplanar faces stay exactly coplanar."""
     cu = bpy.data.curves.new("tmp_fill", 'CURVE')
     cu.dimensions = '2D'
     cu.fill_mode = 'BOTH'
-    cu.resolution_u = res
-    for pts in splines:
-        s = cu.splines.new('BEZIER')
-        s.bezier_points.add(len(pts) - 1)
-        for b, (co, hl, hr, tl, tr) in zip(s.bezier_points, pts):
-            b.co, b.handle_left, b.handle_right = co, hl, hr
-            b.handle_left_type, b.handle_right_type = tl, tr
-        s.use_cyclic_u = True
-    if rect is not None:
+    src = []
+    for ring in list(rings) + ([rect] if rect is not None else []):
         s = cu.splines.new('POLY')
-        s.points.add(len(rect) - 1)
-        for p, co in zip(s.points, rect):
+        s.points.add(len(ring) - 1)
+        for p, co in zip(s.points, ring):
             p.co = (co[0], co[1], 0.0, 1.0)
         s.use_cyclic_u = True
+        src.extend(ring)
     ob = bpy.data.objects.new("tmp_fill", cu)
     bpy.context.scene.collection.objects.link(ob)
     dg = bpy.context.evaluated_depsgraph_get()
     m = ob.evaluated_get(dg).to_mesh()
-    verts = [tuple(v.co) for v in m.vertices]
+    verts = []
+    for v in m.vertices:
+        x, y = v.co.x, v.co.y
+        best = min(src, key=lambda q: (q[0] - x) ** 2 + (q[1] - y) ** 2)
+        if (best[0] - x) ** 2 + (best[1] - y) ** 2 < 1e-10:
+            verts.append((best[0], best[1], 0.0))
+        else:
+            verts.append((x, y, 0.0))
     tris = [tuple(p.vertices) for p in m.polygons]
-    edges_used = {}
-    for p in m.polygons:
-        vs = list(p.vertices)
-        for i in range(len(vs)):
-            k = tuple(sorted((vs[i], vs[(i + 1) % len(vs)])))
-            edges_used.setdefault(k, []).append(p.index)
-    boundary = [(k, fl[0]) for k, fl in edges_used.items() if len(fl) == 1]
-    cent = {p.index: tuple(p.center) for p in m.polygons}
     ob.evaluated_get(dg).to_mesh_clear()
     bpy.data.objects.remove(ob)
     bpy.data.curves.remove(cu)
+    tris = _fix_degenerate(verts, tris)
+    edges_used = {}
+    for ti, t in enumerate(tris):
+        for i in range(3):
+            k = tuple(sorted((t[i], t[(i + 1) % 3])))
+            edges_used.setdefault(k, []).append(ti)
+    boundary = [(k, fl[0]) for k, fl in edges_used.items() if len(fl) == 1]
+    cent = {ti: tuple(sum(verts[i][k] for i in t) / 3 for k in range(3)) for ti, t in enumerate(tris)}
     return verts, tris, boundary, cent
 
 
@@ -296,11 +397,13 @@ def etched_face(g, q, n, t, apo, z0, z1, R):
     letters = _xform_splines(brand, kb, xb, -cap_b / 2) + _xform_splines(spec, ks, xs, -cap_s / 2)
     half = R / 2
     inset = half - 0.06  # lettering panel stays clear of the beveled arrises
-    # long sides subdivided so the fill builds well-shaped triangles (no
-    # panel-length slivers fanning out of the corners)
-    nzs = max(8, int(round((z1 - z0) / 0.045)))
-    zs = [z0 + (z1 - z0) * i / nzs for i in range(nzs + 1)]
-    rect = [(z, -inset) for z in zs] + [(z, inset) for z in reversed(zs)]
+    # plain 4-corner panel: NO collinear subdivision points on its sides
+    # (collinear runs are what produced zero-area fill / n-gon triangles).
+    # Long thin triangles are harmless here: every vertex lies exactly on
+    # the face plane and the UVs are exactly linear across the face.
+    zs = [z0, z1]
+    rect = [(z0, -inset), (z1, -inset), (z1, inset), (z0, inset)]
+    rings = _polylines(letters, q["text_res"])
 
     def to3(x, y, h):
         u = -y
@@ -312,8 +415,8 @@ def etched_face(g, q, n, t, apo, z0, z1, R):
         ins = [g.v(to3(zz, -inset, 0.0)), g.v(to3(zz, inset, 0.0))]
         hit = g.split_edge(to3(zz, -half, 0.0), to3(zz, half, 0.0), ins)
         assert hit == 1, (zz, hit)
-    # strips between the arrises and the panel: one n-gon each (single
-    # straight arris edge for the bevel, subdivided inner edge for the panel)
+    # strips between the arrises and the panel: one quad each (single
+    # straight arris edge for the bevel)
     for ys in (-1, 1):
         a0 = g.v(to3(z0, ys * half, 0.0))
         a1 = g.v(to3(z1, ys * half, 0.0))
@@ -331,7 +434,7 @@ def etched_face(g, q, n, t, apo, z0, z1, R):
         return None
 
     # anodized face with letter-shaped holes
-    fv, ftris, _, _ = _fill_mesh(letters, q["text_res"], rect)
+    fv, ftris, _, _ = _fill_mesh(rings, rect)
     idx = []
     for (x, y, _z) in fv:
         p = snap(x, y)
@@ -339,7 +442,7 @@ def etched_face(g, q, n, t, apo, z0, z1, R):
     for tri in ftris:
         g.f([idx[i] for i in tri], "anodized", out=tuple(n), smooth=True, uvk="hex")
     # etched floor + walls
-    lv, ltris, lbound, lcent = _fill_mesh(letters, q["text_res"])
+    lv, ltris, lbound, lcent = _fill_mesh(rings)
     top = [g.v(to3(x, y, 0.0)) for (x, y, _z) in lv]
     bot = [g.v(to3(x, y, -ETCH_DEPTH)) for (x, y, _z) in lv]
     for tri in ltris:
@@ -679,10 +782,10 @@ def build_lead(q):
 def build_top_collar(q):
     g = Geo("topCollar")
     g.uv_rref = seamless_rref(APO_BAR)
-    prof = tube([H(5.752, 0.405, 0.35), H(5.797, R_BAR, 0.45),
+    prof = tube([H(5.752, 0.420, 0.2), H(5.797, R_BAR, 0.45),
                  H(5.985, R_BAR, 0.22), C(5.985, 0.373), C(6.015, 0.373), H(6.015, R_BAR, 0.22),
                  H(6.105, R_BAR, 0.22), C(6.105, 0.373), C(6.135, 0.373), H(6.135, R_BAR, 0.22),
-                 H(6.375, R_BAR, 0.45), H(6.43, 0.395, 0.45)],
+                 H(6.375, R_BAR, 0.45), H(6.43, 0.395, 0.2)],
                 [C(6.43, 0.330, 0.1), C(6.338, 0.330), C(6.338, 0.302), C(5.752, 0.302, 0.1)])
     lathe(g, prof, "dlc", q["nseg"], closed=True, arris=1.0)
     return g
@@ -698,7 +801,7 @@ def build_button(q):
         grooves += [H(z, Rb, 0.25), C(z, 0.272), C(z + 0.026, 0.272), H(z + 0.026, Rb, 0.25)]
         z += 0.058
     prof = ([C(6.89, 0.246, 0.15), H(6.89, 0.31, 0.5), H(6.915, Rb, 0.5)] + grooves +
-            [H(7.86, Rb, 0.5), H(7.915, 0.292, 0.5), C(7.915, 0.243, 0.3), C(8.065, 0.243, 0.6),
+            [H(7.86, Rb, 0.5), H(7.915, 0.292, 0.5), C(7.915, 0.232, 0.3), C(8.065, 0.232, 0.6),
              C(8.10, 0.205, 0.6), C(8.096, 0.13), C(8.090, 0.05), A(8.089),
              A(7.555), C(7.555, 0.246, 0.15)])
     lathe(g, prof, "steel", q["nseg"], closed=True, arris=1.0)
@@ -774,7 +877,8 @@ def build_clutch_housing(q):
 def build_retainer(q):
     g = Geo("retainerHex")
     g.uv_rref = seamless_rref(0.22)
-    lathe(g, tube([H(5.322, 0.228, 0.5), H(5.34, 0.252, 0.5), H(5.50, 0.252, 0.5), H(5.518, 0.228, 0.5)],
+    # end chamfers stay outside the bore at mid-flat (apothem 0.213 > 0.2075)
+    lathe(g, tube([H(5.322, 0.246, 0.3), H(5.334, 0.252, 0.5), H(5.506, 0.252, 0.5), H(5.518, 0.246, 0.3)],
                   [C(5.518, 0.2075, 0.2), C(5.322, 0.2075, 0.2)]),
           "mechdark", q["nseg"], closed=True, arris=1.0)
     return g
@@ -862,7 +966,7 @@ def build_reservoir(q):
     g = Geo("reservoirHex")
     g.uv_rref = seamless_rref(0.26)
     lathe(g, tube([H(0.50, 0.29, 0.5), H(0.512, 0.30, 0.5), H(3.488, 0.30, 0.5), H(3.50, 0.29, 0.5)],
-                  [H(3.50, 0.281, 0.3), H(0.50, 0.281, 0.3)]),
+                  [H(3.50, 0.272), H(0.50, 0.272)]),
           "reservoir", q["nseg"], closed=True, arris=1.0)
     return g
 

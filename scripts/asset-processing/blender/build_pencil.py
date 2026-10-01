@@ -2,7 +2,7 @@
 """Meridian Hex — Blender source of truth for the product model.
 
 Builds the 42-part hexagonal mechanical pencil in Blender (bpy, headless),
-with real bevels + weighted normals, a machined diamond knurl, turned-hex
+with real bevels + hardened normals, a machined diamond knurl, turned-hex
 nose, laser-etched lettering, formed spring-steel clip, closed/ground coil
 springs, toothed collet jaws, helical threads, and frosted (bead-blasted)
 micro-grain textures. Exports:
@@ -14,9 +14,20 @@ micro-grain textures. Exports:
 
 Run:   python3 scripts/asset-processing/blender/build_pencil.py
        (needs the `bpy` module, numpy, pygltflib; deterministic)
-Flags: --tier desktop|mobile   build one tier only
+Flags: --tier desktop|mobile   build one tier only (no manifest rewrite)
        --no-blend              skip the .blend
-       --no-pack               skip meshopt compression (gltfpack)
+       --meshopt               meshopt-compress geometry with gltfpack. OFF by
+                               default: src/three/assembly.ts loads plain glTF
+                               (no MeshoptDecoder); both tiers fit their budgets
+                               uncompressed. Enable only together with
+                               GLTFLoader.setMeshoptDecoder().
+
+Mesh hygiene (the old "wedge" shading artifact near the lettering): every
+part is triangulated in Blender (Triangulate, BEAUTY) before normals are
+finalised, bevelled parts use Bevel(harden_normals) instead of a
+WeightedNormal pass, and the etched lettering is filled from exact,
+collinear-free polylines. scripts/asset-processing/validate_glb.py fails on
+zero-area triangles or flipped vertex normals.
 
 Contract (verified at the end of every build): glTF root `Pencil` ->
 `Exterior` / `Internal` -> 42 named part nodes, each with extras
@@ -93,6 +104,11 @@ def build_scene(tier, tmpdir):
             ob[k] = float(v)
         mode, width = FINISH[name]
         if mode == "bevel":
+            # harden_normals: flat faces keep their exact face normal, only
+            # the new bevel facets are smoothed. (A FACE_AREA WeightedNormal
+            # pass mixed the long bevel strips into the narrow lettering
+            # panel strips and tilted their corner normals by ~7 deg: a
+            # visible wedge-shaped gradient along the panel.)
             bev = ob.modifiers.new("Bevel", 'BEVEL')
             bev.limit_method = 'WEIGHT'
             bev.width = width
@@ -100,17 +116,22 @@ def build_scene(tier, tmpdir):
             bev.profile = 0.5
             bev.use_clamp_overlap = True
             bev.miter_outer = 'MITER_ARC'
-            bev.harden_normals = False
+            bev.harden_normals = True
+        # Triangulate in Blender (BEAUTY = polyfill + edge-flip beautify)
+        # BEFORE normals are finalised. Left to the glTF exporter, n-gons
+        # with collinear runs (bevelled hex strips, lands, jaw sides) were
+        # split into zero-area triangles carrying garbage normals.
+        tri = ob.modifiers.new("Triangulate", 'TRIANGULATE')
+        tri.quad_method = 'BEAUTY'
+        tri.ngon_method = 'BEAUTY'
+        tri.min_vertices = 4
+        tri.keep_custom_normals = True  # 'explicit' parts: analytic normals
+        if mode == "smooth":
             wn = ob.modifiers.new("WeightedNormal", 'WEIGHTED_NORMAL')
             wn.mode = 'FACE_AREA'
             wn.weight = 50
             wn.keep_sharp = True
             wn.thresh = 0.01
-        elif mode == "smooth":
-            wn = ob.modifiers.new("WeightedNormal", 'WEIGHTED_NORMAL')
-            wn.mode = 'FACE_AREA'
-            wn.weight = 50
-            wn.keep_sharp = True
         stats[name] = {"source_tris": g.tri_count()}
     return stats
 
@@ -249,7 +270,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--tier", choices=["desktop", "mobile"], default=None)
     ap.add_argument("--no-blend", action="store_true")
-    ap.add_argument("--no-pack", action="store_true")
+    ap.add_argument("--meshopt", action="store_true")
     a = ap.parse_args([x for x in sys.argv[1:] if x != "--"])
     tiers = [a.tier] if a.tier else ["mobile", "desktop"]
     tmpdir = tempfile.mkdtemp(prefix="meridian_tex_")
@@ -261,7 +282,7 @@ def main():
         info = postprocess_and_validate(OUT[tier], tier)
         raw = info["bytes"]
         packed = False
-        if not a.no_pack:
+        if a.meshopt:
             packed = gltfpack(OUT[tier])
             if packed:
                 validate_packed(OUT[tier], tier)
@@ -279,7 +300,10 @@ def main():
                 if img.source == 'FILE' and not img.packed_file:
                     img.pack()
             os.makedirs(os.path.dirname(BLEND), exist_ok=True)
+            bpy.context.preferences.filepaths.save_version = 0  # no .blend1 backups
             bpy.ops.wm.save_as_mainfile(filepath=BLEND, compress=True)
+            if os.path.exists(BLEND + "1"):
+                os.remove(BLEND + "1")
             print(f"[{tier}] saved {BLEND}")
     if a.tier is None:
         write_manifest(report)

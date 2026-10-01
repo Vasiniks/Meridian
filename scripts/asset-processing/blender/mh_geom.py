@@ -12,7 +12,7 @@ weights / sharp flags, per-face shading and optional explicit per-corner
 normals. `Geo.to_mesh()` welds by position and produces a bpy mesh.
 
 Two shading pipelines are used by the parts:
-  * "bevel":    Bevel modifier (limit = edge weight) + WeightedNormal — for
+  * "bevel":    Bevel modifier (limit = edge weight, harden normals) — for
                 hex / hard-surface parts: flat faces stay flat, highlights
                 roll over real rounded arrises.
   * "explicit": analytic per-corner normals written as custom normals — for
@@ -428,9 +428,13 @@ def lathe(g, secs, mat, nseg, closed=False, arris=0.0, smooth=True, phase=0.0,
             for fi in range(nf0, len(g.F)):
                 g.FK[fi] = "hex"
         if si.shape == "hex" and sj.shape == "hex" and abs(dz) > 1e-9:
+            # chamfer segments (radius changes) are short: a full-width
+            # arris bevel there collides with the two ring bevels and folds
+            # the corner triangles over
+            w_ar = arris if abs(si.r - sj.r) < 1e-9 else arris * 0.35
             for k in range(len(A_)):
                 if arris > 0:
-                    g.bw(A_[k], B_[k], arris)
+                    g.bw(A_[k], B_[k], w_ar)
                 elif arris_sharp:
                     g.sharp(A_[k], B_[k])
     return loops
