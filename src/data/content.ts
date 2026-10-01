@@ -22,7 +22,7 @@ export const hero: HeroContent = {
     "Lead — 0.5 mm · Clutch feed",
     "Tolerance — ±0.02 mm",
   ],
-  scrollCue: "Scroll — the camera moves",
+  scrollCue: "Scroll",
 };
 
 export interface DetailSpec {

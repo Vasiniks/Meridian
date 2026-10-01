@@ -4,6 +4,7 @@ import { createStage, type Stage } from './stage'
 import { loadAssembly, type Assembly } from './assembly'
 import { sampleCam } from './cameraRig'
 import type { FrameCtx, SceneModule } from './modules'
+import { beginLoadTracking } from '../fx/loadProgress'
 import {
   canvasDimF,
   detailF,
@@ -121,7 +122,12 @@ export class PencilExperience {
 
   async init(): Promise<void> {
     this.refreshViewport()
-    this.stage = await createStage(this.canvas, this.cfg)
+    // real GLB/HDR byte progress -> bus 'load:progress' (preloader)
+    const endLoad = beginLoadTracking()
+    this.stage = await createStage(this.canvas, this.cfg).catch((e) => {
+      endLoad()
+      throw e
+    })
     this.last = performance.now()
     try {
       this.asm = await loadAssembly(
@@ -132,6 +138,8 @@ export class PencilExperience {
     } catch (err) {
       this.showFallback()
       throw err
+    } finally {
+      endLoad()
     }
     document.querySelectorAll('.rv').forEach((el) => {
       new IntersectionObserver((es, o) =>
@@ -265,7 +273,8 @@ export class PencilExperience {
     const asm = this.asm
     const mob = this.mobEff
     const edge = this.edgeK
-    this.cur += (this.tgtP - this.cur) * (this.motionOK ? 1 - Math.exp(-4 * dt) : 1)
+    // λ=9 (was 4): Lenis already smooths the page; avoid double-damping lag
+    this.cur += (this.tgtP - this.cur) * (this.motionOK ? 1 - Math.exp(-9 * dt) : 1)
     if (Math.abs(this.tgtP - this.cur) < 0.0004) this.cur = this.tgtP
     const p = this.cur
     const ctx = this.frameCtx(p, dt, now)
@@ -305,7 +314,7 @@ export class PencilExperience {
       this.camTgt.copy(this.vTgt)
       this.firstFrame = false
     }
-    const k = this.motionOK ? 1 - Math.exp(-5 * dt) : 1
+    const k = this.motionOK ? 1 - Math.exp(-9 * dt) : 1 // λ=9 (was 5), see Lenis
     // Lineup backdrop: tuck the spinning pencil behind/right and dolly out
     // so the cards stay readable (no fade-out anymore). Applied to the
     // FRESH per-frame targets (vPos/vTgt are reset by sampleCam every

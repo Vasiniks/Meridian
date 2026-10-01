@@ -8,6 +8,8 @@ import '@fontsource/inter-tight/latin-700.css'
 import '@fontsource/inter-tight/latin-500-italic.css'
 import '@fontsource/ibm-plex-mono/latin-400.css'
 import '@fontsource/ibm-plex-mono/latin-500.css'
+// Editorial serif — italic emphasis words only (h1/h2 <em>)
+import '@fontsource/instrument-serif/latin-400-italic.css'
 import './styles/tokens.css'
 import './styles/base.css'
 import './styles/stage.css'

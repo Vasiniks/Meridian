@@ -7,8 +7,92 @@
 <meta name="description" content="Meridian Hex. A hexagonal precision mechanical pencil. Fewer parts. Tighter tolerances.">
 <meta name="theme-color" content="#F5F3EE">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpolygon points='16,2 26,8 26,24 16,30 6,24 6,8' fill='%23141412'/%3E%3Cpath d='M13 28 L16 31 L19 28Z' fill='%23A63D22'/%3E%3C/svg%3E">
+<script>
+  // FX bootstrap (runs before first paint): reveal pre-hiding, repeat-visit
+  // short preloader, scroll lock, and a failsafe if the bundle never runs.
+  (function () {
+    var d = document.documentElement
+    d.classList.add('js', 'pl-on', 'scroll-locked')
+    try { if (sessionStorage.getItem('mh:seen')) d.classList.add('pl-short') } catch (e) {}
+    setTimeout(function () { if (!window.__fx) d.classList.add('no-fx') }, 9000)
+  })()
+</script>
+<style>
+  /* Critical preloader styles (inline so the sheet paints before the bundle). */
+  html,body{background:#F5F3EE;margin:0}
+  #loader{position:fixed;inset:0;z-index:100;background:#F5F3EE;color:#141412;overflow:hidden;
+    font:500 11px/1.4 "IBM Plex Mono","IBM Plex Mono Fallback",SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.1em;text-transform:uppercase;
+    clip-path:inset(0 0 0 0);transition:clip-path 1000ms cubic-bezier(0.76,0,0.24,1),opacity .45s ease}
+  #loader .pl-m{color:#6E6C66}
+  .pl-frame{position:absolute;inset:clamp(10px,1.6vw,22px);pointer-events:none}
+  .pl-frame i{position:absolute;background:#141412;opacity:.85}
+  .pl-frame .t,.pl-frame .b{left:0;right:0;height:1px;transform:scaleX(0);transform-origin:0 0;animation:plx .9s cubic-bezier(0.65,0,0.35,1) .05s forwards}
+  .pl-frame .t{top:0}.pl-frame .b{bottom:0;transform-origin:100% 0}
+  .pl-frame .l,.pl-frame .r{top:0;bottom:0;width:1px;transform:scaleY(0);transform-origin:0 100%;animation:ply .9s cubic-bezier(0.65,0,0.35,1) .05s forwards}
+  .pl-frame .l{left:0}.pl-frame .r{right:0;transform-origin:0 0}
+  @keyframes plx{to{transform:scaleX(1)}}@keyframes ply{to{transform:scaleY(1)}}
+  .pl-zx{position:absolute;left:0;right:0;top:0;height:9px;display:flex}
+  .pl-zx span{flex:1;border-left:1px solid rgba(20,20,18,.35);font-size:8px;line-height:9px;padding-left:4px;color:#6E6C66;opacity:0;animation:plf .6s ease .7s forwards}
+  .pl-zx span:first-child{border-left:0}
+  .pl-zy{position:absolute;top:9px;bottom:0;left:0;width:9px;display:flex;flex-direction:column}
+  .pl-zy span{flex:1;border-top:1px solid rgba(20,20,18,.35);font-size:8px;line-height:1;padding-top:4px;text-align:center;color:#6E6C66;opacity:0;animation:plf .6s ease .7s forwards}
+  .pl-zy span:first-child{border-top:0}
+  @keyframes plf{to{opacity:1}}
+  .pl-hd{position:absolute;top:clamp(26px,3vw,40px);left:clamp(26px,3vw,46px);right:clamp(26px,3vw,46px);display:flex;justify-content:space-between;gap:16px;opacity:0;animation:plf .6s ease .5s forwards}
+  .pl-proj{display:inline-flex;align-items:center;gap:8px}
+  .pl-proj svg{width:30px;height:13px;stroke:#141412;fill:none}
+  .pl-draw{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:clamp(56px,9vh,110px) clamp(28px,7vw,120px)}
+  .pl-svg{width:100%;height:100%;overflow:visible}
+  .pl-ft{position:absolute;left:clamp(26px,3vw,46px);right:clamp(26px,3vw,46px);bottom:clamp(24px,3vw,40px);display:flex;justify-content:space-between;align-items:flex-end;gap:16px}
+  .pl-count{display:flex;align-items:baseline;gap:12px}
+  .pl-num{font-variant-numeric:tabular-nums;font-size:13px;letter-spacing:.06em;color:#141412}
+  .pl-tb{display:grid;grid-template-columns:auto auto auto auto;border:1px solid rgba(20,20,18,.8);opacity:0;animation:plf .6s ease .4s forwards}
+  .pl-tb span{padding:7px 12px;border-left:1px solid rgba(20,20,18,.8);white-space:nowrap}
+  .pl-tb span:first-child{border-left:0;font-weight:500}
+  .pl-rule{position:absolute;left:0;right:0;bottom:0;height:1px;background:#141412;opacity:0;
+    transition:transform 1000ms cubic-bezier(0.76,0,0.24,1),opacity .2s ease}
+  .pl-rule::before{content:"";position:absolute;left:0;right:0;bottom:1px;height:18px;
+    background:linear-gradient(to top,rgba(20,20,18,.07),rgba(20,20,18,0))}
+  #loader.pl-exit{clip-path:inset(0 0 100% 0)}
+  #loader.pl-exit .pl-rule{opacity:1;transform:translateY(calc(-100vh + 1px))}
+  #loader.pl-fade{opacity:0;transition:opacity .45s ease}
+  #loader.pl-gone{display:none}
+  .pl-short .pl-frame i{animation-duration:.35s;animation-delay:0s}
+  .pl-short .pl-hd,.pl-short .pl-tb,.pl-short .pl-zx span,.pl-short .pl-zy span{animation-delay:0s;animation-duration:.25s}
+  .no-fx #loader{display:none}
+  @media (max-width:640px){
+    .pl-tb{grid-template-columns:auto auto}
+    .pl-tb span:nth-child(3){border-left:0}
+    .pl-tb span:nth-child(n+3){border-top:1px solid rgba(20,20,18,.8)}
+    .pl-hd .pl-proj{display:none}
+    .pl-draw{padding:84px 40px 120px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .pl-frame i{animation:none;transform:none}
+    .pl-hd,.pl-tb,.pl-zx span,.pl-zy span{animation:none;opacity:1}
+  }
+</style>
 </head>
 <body>
+<div id="loader" role="status" aria-label="Loading product viewer">
+  <div class="pl-frame" aria-hidden="true">
+    <i class="t"></i><i class="r"></i><i class="b"></i><i class="l"></i>
+    <div class="pl-zx"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span></div>
+    <div class="pl-zy"><span>A</span><span>B</span><span>C</span><span>D</span></div>
+  </div>
+  <div class="pl-hd" aria-hidden="true">
+    <span>Drg Nº MH-05-001 <span class="pl-m">— General arrangement</span></span>
+    <span class="pl-proj pl-m">Dimensions in mm
+      <svg viewBox="0 0 30 13"><path d="M1 3.5 L11 1 L11 12 L1 9.5 Z"/><circle cx="22" cy="6.5" r="5.5"/><circle cx="22" cy="6.5" r="2.4"/></svg>
+    </span>
+  </div>
+  <div class="pl-draw" aria-hidden="true"><svg id="plSvg" class="pl-svg" xmlns="http://www.w3.org/2000/svg"></svg></div>
+  <div class="pl-ft" aria-hidden="true">
+    <div class="pl-count"><span class="pl-m">Loading</span><span class="pl-num" id="plNum">000</span></div>
+    <div class="pl-tb"><span>Meridian Hex</span><span>Sheet 01/09</span><span>Scale 1:1</span><span>Rev C</span></div>
+  </div>
+  <div class="pl-rule" aria-hidden="true"></div>
+</div>
 <div id="root"></div>
 <script type="module" src="/src/main.tsx"></script>
 </body>
