@@ -1,0 +1,23 @@
+/* X-Ray section (DRAWING agent): copy sits right of the pencil, and its
+   negative twin is revealed under the ink sheet by the scan. */
+#xray .wrap { flex: 1 1 auto; width: 100%; }
+.xr-card { position: relative; }
+.xr-neg {
+  position: absolute;
+  inset: 0;
+  padding: inherit;
+  pointer-events: none;
+  visibility: hidden;
+  color: var(--paper);
+  clip-path: inset(var(--xr-t, 0px) 0 var(--xr-b, 100%) 0);
+  opacity: var(--xr-a, 1);
+}
+.xr-card.is-neg .xr-neg { visibility: visible; }
+.xr-neg h2 { color: var(--paper); }
+.xr-neg .eyebrow { color: rgba(245, 243, 238, 0.56); }
+.xr-neg .lede { color: rgba(245, 243, 238, 0.7); }
+.xr-neg .anno { color: rgba(245, 243, 238, 0.62); border-left-color: #e0714f; }
+@media (max-width: 900px) {
+  /* the mobile card is a frosted paper panel → its twin is a frosted ink panel */
+  .xr-neg { background: rgba(20, 20, 18, 0.88); border-radius: inherit; }
+}

@@ -1,5 +1,6 @@
 import type { PencilExperience } from './experience'
 import { registerLook } from './look'
+import { registerDrawing } from './drawing'
 
 /**
  * Single place where scene modules are attached to the experience.
@@ -12,6 +13,7 @@ export function registerModules(exp: PencilExperience): void {
   registerLook(exp)
 
   // ---- drawing: technical-drawing overlay / x-ray scan / mechanism ----
+  if (!location.search.includes('nodraw')) registerDrawing(exp)
 
   // ---- lineup: 3D variant ring ---------------------------------------
 }

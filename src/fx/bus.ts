@@ -39,6 +39,8 @@ export interface BusEvents {
   chapter: { index: number; id: string; label: string }
   /** LOOK: sweep a fast studio-light streak across the pencil(s). */
   'look:streak': { strength?: number; duration?: number }
+  /** Mechanism chapter step changed (0 = rest, 1..total = the five moves). */
+  'mech:step': { index: number; total: number }
 }
 
 type Handler<K extends keyof BusEvents> = (payload: BusEvents[K]) => void

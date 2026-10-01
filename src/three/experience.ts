@@ -25,7 +25,6 @@ export class PencilExperience {
   private last = 0
   private visible = true
   private lastY = -1
-  private shellX = false
   private cur = 0
   private tgtP = 0
   private firstFrame = true
@@ -391,54 +390,7 @@ export class PencilExperience {
     }
     asm.group.scale.setScalar(0.6 * (1 - buyW) + 0.35 * buyW)
 
-    // parts — the multi-stage knock sequence drives related components
-    const mScale = 0.7
-    for (const pt of asm.parts) {
-      const o = pt.node
-      const y = pt.base.y + pt.explode * ex * mScale
-      if (pt.mech === 'jaw') {
-        const open = mc * 0.16 + ex * 0.1
-        o.position.set(
-          Math.cos(pt.jawAngle) * (0.11 + open),
-          y + mc * -0.12,
-          Math.sin(pt.jawAngle) * (0.11 + open),
-        )
-        continue
-      }
-      let yy = y
-      if (pt.mech === 'button' || pt.mech === 'stem') yy += mc * -0.22
-      if (pt.mech === 'actuator') yy += mc * -0.18
-      if (pt.mech === 'rod') yy += mc * -0.14
-      if (pt.mech === 'clutch') yy += mc * -0.06
-      if (
-        pt.mech === 'springMain' ||
-        pt.mech === 'springBtn' ||
-        pt.mech === 'springStab'
-      ) {
-        const c = pt.mech === 'springBtn' ? 0.32 : 0.28
-        o.scale.y = 1 - mc * c
-      }
-      if (pt.mech === 'lead') yy += mc * 0.34
-      if (pt.mech === 'sleeve') yy += mc * 0.1
-      o.position.y = yy
-    }
-
-    // x-ray fades (shells leave the transparent pass when solid)
-    const wantX = xr > 0.003
-    if (wantX !== this.shellX) {
-      this.shellX = wantX
-      for (const m of asm.shellMats) {
-        m.transparent = wantX
-        m.needsUpdate = true
-      }
-    }
-    for (const m of asm.shellMats) {
-      m.opacity = 1 - xr * 0.85
-      m.depthWrite = xr < 0.4
-    }
-    asm.coreMat?.emissive.setRGB(xr * 0.16, xr * 0.07, xr * 0.03)
-    for (const m of asm.springMats) m.emissive.setRGB(xr * 0.12, xr * 0.12, xr * 0.13)
-    asm.brassMat?.emissive.setRGB(xr * 0.1, xr * 0.06, xr * 0.02)
+    // parts / mechanism springs + x-ray scan: src/three/drawing (modules)
 
     // Canvas stays live through lineup + buy (single model throughout).
     const op = canvasDimF(p)
