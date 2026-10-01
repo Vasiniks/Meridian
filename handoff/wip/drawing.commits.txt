@@ -1,0 +1,1 @@
+  48719e3 WIP snapshot at pause (drawing agent, unfinished)

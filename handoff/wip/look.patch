@@ -1,0 +1,1529 @@
+diff --git a/src/fx/bus.ts b/src/fx/bus.ts
+index fe50c95..5e185fe 100644
+--- a/src/fx/bus.ts
++++ b/src/fx/bus.ts
+@@ -16,6 +16,8 @@ export interface BusEvents {
+   'variant:select': { name: VariantName; source: 'ring' | 'buy' | 'other' }
+   /** The user clicked the pencil — play a button click / lead advance. */
+   'pencil:click': Record<string, never>
++  /** LOOK: sweep a fast studio-light streak across the pencil(s). */
++  'look:streak': { strength?: number; duration?: number }
+ }
+ 
+ type Handler<K extends keyof BusEvents> = (payload: BusEvents[K]) => void
+diff --git a/src/three/look/contactShadows.ts b/src/three/look/contactShadows.ts
+new file mode 100644
+index 0000000..4d2ca02
+--- /dev/null
++++ b/src/three/look/contactShadows.ts
+@@ -0,0 +1,597 @@
++import * as THREE from 'three'
++import { FullScreenQuad, Pass } from 'three/addons/postprocessing/Pass.js'
++import { HorizontalBlurShader } from 'three/addons/shaders/HorizontalBlurShader.js'
++import { VerticalBlurShader } from 'three/addons/shaders/VerticalBlurShader.js'
++import type { Assembly } from '../assembly'
++import type { QualityConfig } from '../config'
++import type { FrameCtx, SceneModule } from '../modules'
++import type { Stage } from '../stage'
++import { detailF, mechF, sstep, xrayF } from '../../data/scroll'
++import { clamp } from './math'
++
++/** Layer bit used to pick the casters for the shadow camera. */
++export const SHADOW_CASTER_LAYER = 29
++
++const SHADOW_COLOR = 0x3a2e25 // warm umber, never black
++
++interface LayerLook {
++  /** blur radius of the tight / wide layers, world units */
++  tight: number
++  wide: number
++  /** layer opacities */
++  opTight: number
++  opWide: number
++  /** fraction of the range (nearest the plane) that feeds the tight layer */
++  contact: number
++  /** max lateral shear (shadow offset per unit of height) */
++  maxShear: number
++  /** how strongly the light direction shears the shadow */
++  shearK: number
++}
++
++const PAPER: LayerLook = {
++  tight: 0.07,
++  wide: 0.55,
++  opTight: 0.34,
++  opWide: 0.22,
++  contact: 0.45,
++  maxShear: 0.3,
++  shearK: 0.6,
++}
++const FLOOR: LayerLook = {
++  tight: 0.05,
++  wide: 0.4,
++  opTight: 0.42,
++  opWide: 0.18,
++  contact: 0.25,
++  maxShear: 0.18,
++  shearK: 0.25,
++}
++
++/** Light travel direction for the paper shadow, in camera space (right, up,
++ * forward): a photographer's key from top-right-front, so the shadow keeps
++ * falling down-left of the object in every shot. The light sweep rotates it. */
++const PAGE_LIGHT = new THREE.Vector3(-0.32, -0.5, 0.8).normalize()
++/** Floor light (world): nearly straight down, a touch from front-right. */
++const FLOOR_LIGHT = new THREE.Vector3(-0.2, -1, -0.12).normalize()
++
++const blurMaterial = (shader: {
++  uniforms: Record<string, THREE.IUniform>
++  vertexShader: string
++  fragmentShader: string
++}): THREE.ShaderMaterial =>
++  new THREE.ShaderMaterial({
++    uniforms: THREE.UniformsUtils.clone(shader.uniforms),
++    vertexShader: shader.vertexShader,
++    fragmentShader: shader.fragmentShader,
++    depthTest: false,
++    depthWrite: false,
++  })
++
++const depthMaterial = (): THREE.ShaderMaterial =>
++  new THREE.ShaderMaterial({
++    name: 'ContactShadowDepth',
++    uniforms: { uRange: { value: 1 }, uContact: { value: 0.3 } },
++    vertexShader: /* glsl */ `
++      varying float vD;
++      void main() {
++        vec4 mv = modelViewMatrix * vec4(position, 1.0);
++        vD = -mv.z;
++        gl_Position = projectionMatrix * mv;
++      }`,
++    fragmentShader: /* glsl */ `
++      uniform float uRange;
++      uniform float uContact;
++      varying float vD;
++      // R: steep near-contact term (tight layer) · A: gentle term (wide layer)
++      void main() {
++        float k = clamp(1.0 - vD / uRange, 0.0, 1.0);
++        float kc = clamp(1.0 - vD / (uRange * uContact), 0.0, 1.0);
++        gl_FragColor = vec4(kc * kc, 0.0, 0.0, pow(k, 1.3));
++      }`,
++    side: THREE.DoubleSide,
++  })
++
++const planeMaterial = (tT: THREE.Texture, tW: THREE.Texture): THREE.ShaderMaterial =>
++  new THREE.ShaderMaterial({
++    name: 'ContactShadowPlane',
++    uniforms: {
++      tTight: { value: tT },
++      tWide: { value: tW },
++      uViewProj: { value: new THREE.Matrix4() },
++      uColor: { value: new THREE.Color(SHADOW_COLOR) },
++      uOpTight: { value: 0.4 },
++      uOpWide: { value: 0.18 },
++      uWeight: { value: 1 },
++    },
++    vertexShader: /* glsl */ `
++      varying vec3 vW;
++      void main() {
++        vec4 w = modelMatrix * vec4(position, 1.0);
++        vW = w.xyz;
++        gl_Position = projectionMatrix * viewMatrix * w;
++      }`,
++    fragmentShader: /* glsl */ `
++      uniform sampler2D tTight;
++      uniform sampler2D tWide;
++      uniform mat4 uViewProj;
++      uniform vec3 uColor;
++      uniform float uOpTight;
++      uniform float uOpWide;
++      uniform float uWeight;
++      varying vec3 vW;
++      void main() {
++        vec4 c = uViewProj * vec4(vW, 1.0);
++        vec2 uv = c.xy * 0.5 + 0.5;
++        vec2 e = smoothstep(vec2(0.0), vec2(0.06), uv) * smoothstep(vec2(1.0), vec2(0.94), uv);
++        float a1 = texture2D(tTight, uv).r * uOpTight;
++        float a2 = texture2D(tWide, uv).a * uOpWide;
++        float a = (1.0 - (1.0 - a1) * (1.0 - a2)) * e.x * e.y * uWeight;
++        gl_FragColor = vec4(uColor, a);
++      }`,
++    transparent: true,
++    depthWrite: false,
++  })
++
++/**
++ * One contact-shadow receiver: a plane + an orthographic depth camera that
++ * sits ON the plane looking toward the casters (three's
++ * webgl_shadow_contact, generalised to any plane orientation and sheared
++ * by the light direction so the shadow falls away from the key light).
++ */
++class ShadowLayer {
++  readonly mesh: THREE.Mesh
++  readonly cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
++  private rtDepth: THREE.WebGLRenderTarget
++  private rtTmp: THREE.WebGLRenderTarget
++  private rtTight: THREE.WebGLRenderTarget
++  private rtWideA: THREE.WebGLRenderTarget
++  private rtWideB: THREE.WebGLRenderTarget
++  private mat: THREE.ShaderMaterial
++  private quad: FullScreenQuad
++  private hBlur = blurMaterial(HorizontalBlurShader)
++  private vBlur = blurMaterial(VerticalBlurShader)
++  private half = 1
++  private shear = new THREE.Matrix4()
++  weight = 0
++
++  constructor(
++    size: number,
++    readonly look: LayerLook,
++  ) {
++    const opts = { depthBuffer: false, generateMipmaps: false }
++    this.rtDepth = new THREE.WebGLRenderTarget(size, size, { depthBuffer: true })
++    this.rtDepth.texture.generateMipmaps = false
++    this.rtTmp = new THREE.WebGLRenderTarget(size, size, opts)
++    this.rtTight = new THREE.WebGLRenderTarget(size, size, opts)
++    const ws = Math.max(32, size >> 2)
++    this.rtWideA = new THREE.WebGLRenderTarget(ws, ws, opts)
++    this.rtWideB = new THREE.WebGLRenderTarget(ws, ws, opts)
++    this.mat = planeMaterial(this.rtTight.texture, this.rtWideB.texture)
++    this.mat.uniforms.uOpTight.value = look.opTight
++    this.mat.uniforms.uOpWide.value = look.opWide
++    this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.mat)
++    this.mesh.name = 'ContactShadow'
++    this.mesh.matrixAutoUpdate = false
++    this.mesh.frustumCulled = false
++    this.mesh.renderOrder = -1
++    this.mesh.visible = false
++    this.cam.layers.set(SHADOW_CASTER_LAYER)
++    this.quad = new FullScreenQuad(this.hBlur)
++  }
++
++  private basisM = new THREE.Matrix4()
++  private ny = new THREE.Vector3()
++  private nz = new THREE.Vector3()
++
++  /**
++   * Place the receiver. o: plane centre · x: in-plane axis · n: plane normal
++   * (pointing at the casters) · half: half-size of the square footprint ·
++   * range: how far above the plane casters still darken it · light: the
++   * direction light travels (world).
++   */
++  frame(
++    o: THREE.Vector3,
++    x: THREE.Vector3,
++    n: THREE.Vector3,
++    half: number,
++    range: number,
++    light: THREE.Vector3,
++    maxShear = this.look.maxShear,
++  ): void {
++    this.half = half
++    // shadow camera: looks along +n, x right, y = x × n
++    const y = this.ny.crossVectors(x, n)
++    const z = this.nz.copy(n).negate()
++    this.basisM.makeBasis(x, y, z).setPosition(o)
++    this.cam.matrix.copy(this.basisM)
++    this.cam.matrix.decompose(this.cam.position, this.cam.quaternion, this.cam.scale)
++    this.cam.updateMatrixWorld(true)
++    this.cam.left = this.cam.bottom = -half
++    this.cam.right = this.cam.top = half
++    this.cam.near = 0
++    this.cam.far = range
++    this.cam.updateProjectionMatrix()
++    // oblique projection along the light: x' = x + sx·d (d = −z_view)
++    const ln = -light.dot(n)
++    let sx = 0
++    let sy = 0
++    if (ln > 0.05) {
++      sx = (light.dot(x) / ln) * this.look.shearK
++      sy = (light.dot(y) / ln) * this.look.shearK
++      const m = Math.hypot(sx, sy)
++      if (m > maxShear) {
++        sx *= maxShear / m
++        sy *= maxShear / m
++      }
++    }
++    this.shear.set(1, 0, -sx, 0, 0, 1, -sy, 0, 0, 0, 1, 0, 0, 0, 0, 1)
++    this.cam.projectionMatrix.multiply(this.shear)
++    this.cam.projectionMatrixInverse.copy(this.cam.projectionMatrix).invert()
++    // receiver mesh: same footprint, facing the casters
++    const ny = this.ny.crossVectors(n, x) // mesh local y
++    this.mesh.matrix.makeBasis(x, ny, n).scale(this.v3.set(half * 2, half * 2, 1))
++    this.mesh.matrix.setPosition(o)
++    this.mesh.matrixWorldNeedsUpdate = true
++    this.mat.uniforms.uViewProj.value.multiplyMatrices(
++      this.cam.projectionMatrix,
++      this.cam.matrixWorldInverse,
++    )
++  }
++  private v3 = new THREE.Vector3()
++
++  render(
++    renderer: THREE.WebGLRenderer,
++    scene: THREE.Scene,
++    depth: THREE.ShaderMaterial,
++  ): void {
++    depth.uniforms.uRange.value = this.cam.far
++    depth.uniforms.uContact.value = this.look.contact
++    const prevOverride = scene.overrideMaterial
++    const prevBg = scene.background
++    scene.overrideMaterial = depth
++    scene.background = null
++    renderer.setRenderTarget(this.rtDepth)
++    renderer.clear(true, true, false)
++    renderer.render(scene, this.cam)
++    scene.overrideMaterial = prevOverride
++    scene.background = prevBg
++    // texel-space blur radii (9-tap kernel spans ±4 steps)
++    const toUv = 1 / (8 * this.half)
++    this.blur(renderer, this.rtDepth, this.rtTmp, this.rtTight, this.look.tight * toUv)
++    this.blur(renderer, this.rtTight, this.rtTmp, this.rtTight, this.look.tight * toUv * 0.5)
++    this.blur(renderer, this.rtDepth, this.rtWideA, this.rtWideB, this.look.wide * toUv)
++    this.blur(renderer, this.rtWideB, this.rtWideA, this.rtWideB, this.look.wide * toUv * 0.4)
++  }
++
++  private blur(
++    renderer: THREE.WebGLRenderer,
++    src: THREE.WebGLRenderTarget,
++    tmp: THREE.WebGLRenderTarget,
++    dst: THREE.WebGLRenderTarget,
++    amount: number,
++  ): void {
++    this.quad.material = this.hBlur
++    this.hBlur.uniforms.tDiffuse.value = src.texture
++    this.hBlur.uniforms.h.value = amount
++    renderer.setRenderTarget(tmp)
++    this.quad.render(renderer)
++    this.quad.material = this.vBlur
++    this.vBlur.uniforms.tDiffuse.value = tmp.texture
++    this.vBlur.uniforms.v.value = amount
++    renderer.setRenderTarget(dst)
++    this.quad.render(renderer)
++  }
++
++  dispose(): void {
++    for (const rt of [this.rtDepth, this.rtTmp, this.rtTight, this.rtWideA, this.rtWideB]) rt.dispose()
++    this.mat.dispose()
++    this.hBlur.dispose()
++    this.vBlur.dispose()
++    this.mesh.geometry.dispose()
++    this.quad.dispose()
++    this.mesh.removeFromParent()
++  }
++}
++
++/** Built-in visibility of the paper shadow per chapter (0..1). */
++export const paperShadowWeight = (p: number): number => {
++  const macro = 1 - 0.55 * detailF(p) - 0.9 * mechF(p)
++  const xray = 1 - xrayF(p)
++  const lineup = 1 - sstep(0.635, 0.69, p) * (1 - sstep(0.955, 0.995, p))
++  return clamp(macro * xray * lineup, 0, 1)
++}
++
++/**
++ * Contact shadows. Two receivers share one set of casters:
++ *
++ *  - PAPER (default): a plane perpendicular to the view, just behind the
++ *    pencil — the seamless paper backdrop of a product shot. Shadow is
++ *    sheared away from the key light (follows the light sweep) and fades
++ *    by chapter (`paperShadowWeight`). Reads in every camera, unlike a
++ *    floor the pencil never comes near.
++ *  - FLOOR (opt-in): a horizontal plane at world y, e.g. under the lineup
++ *    ring / buy turntable. `setFloor(y)` turns it on.
++ *
++ * Rendered into small RTs (512 desktop / 256 low) with a two-layer blur
++ * (tight + wide, warm umber), and only re-rendered when a caster, the
++ * camera or the key light actually moved. Zero cost while weight is 0.
++ *
++ * API (`exp.getModule<ContactShadows>('look:shadow')`):
++ *   addCaster(obj) / removeCaster(obj)   extra pencils (ring clones)
++ *   setWeight(w | null)                  paper weight override (null = auto)
++ *   setFloor(y | null, weight = 1)       floor receiver at world y
++ *   setFloorWeight(w)                    fade the floor receiver
++ *   invalidate()                         force a re-render next frame
++ */
++export class ContactShadows implements SceneModule {
++  readonly name = 'look:shadow'
++  private stage: Stage | null = null
++  private casters = new Set<THREE.Object3D>()
++  private meshes: THREE.Mesh[] = []
++  private paper: ShadowLayer | null = null
++  private floor: ShadowLayer | null = null
++  private floorY: number | null = null
++  private floorW = 1
++  private override: number | null = null
++  private depth = depthMaterial()
++  private size = 512
++  private p = 0
++  private sig = NaN
++  private dirty = true
++  private scanTick = 0
++  private pass: Pass | null = null
++  private renders = 0
++
++  private box = new THREE.Box3()
++  private tmpBox = new THREE.Box3()
++  private v = new THREE.Vector3()
++  private o = new THREE.Vector3()
++  private x = new THREE.Vector3()
++  private n = new THREE.Vector3()
++  private light = new THREE.Vector3()
++  private right = new THREE.Vector3()
++  private up = new THREE.Vector3()
++  private fwd = new THREE.Vector3()
++  private prevClear = new THREE.Color()
++
++  init(stage: Stage, asm: Assembly, cfg: QualityConfig): void {
++    this.stage = stage
++    this.size = cfg.quality === 'high' ? 512 : 256
++    this.paper = new ShadowLayer(this.size, PAPER)
++    stage.scene.add(this.paper.mesh)
++    this.addCaster(asm.group)
++    // Directional shadows only if a part actually receives them.
++    let receives = false
++    asm.group.traverse((o) => {
++      if ((o as THREE.Mesh).isMesh && o.receiveShadow) receives = true
++    })
++    if (receives && cfg.quality === 'high') stage.key.castShadow = true
++    // Runs inside composer.render(), after every module's update().
++    const self = this
++    class ShadowPrePass extends Pass {
++      constructor() {
++        super()
++        this.needsSwap = false
++      }
++      render(renderer: THREE.WebGLRenderer): void {
++        self.renderShadows(renderer)
++      }
++    }
++    this.pass = new ShadowPrePass()
++    stage.composer.insertPass(this.pass, 0)
++  }
++
++  addCaster(obj: THREE.Object3D): void {
++    this.casters.add(obj)
++    this.rescan()
++  }
++
++  removeCaster(obj: THREE.Object3D): void {
++    if (!this.casters.delete(obj)) return
++    obj.traverse((o) => o.layers.disable(SHADOW_CASTER_LAYER))
++    this.rescan()
++  }
++
++  setWeight(w: number | null): void {
++    this.override = w === null ? null : clamp(w, 0, 1)
++  }
++
++  setFloor(y: number | null, weight = 1): void {
++    this.floorY = y
++    this.floorW = clamp(weight, 0, 1)
++    if (y !== null && !this.floor && this.stage) {
++      this.floor = new ShadowLayer(this.size, FLOOR)
++      this.stage.scene.add(this.floor.mesh)
++    }
++    this.dirty = true
++  }
++
++  setFloorWeight(w: number): void {
++    this.floorW = clamp(w, 0, 1)
++  }
++
++  /** Debug: current weights and how often the shadow maps were redrawn. */
++  get stats(): { paper: number; floor: number; renders: number; casters: number } {
++    return {
++      paper: this.paper?.weight ?? 0,
++      floor: this.floor?.weight ?? 0,
++      renders: this.renders,
++      casters: this.meshes.length,
++    }
++  }
++
++  invalidate(): void {
++    this.dirty = true
++    this.rescan()
++  }
++
++  private rescan(): void {
++    this.meshes.length = 0
++    for (const c of this.casters) {
++      c.traverse((o) => {
++        if ((o as THREE.Mesh).isMesh) {
++          o.layers.enable(SHADOW_CASTER_LAYER)
++          this.meshes.push(o as THREE.Mesh)
++        }
++      })
++    }
++    this.dirty = true
++  }
++
++  update(ctx: FrameCtx): void {
++    this.p = ctx.p
++  }
++
++  /** Cheap change detector over caster + camera + light transforms. */
++  private signature(): number {
++    let s = 0
++    const ms = this.meshes
++    for (let i = 0; i < ms.length; i++) {
++      const o = ms[i]
++      if (!o.visible) continue
++      const e = o.matrixWorld.elements
++      s += (i + 1) * (e[12] * 1.31 + e[13] * 1.73 + e[14] * 2.11 + e[0] * 0.7 + e[5] * 0.9 + e[2] * 1.1 + e[9] * 1.3)
++    }
++    const st = this.stage!
++    const c = st.camera.matrixWorld.elements
++    s += c[12] * 3.1 + c[13] * 3.7 + c[14] * 4.3 + c[8] * 5.1 + c[9] * 5.3 + c[10] * 5.9
++    const q = st.lightRig.quaternion
++    s += q.x * 7.1 + q.y * 7.3 + q.z * 7.9
++    return s
++  }
++
++  private casterBox(): THREE.Box3 {
++    const b = this.box.makeEmpty()
++    for (const m of this.meshes) {
++      if (!m.visible || !m.geometry) continue
++      if (!m.geometry.boundingBox) m.geometry.computeBoundingBox()
++      this.tmpBox.copy(m.geometry.boundingBox!).applyMatrix4(m.matrixWorld)
++      b.union(this.tmpBox)
++    }
++    return b
++  }
++
++  private renderShadows(renderer: THREE.WebGLRenderer): void {
++    const st = this.stage
++    const paper = this.paper
++    if (!st || !paper) return
++    const wPaper = this.override ?? paperShadowWeight(this.p)
++    const wFloor = this.floorY !== null ? this.floorW : 0
++    paper.weight = wPaper
++    paper.mesh.visible = wPaper > 0.004
++    if (this.floor) {
++      this.floor.weight = wFloor
++      this.floor.mesh.visible = wFloor > 0.004
++    }
++    ;(paper.mesh.material as THREE.ShaderMaterial).uniforms.uWeight.value = wPaper
++    if (this.floor) {
++      ;(this.floor.mesh.material as THREE.ShaderMaterial).uniforms.uWeight.value = wFloor
++    }
++    if (wPaper <= 0.004 && wFloor <= 0.004) return
++    if (++this.scanTick % 120 === 0) this.rescan()
++
++    const scene = st.scene
++    const cam = st.camera
++    scene.updateMatrixWorld()
++    cam.updateMatrixWorld()
++    const sig = this.signature()
++    if (!this.dirty && sig === this.sig) return
++    this.sig = sig
++    this.dirty = false
++    this.renders++
++    const box = this.casterBox()
++    if (box.isEmpty()) return
++
++    const sweep = st.lightRig.quaternion
++
++    const prevTarget = renderer.getRenderTarget()
++    const prevAuto = renderer.shadowMap.autoUpdate
++    renderer.getClearColor(this.prevClear)
++    const prevAlpha = renderer.getClearAlpha()
++    renderer.shadowMap.autoUpdate = false
++    renderer.setClearColor(0x000000, 0)
++
++    if (paper.mesh.visible) {
++      this.right.setFromMatrixColumn(cam.matrixWorld, 0)
++      this.up.setFromMatrixColumn(cam.matrixWorld, 1)
++      this.fwd.setFromMatrixColumn(cam.matrixWorld, 2).negate()
++      // caster extent in camera space
++      let zMin = Infinity
++      let zMax = -Infinity
++      let xMin = Infinity
++      let xMax = -Infinity
++      let yMin = Infinity
++      let yMax = -Infinity
++      for (let i = 0; i < 8; i++) {
++        this.v.set(
++          i & 1 ? box.max.x : box.min.x,
++          i & 2 ? box.max.y : box.min.y,
++          i & 4 ? box.max.z : box.min.z,
++        ).sub(cam.position)
++        const z = this.v.dot(this.fwd)
++        const x = this.v.dot(this.right)
++        const y = this.v.dot(this.up)
++        if (z < zMin) zMin = z
++        if (z > zMax) zMax = z
++        if (x < xMin) xMin = x
++        if (x > xMax) xMax = x
++        if (y < yMin) yMin = y
++        if (y > yMax) yMax = y
++      }
++      const depthExt = Math.max(0.2, zMax - zMin)
++      const sizeExt = Math.max(xMax - xMin, yMax - yMin)
++      // the paper sits a little behind the farthest point of the object
++      const gap = 0.08 * sizeExt + 0.1 * depthExt + 0.1
++      const zPlane = zMax + gap
++      const range = zPlane - zMin + 0.01
++      // footprint: orthographic extent at the plane, + shear & blur margin
++      const cx = (xMin + xMax) / 2
++      const cy = (yMin + yMax) / 2
++      const half = sizeExt / 2 + PAPER.maxShear * range + PAPER.wide * 1.6
++      this.o
++        .copy(cam.position)
++        .addScaledVector(this.fwd, zPlane)
++        .addScaledVector(this.right, cx)
++        .addScaledVector(this.up, cy)
++      this.n.copy(this.fwd).negate()
++      this.light
++        .set(0, 0, 0)
++        .addScaledVector(this.right, PAGE_LIGHT.x)
++        .addScaledVector(this.up, PAGE_LIGHT.y)
++        .addScaledVector(this.fwd, PAGE_LIGHT.z)
++        .applyQuaternion(sweep)
++      // the offset never exceeds ~a tenth of the object, so a deep pose
++      // (pencil pointing at the camera) can't throw a detached ghost
++      const shearCap = Math.min(PAPER.maxShear, (0.16 * sizeExt) / range)
++      paper.frame(this.o, this.right, this.n, half, range, this.light, shearCap)
++      paper.render(renderer, scene, this.depth)
++    }
++
++    if (this.floor && this.floor.mesh.visible && this.floorY !== null) {
++      const y0 = this.floorY
++      const half =
++        Math.max(box.max.x - box.min.x, box.max.z - box.min.z) / 2 +
++        FLOOR.wide * 1.6 +
++        FLOOR.maxShear * 1.5
++      const range = clamp(box.max.y - y0, 0.3, 3.5)
++      this.o.set((box.min.x + box.max.x) / 2, y0, (box.min.z + box.max.z) / 2)
++      this.x.set(1, 0, 0)
++      this.n.set(0, 1, 0)
++      this.light.copy(FLOOR_LIGHT).applyQuaternion(sweep)
++      this.floor.frame(this.o, this.x, this.n, half, range, this.light)
++      this.floor.render(renderer, scene, this.depth)
++    }
++
++    renderer.shadowMap.autoUpdate = prevAuto
++    renderer.setClearColor(this.prevClear, prevAlpha)
++    renderer.setRenderTarget(prevTarget)
++  }
++
++  dispose(): void {
++    if (this.pass && this.stage) this.stage.composer.removePass(this.pass)
++    this.paper?.dispose()
++    this.floor?.dispose()
++    this.depth.dispose()
++  }
++}
+diff --git a/src/three/look/index.ts b/src/three/look/index.ts
+new file mode 100644
+index 0000000..fada1b7
+--- /dev/null
++++ b/src/three/look/index.ts
+@@ -0,0 +1,43 @@
++import type { PencilExperience } from '../experience'
++import { ContactShadows } from './contactShadows'
++import { LightSweep } from './light'
++import { PostFx } from './postfx'
++import { PointerRig } from './rig'
++import { createShared } from './shared'
++
++export { ContactShadows, LightSweep, PostFx, PointerRig }
++
++/**
++ * LOOK layer: how the 3D scene feels and is lit. Order matters — the rig
++ * runs first each frame (it publishes scroll velocity + pointer state the
++ * others read), the light follows the rig, post reads both.
++ *
++ * Other areas reach these through the experience:
++ *   exp.getModule<PointerRig>('look:rig')        .group · .setWeight()
++ *   exp.getModule<LightSweep>('look:light')      .streak() (or bus 'look:streak')
++ *   exp.getModule<ContactShadows>('look:shadow') .addCaster() · .setFloor() · .setWeight()
++ *   exp.getModule<PostFx>('look:post')           .state
++ */
++export function registerLook(exp: PencilExperience): void {
++  // dev-only A/B switch: ?nolook renders the scene without the look layer
++  if (import.meta.env.DEV && location.search.includes('nolook')) return
++  const shared = createShared()
++  const rig = new PointerRig(shared)
++  const light = new LightSweep(shared)
++  const shadow = new ContactShadows()
++  const post = new PostFx(shared)
++  exp.addModule(rig)
++  exp.addModule(light)
++  exp.addModule(shadow)
++  exp.addModule(post)
++  if (import.meta.env.DEV || location.search.includes('dbg')) {
++    ;(window as unknown as { __look?: unknown }).__look = {
++      shared,
++      rig,
++      light,
++      shadow,
++      post,
++      debug: () => ({ ...shared, post: post.state, yaw: light.yaw, shadow: shadow.stats }),
++    }
++  }
++}
+diff --git a/src/three/look/light.ts b/src/three/look/light.ts
+new file mode 100644
+index 0000000..020efdc
+--- /dev/null
++++ b/src/three/look/light.ts
+@@ -0,0 +1,152 @@
++import * as THREE from 'three'
++import type { Assembly } from '../assembly'
++import type { QualityConfig } from '../config'
++import type { FrameCtx, SceneModule } from '../modules'
++import type { Stage } from '../stage'
++import { bus } from '../../fx/bus'
++import { damp, easeInOutCubic, smoothstep } from './math'
++import type { LookShared } from './shared'
++
++const PTR_YAW = 0.35 // pointer x → studio yaw (highlight slides facet to facet)
++const PTR_PITCH = 0.12 // pointer y → tilt about the camera's right axis
++const PTR_LAMBDA = 3 // the light follows a touch slower than the object
++const SCROLL_SWEEP = 0.55 // Hero → Detail: highlight moves off the left facet onto the front one
++const STREAK = 0.6
++const STREAK_DUR = 0.4
++const STREAK_RELAX = 0.75 // slow return to the tuned studio orientation
++const REASSEMBLED_AT = 0.585 // p where the shells are solid again
++
++/** Scroll-driven base yaw: up through Hero→Detail, home again for Exploded. */
++const baseYaw = (p: number): number =>
++  SCROLL_SWEEP * smoothstep(0.004, 0.1, p) * (1 - smoothstep(0.135, 0.23, p))
++
++/**
++ * Studio light sweeps. Rotates `scene.environmentRotation` and the
++ * directional `stage.lightRig` together (same quaternion), so HDRI
++ * reflections and key/rim specular stay coherent while they move:
++ *   - pointer x/y slides the highlights across the hex facets,
++ *   - scroll sweeps the studio through Hero → Detail,
++ *   - a fast streak "seals" the object when reassembly completes,
++ *   - `streak()` (or `bus.emit('look:streak', {})`) for anyone else — the
++ *     lineup ring calls it for the Limited crescendo.
++ * Reduced motion: static studio (rotation 0), no streaks.
++ */
++export class LightSweep implements SceneModule {
++  readonly name = 'look:light'
++  private stage: Stage | null = null
++  private motionOK = true
++  private yawPtr = 0
++  private pitchPtr = 0
++  private streakX = 0
++  private streakT = -1
++  private streakFrom = 0
++  private streakAmt = 0
++  private streakDur = STREAK_DUR
++  private armed = true
++  private lastP = 0
++  private forced: number | null = null
++  private offs: (() => void)[] = []
++  private q = new THREE.Quaternion()
++  private qp = new THREE.Quaternion()
++  private right = new THREE.Vector3()
++  private static readonly Y = new THREE.Vector3(0, 1, 0)
++
++  constructor(private shared: LookShared) {}
++
++  init(stage: Stage, _asm: Assembly, _cfg: QualityConfig): void {
++    this.stage = stage
++    this.offs.push(
++      bus.on('look:streak', (e) => this.streak(e.strength, e.duration)),
++    )
++  }
++
++  /**
++   * Fire a fast studio-light streak across the object (default 0.6 rad in
++   * 0.4 s, then a slow relax home). Safe to call any time; no-op when
++   * motion is reduced.
++   */
++  streak(strength = STREAK, duration = STREAK_DUR): void {
++    if (!this.motionOK) return
++    this.streakFrom = this.streakX
++    this.streakAmt = strength
++    this.streakDur = Math.max(0.05, duration)
++    this.streakT = 0
++  }
++
++  /** Debug/lookdev: pin the studio yaw (radians) or release with null. */
++  forceYaw(y: number | null): void {
++    this.forced = y
++  }
++
++  /** Current studio yaw (radians) — e.g. for a DOM highlight that follows. */
++  get yaw(): number {
++    return this.stage?.lightRig.rotation.y ?? 0
++  }
++
++  wantsFrame(): boolean {
++    if (this.streakT >= 0 || Math.abs(this.streakX) > 1e-4) return true
++    const s = this.shared
++    return (
++      Math.abs(this.yawPtr - s.px * PTR_YAW) > 1e-4 ||
++      Math.abs(this.pitchPtr - s.py * PTR_PITCH) > 1e-4
++    )
++  }
++
++  onMotionChange(ok: boolean): void {
++    this.motionOK = ok
++  }
++
++  update(ctx: FrameCtx): void {
++    const stage = this.stage
++    if (!stage) return
++    this.motionOK = ctx.motionOK
++    const s = this.shared
++    const dt = ctx.dt * s.timeScale
++
++    // reassembly completion → streak (re-armed once you scroll back up)
++    if (ctx.p < 0.55) this.armed = true
++    if (this.armed && this.lastP < REASSEMBLED_AT && ctx.p >= REASSEMBLED_AT) {
++      this.armed = false
++      this.streak()
++    }
++    this.lastP = ctx.p
++
++    let yaw = 0
++    let pitch = 0
++    if (this.motionOK) {
++      this.yawPtr = damp(this.yawPtr, s.px * PTR_YAW, PTR_LAMBDA, dt)
++      this.pitchPtr = damp(this.pitchPtr, s.py * PTR_PITCH, PTR_LAMBDA, dt)
++      if (this.streakT >= 0) {
++        this.streakT += dt
++        const k = Math.min(1, this.streakT / this.streakDur)
++        this.streakX = this.streakFrom + this.streakAmt * easeInOutCubic(k)
++        if (k >= 1) this.streakT = -1
++      } else {
++        this.streakX = damp(this.streakX, 0, STREAK_RELAX, dt)
++        if (Math.abs(this.streakX) < 1e-4) this.streakX = 0
++      }
++      const breath = s.breath * 0.03 * Math.sin(ctx.time * Math.PI * 2 * 0.07)
++      yaw = baseYaw(ctx.p) + this.yawPtr + this.streakX + breath
++      pitch = this.pitchPtr
++    } else {
++      this.yawPtr = this.pitchPtr = this.streakX = 0
++      this.streakT = -1
++    }
++    if (this.forced !== null) yaw = this.forced
++
++    // q = pitch about the camera's right axis · yaw about world up
++    this.right.set(1, 0, 0).applyQuaternion(stage.camera.quaternion)
++    this.q.setFromAxisAngle(LightSweep.Y, yaw)
++    if (pitch !== 0) {
++      this.qp.setFromAxisAngle(this.right, pitch)
++      this.q.premultiply(this.qp)
++    }
++    stage.lightRig.quaternion.copy(this.q)
++    stage.scene.environmentRotation.setFromQuaternion(this.q)
++  }
++
++  dispose(): void {
++    this.offs.forEach((f) => f())
++    this.offs = []
++  }
++}
+diff --git a/src/three/look/math.ts b/src/three/look/math.ts
+new file mode 100644
+index 0000000..0c1417a
+--- /dev/null
++++ b/src/three/look/math.ts
+@@ -0,0 +1,51 @@
++/**
++ * Small, allocation-free motion helpers for the LOOK modules.
++ * Kept local (not src/motion/) so the look layer has no merge dependency on
++ * the DOM effects branch. Same formulas as the shared motion tokens:
++ * frame-rate independent damping and a semi-implicit spring.
++ */
++
++export const clamp = (x: number, a: number, b: number): number =>
++  x < a ? a : x > b ? b : x
++
++/** Exponential smoothing toward `b`. λ: 4 heavy object · 8 UI · 18 cursor. */
++export const damp = (a: number, b: number, lambda: number, dt: number): number =>
++  a + (b - a) * (1 - Math.exp(-lambda * dt))
++
++export const smoothstep = (a: number, b: number, x: number): number => {
++  const t = clamp((x - a) / (b - a), 0, 1)
++  return t * t * (3 - 2 * t)
++}
++
++export const easeInOutCubic = (t: number): number =>
++  t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
++
++export interface Spring {
++  x: number
++  v: number
++}
++
++/**
++ * Semi-implicit Euler spring (mass 1), sub-stepped so a long frame (tab
++ * switch, slow GPU) can't explode it. Critical damping: c = 2·√k.
++ */
++export function springTo(
++  s: Spring,
++  target: number,
++  k: number,
++  c: number,
++  dt: number,
++): number {
++  const n = dt > 1 / 90 ? Math.ceil(dt * 90) : 1
++  const h = dt / n
++  for (let i = 0; i < n; i++) {
++    const a = -k * (s.x - target) - c * s.v
++    s.v += a * h
++    s.x += s.v * h
++  }
++  return s.x
++}
++
++/** Spring has (visually) come to rest at `target`. */
++export const springSettled = (s: Spring, target: number, eps = 1e-4): boolean =>
++  Math.abs(s.x - target) < eps && Math.abs(s.v) < eps
+diff --git a/src/three/look/postfx.ts b/src/three/look/postfx.ts
+new file mode 100644
+index 0000000..a89eb9d
+--- /dev/null
++++ b/src/three/look/postfx.ts
+@@ -0,0 +1,252 @@
++import * as THREE from 'three'
++import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js'
++import type { Assembly } from '../assembly'
++import type { QualityConfig } from '../config'
++import type { FrameCtx, SceneModule } from '../modules'
++import type { Stage } from '../stage'
++import { detailF, mechF } from '../../data/scroll'
++import { clamp, damp, smoothstep } from './math'
++import type { LookShared } from './shared'
++
++const VERT = /* glsl */ `
++  varying vec2 vUv;
++  void main() {
++    vUv = uv;
++    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
++  }`
++
++/**
++ * Macro depth-of-field: a 9-tap separable gaussian whose radius grows with
++ * distance from a focus LINE through the subject, perpendicular to the
++ * pencil's on-screen axis (a diagonal pencil gets a diagonal focal plane,
++ * not a horizontal tilt-shift band). Works on premultiplied RGBA, so the
++ * alpha (CSS paper behind the canvas) blurs with the colour.
++ */
++const DofShader = {
++  name: 'LookAxisDof',
++  uniforms: {
++    tDiffuse: { value: null as THREE.Texture | null },
++    uStep: { value: new THREE.Vector2(1, 0) }, // texel step × direction
++    uFocus: { value: new THREE.Vector2(0.5, 0.5) },
++    uAxis: { value: new THREE.Vector2(0, 1) }, // unit, aspect-corrected
++    uAspect: { value: 1 },
++    uBand: { value: 0.15 },
++    uRamp: { value: 0.35 },
++    uMaxPx: { value: 6 },
++    uAmount: { value: 0 },
++  },
++  vertexShader: VERT,
++  fragmentShader: /* glsl */ `
++    uniform sampler2D tDiffuse;
++    uniform vec2 uStep;
++    uniform vec2 uFocus;
++    uniform vec2 uAxis;
++    uniform float uAspect;
++    uniform float uBand;
++    uniform float uRamp;
++    uniform float uMaxPx;
++    uniform float uAmount;
++    varying vec2 vUv;
++    void main() {
++      vec2 d = (vUv - uFocus) * vec2(uAspect, 1.0);
++      float dist = abs(dot(d, uAxis));
++      float k = smoothstep(uBand, uBand + uRamp, dist) * uAmount;
++      vec2 s = uStep * (k * uMaxPx * 0.25);
++      vec4 sum = texture2D(tDiffuse, vUv) * 0.1633;
++      sum += (texture2D(tDiffuse, vUv - s) + texture2D(tDiffuse, vUv + s)) * 0.1531;
++      sum += (texture2D(tDiffuse, vUv - 2.0 * s) + texture2D(tDiffuse, vUv + 2.0 * s)) * 0.12245;
++      sum += (texture2D(tDiffuse, vUv - 3.0 * s) + texture2D(tDiffuse, vUv + 3.0 * s)) * 0.0918;
++      sum += (texture2D(tDiffuse, vUv - 4.0 * s) + texture2D(tDiffuse, vUv + 4.0 * s)) * 0.051;
++      gl_FragColor = sum;
++    }`,
++}
++
++/**
++ * Radial chromatic aberration, edges only (offset ∝ r³), driven by scroll
++ * speed. Runs AFTER the OutputPass (display-referred) so each channel can be
++ * composited over the CSS paper exactly and re-encoded with one alpha:
++ * a dark pencil edge gets true colour fringes instead of a grey halo.
++ */
++const CaShader = {
++  name: 'LookChromaticAberration',
++  uniforms: {
++    tDiffuse: { value: null as THREE.Texture | null },
++    uAmount: { value: 0 },
++    uAspect: { value: 1 },
++    uPaper: { value: new THREE.Vector3(245 / 255, 243 / 255, 238 / 255) },
++  },
++  vertexShader: VERT,
++  fragmentShader: /* glsl */ `
++    uniform sampler2D tDiffuse;
++    uniform float uAmount;
++    uniform float uAspect;
++    uniform vec3 uPaper;
++    varying vec2 vUv;
++    void main() {
++      vec2 d = vUv - 0.5;
++      vec2 da = d * vec2(uAspect, 1.0);
++      float r2 = dot(da, da) / (0.25 * uAspect * uAspect + 0.25);
++      vec2 off = d * r2 * uAmount;
++      vec4 cr = texture2D(tDiffuse, vUv - off);
++      vec4 cg = texture2D(tDiffuse, vUv);
++      vec4 cb = texture2D(tDiffuse, vUv + off);
++      float a = max(max(cr.a, cg.a), cb.a);
++      vec3 col = vec3(
++        cr.r + uPaper.r * (a - cr.a),
++        cg.g + uPaper.g * (a - cg.a),
++        cb.b + uPaper.b * (a - cb.a));
++      gl_FragColor = vec4(col, a);
++    }`,
++}
++
++const CA_MAX = 0.016 // UV offset at the frame edge at full speed (≈ 6 px @1440)
++const CA_DEAD = 0.12 // |vs| below this: no CA (and the pass is skipped)
++const DOF_MAX_PX = 5 // CSS px at the frame edge
++
++/**
++ * Post FX that read premium on paper: velocity CA and macro DOF.
++ * Both are skipped entirely (`enabled = false`) when idle — zero cost at
++ * rest. Low quality / touch: neither pass is created. Reduced motion: no CA.
++ */
++export class PostFx implements SceneModule {
++  readonly name = 'look:post'
++  private stage: Stage | null = null
++  private asm: Assembly | null = null
++  private dofH: ShaderPass | null = null
++  private dofV: ShaderPass | null = null
++  private ca: ShaderPass | null = null
++  private caAmt = 0
++  private dofAmt = 0
++  private w = 1
++  private h = 1
++  private v = new THREE.Vector3()
++  private a = new THREE.Vector3()
++  private b = new THREE.Vector3()
++  private q = new THREE.Quaternion()
++
++  constructor(private shared: LookShared) {}
++
++  init(stage: Stage, asm: Assembly, cfg: QualityConfig): void {
++    this.stage = stage
++    this.asm = asm
++    if (cfg.quality !== 'high') return
++    const composer = stage.composer
++    const outIdx = composer.passes.findIndex(
++      (p) => (p as unknown as { isOutputPass?: boolean }).isOutputPass,
++    )
++    const at = outIdx >= 0 ? outIdx : composer.passes.length
++    this.dofH = new ShaderPass(DofShader)
++    this.dofV = new ShaderPass(DofShader)
++    this.dofH.enabled = this.dofV.enabled = false
++    composer.insertPass(this.dofH, at)
++    composer.insertPass(this.dofV, at + 1)
++    this.ca = new ShaderPass(CaShader)
++    this.ca.enabled = false
++    composer.addPass(this.ca)
++    this.onResize(window.innerWidth, window.innerHeight)
++  }
++
++  onResize(w: number, h: number): void {
++    this.w = w
++    this.h = h
++    const dpr = this.stage?.renderer.getPixelRatio() ?? 1
++    const pw = w * dpr
++    const ph = h * dpr
++    if (this.dofH) {
++      this.dofH.uniforms.uStep.value.set(1 / pw, 0)
++      this.dofV!.uniforms.uStep.value.set(0, 1 / ph)
++      for (const p of [this.dofH, this.dofV!]) {
++        p.uniforms.uAspect.value = w / h
++        p.uniforms.uMaxPx.value = DOF_MAX_PX * dpr
++      }
++    }
++    if (this.ca) this.ca.uniforms.uAspect.value = w / h
++  }
++
++  /** Currently active effects (debug). */
++  get state(): { ca: number; dof: number } {
++    return { ca: this.caAmt, dof: this.dofAmt }
++  }
++
++  wantsFrame(): boolean {
++    return this.caAmt > 1e-4
++  }
++
++  update(ctx: FrameCtx): void {
++    if (!this.stage || !this.asm || !this.ca || !this.dofH || !this.dofV) return
++    const dt = ctx.dt * this.shared.timeScale
++
++    // ---- chromatic aberration from scroll speed (edges only) ----
++    const target = ctx.motionOK
++      ? CA_MAX * smoothstep(CA_DEAD, 1, Math.abs(this.shared.vs))
++      : 0
++    this.caAmt = damp(this.caAmt, target, target > this.caAmt ? 14 : 6, dt)
++    if (this.caAmt < 1e-4) this.caAmt = 0
++    this.ca.enabled = this.caAmt > 1e-4
++    this.ca.uniforms.uAmount.value = this.caAmt
++
++    // ---- macro DOF in Detail (grip) and Mechanism (jaw) ----
++    const df = detailF(ctx.p)
++    const mf = mechF(ctx.p)
++    const want = Math.max(df, mf)
++    this.dofAmt = want
++    const on = want > 0.01
++    this.dofH.enabled = this.dofV.enabled = on
++    if (!on) return
++    const asm = this.asm
++    const cam = this.stage.camera
++    cam.updateMatrixWorld()
++    // focus point: blend of grip and jaw by chapter weight
++    const fw = df + mf
++    this.v.set(0, 0, 0)
++    if (df > 0 && asm.gripNode) {
++      asm.gripNode.getWorldPosition(this.a)
++      this.v.addScaledVector(this.a, df / fw)
++    }
++    if (mf > 0 && asm.jawNodes.length > 0) {
++      asm.jawNodes[0].getWorldPosition(this.a)
++      this.v.addScaledVector(this.a, mf / fw)
++    }
++    // pencil axis (local +Y) on screen
++    asm.group.getWorldQuaternion(this.q)
++    this.a.set(0, 0.6, 0).applyQuaternion(this.q).add(this.v)
++    this.b.set(0, -0.6, 0).applyQuaternion(this.q).add(this.v)
++    this.v.project(cam)
++    this.a.project(cam)
++    this.b.project(cam)
++    const aspect = this.w / Math.max(1, this.h)
++    let ax = (this.a.x - this.b.x) * aspect
++    let ay = this.a.y - this.b.y
++    const len = Math.hypot(ax, ay)
++    if (len > 1e-5) {
++      ax /= len
++      ay /= len
++    } else {
++      ax = 0
++      ay = 1
++    }
++    const fx = this.v.x * 0.5 + 0.5
++    const fy = this.v.y * 0.5 + 0.5
++    // macro on the jaw is tighter than the grip study
++    const band = (0.17 * df + 0.1 * mf) / fw
++    const ramp = (0.4 * df + 0.3 * mf) / fw
++    const amount = clamp(smoothstep(0.01, 0.6, want), 0, 1)
++    for (const p of [this.dofH, this.dofV]) {
++      const u = p.uniforms
++      u.uFocus.value.set(fx, fy)
++      u.uAxis.value.set(ax, ay)
++      u.uBand.value = band
++      u.uRamp.value = ramp
++      u.uAmount.value = amount
++    }
++  }
++
++  dispose(): void {
++    const c = this.stage?.composer
++    for (const p of [this.dofH, this.dofV, this.ca]) {
++      if (!p) continue
++      c?.removePass(p)
++      p.dispose()
++    }
++  }
++}
+diff --git a/src/three/look/rig.ts b/src/three/look/rig.ts
+new file mode 100644
+index 0000000..9cc7dba
+--- /dev/null
++++ b/src/three/look/rig.ts
+@@ -0,0 +1,263 @@
++import * as THREE from 'three'
++import type { Assembly } from '../assembly'
++import type { QualityConfig } from '../config'
++import type { FrameCtx, SceneModule } from '../modules'
++import type { Stage } from '../stage'
++import { bus } from '../../fx/bus'
++import { pointer } from '../../fx/pointer'
++import { detailF, mechF } from '../../data/scroll'
++import { clamp, damp, springSettled, springTo, type Spring } from './math'
++import { isCoarseDevice, type LookShared } from './shared'
++
++// Tuning (radians / screen fractions). Weight, not wobble.
++const TURN_Y = 0.16 // pointer x → turn about the camera's up axis
++const TURN_X = 0.1 // pointer y → turn about the camera's right axis
++const POINTER_LAMBDA = 4 // heavy object
++const PARALLAX_X = 0.0075 // camera shift per unit distance (≈ 12 px)
++const PARALLAX_Y = 0.005
++const BREATH_YAW = 0.0105 // ±0.6°
++const BREATH_PITCH = 0.006
++const BREATH_AFTER = 3 // s without input
++const BREATH_STOP = 45 // s without input → settle so the loop can sleep
++const ROLL = 0.06 // rad at full scroll speed
++const LAG = 0.011 // screen-space lag per unit distance at full speed
++const VEL_FULL = 4 // viewport-heights / s that counts as "full speed"
++const SPRING_K = 55
++const SPRING_C = 2 * Math.sqrt(SPRING_K) // critical: no overshoot
++
++/**
++ * Pointer rig: the pencil subtly turns toward the hand, the camera shifts a
++ * few pixels of parallax, the object breathes when left alone and carries
++ * a little inertia from scroll velocity.
++ *
++ * Composition: a `rig` group is inserted between the scene and `asm.group`.
++ * Its matrix is a pure transient — T(pivot + lag) · R · T(−pivot) —
++ * recomputed every frame from scratch, so it never integrates into the
++ * choreography in experience.ts (which keeps writing `asm.group` as before).
++ * The pivot is the pencil origin, sliding to the grip / jaw in the macro
++ * shots so the framed subject turns in place. `asm.group.position` stays a
++ * world-space value (rig is identity at rest, pivot-preserving otherwise).
++ *
++ * Public API (via `exp.getModule<PointerRig>('look:rig')`):
++ *   rig.group            the rig Object3D (reparent this, not asm.group)
++ *   rig.setWeight(w)     0..1 scales pointer turn + breathing; null = auto
++ */
++export class PointerRig implements SceneModule {
++  readonly name = 'look:rig'
++  readonly group = new THREE.Group()
++
++  private stage: Stage | null = null
++  private asm: Assembly | null = null
++  private enabledPointer = false
++  private allowBreath = false
++  private motionOK = true
++  private frozen = false
++  private outAt = 0
++  private weightOverride: number | null = null
++  private lastInput = performance.now()
++  private lastPointerT = 0
++  private lastRender = 0
++  private sv: Spring = { x: 0, v: 0 }
++  private tx = 0
++  private ty = 0
++  private offs: (() => void)[] = []
++
++  // scratch (no per-frame allocations)
++  private qa = new THREE.Quaternion()
++  private qb = new THREE.Quaternion()
++  private right = new THREE.Vector3()
++  private up = new THREE.Vector3()
++  private fwd = new THREE.Vector3()
++  private pivot = new THREE.Vector3()
++  private v = new THREE.Vector3()
++  private m = new THREE.Matrix4()
++  private inv = new THREE.Matrix4()
++
++  constructor(private shared: LookShared) {
++    this.group.name = 'LookRig'
++    this.group.matrixAutoUpdate = false
++  }
++
++  init(stage: Stage, asm: Assembly, cfg: QualityConfig): void {
++    this.stage = stage
++    this.asm = asm
++    const parent = asm.group.parent ?? stage.scene
++    parent.add(this.group)
++    this.group.add(asm.group)
++    const coarse = isCoarseDevice()
++    this.enabledPointer = !coarse
++    // Breathing keeps the loop at ~30 fps while idle: desktop only.
++    this.allowBreath = !coarse && cfg.quality === 'high'
++    this.refreshScroll()
++    this.offs.push(
++      bus.on('cursor', (e) => {
++        this.frozen = e.mode === 'drag'
++      }),
++    )
++    const leave = (): void => {
++      this.outAt = performance.now()
++    }
++    document.documentElement.addEventListener('mouseleave', leave)
++    window.addEventListener('blur', leave)
++    this.offs.push(() => {
++      document.documentElement.removeEventListener('mouseleave', leave)
++      window.removeEventListener('blur', leave)
++    })
++  }
++
++  /** 0..1 multiplier for the pointer turn + breathing; null → automatic. */
++  setWeight(w: number | null): void {
++    this.weightOverride = w === null ? null : clamp(w, 0, 1)
++  }
++
++  private refreshScroll(): void {
++    this.shared.maxScroll = Math.max(
++      1,
++      document.documentElement.scrollHeight - window.innerHeight,
++    )
++  }
++
++  onResize(): void {
++    this.refreshScroll()
++  }
++
++  onMotionChange(ok: boolean): void {
++    this.motionOK = ok
++    if (!ok) {
++      this.sv.x = this.sv.v = 0
++      this.shared.px = this.shared.py = this.shared.vs = this.shared.breath = 0
++      this.group.matrix.identity()
++      this.group.matrixWorldNeedsUpdate = true
++    }
++  }
++
++  /** Pointer target, −1..1 (held while a drag owns the cursor). */
++  private target(): void {
++    if (this.frozen) return
++    const live =
++      this.motionOK &&
++      this.enabledPointer &&
++      pointer.active &&
++      !pointer.coarse &&
++      this.outAt < pointer.t
++    this.shared.pointerLive = live
++    this.tx = live ? clamp(pointer.nx, -1, 1) : 0
++    this.ty = live ? clamp(pointer.ny, -1, 1) : 0
++  }
++
++  private breathTarget(now: number): number {
++    if (!this.allowBreath || !this.motionOK) return 0
++    const idle = (now - this.lastInput) / 1000
++    return idle > BREATH_AFTER && idle < BREATH_STOP ? 1 : 0
++  }
++
++  wantsFrame(): boolean {
++    if (!this.asm) return false
++    if (!springSettled(this.sv, 0, 2e-4)) return true
++    this.target()
++    const s = this.shared
++    if (Math.abs(s.px - this.tx) > 3e-4 || Math.abs(s.py - this.ty) > 3e-4) return true
++    const now = performance.now()
++    if (this.breathTarget(now) > 0 || s.breath > 0.002) {
++      // breathing alone: ~30 fps is plenty for a 0.15 Hz drift
++      return now - this.lastRender > 31
++    }
++    return false
++  }
++
++  preUpdate(ctx: FrameCtx): void {
++    if (ctx.motionOK !== this.motionOK) this.onMotionChange(ctx.motionOK)
++    const s = this.shared
++    const now = performance.now()
++    s.vhps = (ctx.scrollVel * s.maxScroll) / Math.max(1, window.innerHeight)
++    if (Math.abs(ctx.scrollVel) > 1e-3 || pointer.t !== this.lastPointerT) {
++      this.lastPointerT = pointer.t
++      this.lastInput = now
++    }
++    s.idle = (now - this.lastInput) / 1000
++    const vt = this.motionOK ? clamp(s.vhps / VEL_FULL, -1, 1) : 0
++    s.vs = springTo(this.sv, vt, SPRING_K, SPRING_C, ctx.dt * s.timeScale)
++    if (Math.abs(s.vs) < 1e-5 && Math.abs(this.sv.v) < 1e-4) s.vs = this.sv.x = this.sv.v = 0
++  }
++
++  update(ctx: FrameCtx): void {
++    const asm = this.asm
++    const stage = this.stage
++    if (!asm || !stage) return
++    const now = performance.now()
++    this.lastRender = now
++    const s = this.shared
++    if (!this.motionOK) return
++    if (asm.group.parent !== this.group) return // someone reparented: stay inert
++    const dt = ctx.dt * s.timeScale
++    const cam = stage.camera
++
++    this.target()
++    s.px = damp(s.px, this.tx, POINTER_LAMBDA, dt)
++    s.py = damp(s.py, this.ty, POINTER_LAMBDA, dt)
++    if (Math.abs(s.px - this.tx) < 1e-4) s.px = this.tx
++    if (Math.abs(s.py - this.ty) < 1e-4) s.py = this.ty
++    const bt = this.breathTarget(now)
++    s.breath = damp(s.breath, bt, bt > s.breath ? 0.7 : 2.5, dt)
++    if (s.breath < 1e-3 && bt === 0) s.breath = 0
++
++    // camera basis (quaternion was set by lookAt this frame)
++    this.right.set(1, 0, 0).applyQuaternion(cam.quaternion)
++    this.up.set(0, 1, 0).applyQuaternion(cam.quaternion)
++    this.fwd.set(0, 0, -1).applyQuaternion(cam.quaternion)
++
++    // pivot: pencil origin, sliding to the macro subject (rig-free coords)
++    const pv = this.pivot.copy(asm.group.position)
++    const df = detailF(ctx.p)
++    const mc = mechF(ctx.p)
++    if (df > 0.001 || mc > 0.001) {
++      this.inv.copy(this.group.matrix).invert()
++      if (df > 0.001 && asm.gripNode) {
++        asm.gripNode.getWorldPosition(this.v).applyMatrix4(this.inv)
++        pv.lerp(this.v, df)
++      }
++      if (mc > 0.001 && asm.jawNodes.length > 0) {
++        asm.jawNodes[0].getWorldPosition(this.v).applyMatrix4(this.inv)
++        pv.lerp(this.v, mc)
++      }
++    }
++    const dist = Math.max(0.5, cam.position.distanceTo(pv))
++
++    const w = this.weightOverride ?? 1
++    const t = ctx.time
++    const yaw =
++      w * (s.px * TURN_Y + s.breath * BREATH_YAW * Math.sin(t * Math.PI * 2 * 0.15))
++    const pitch =
++      w *
++      (-s.py * TURN_X + s.breath * BREATH_PITCH * Math.sin(t * Math.PI * 2 * 0.11 + 1.3))
++    const roll = s.vs * ROLL
++    const lag = s.vs * LAG * dist
++
++    // R = yaw(camUp) · pitch(camRight) · roll(camFwd), about the pivot
++    this.qa.setFromAxisAngle(this.up, yaw)
++    this.qb.setFromAxisAngle(this.right, pitch)
++    this.qa.multiply(this.qb)
++    this.qb.setFromAxisAngle(this.fwd, roll)
++    this.qa.multiply(this.qb)
++    const m = this.m.makeRotationFromQuaternion(this.qa)
++    // translation = pivot − lag·up − R·pivot
++    this.v.copy(pv).applyMatrix4(m)
++    m.elements[12] = pv.x - this.v.x - this.up.x * lag
++    m.elements[13] = pv.y - this.v.y - this.up.y * lag
++    m.elements[14] = pv.z - this.v.z - this.up.z * lag
++    this.group.matrix.copy(m)
++    this.group.matrixWorldNeedsUpdate = true
++
++    // Camera parallax: a pure translation in the camera plane (no re-aim),
++    // so the object slides a few px against the DOM layer. experience.ts
++    // re-copies the camera position every frame — nothing to undo.
++    const kx = PARALLAX_X * dist * s.px
++    const ky = PARALLAX_Y * dist * s.py
++    cam.position.addScaledVector(this.right, kx).addScaledVector(this.up, ky)
++  }
++
++  dispose(): void {
++    this.offs.forEach((f) => f())
++    this.offs = []
++  }
++}
+diff --git a/src/three/look/shared.ts b/src/three/look/shared.ts
+new file mode 100644
+index 0000000..5f08946
+--- /dev/null
++++ b/src/three/look/shared.ts
+@@ -0,0 +1,40 @@
++/**
++ * State shared by the LOOK modules within one frame. Written by the rig
++ * (first look module in the frame), read by light / shadow / post.
++ */
++export interface LookShared {
++  /** scroll velocity, viewport-heights per second (signed, + = down) */
++  vhps: number
++  /** normalized velocity −1..1, critically-damped (inertia + CA source) */
++  vs: number
++  /** seconds since the last pointer move or scroll tick */
++  idle: number
++  /** idle-breathing weight 0..1 */
++  breath: number
++  /** pointer rig is allowed (fine pointer, motion on, not frozen) */
++  pointerLive: boolean
++  /** damped pointer, −1..1 (0 when the rig is off) */
++  px: number
++  py: number
++  /** max scroll in px (refreshed on resize) */
++  maxScroll: number
++  /** dev/test only: multiplies dt for the look dampers (screenshots) */
++  timeScale: number
++}
++
++export const createShared = (): LookShared => ({
++  vhps: 0,
++  vs: 0,
++  idle: 0,
++  breath: 0,
++  pointerLive: false,
++  px: 0,
++  py: 0,
++  maxScroll: 1,
++  timeScale: 1,
++})
++
++/** True on touch-first devices (no hover, coarse pointer). */
++export const isCoarseDevice = (): boolean =>
++  typeof window !== 'undefined' &&
++  window.matchMedia('(hover: none), (pointer: coarse)').matches
+diff --git a/src/three/registerModules.ts b/src/three/registerModules.ts
+index ce2093b..4d85f57 100644
+--- a/src/three/registerModules.ts
++++ b/src/three/registerModules.ts
+@@ -1,4 +1,5 @@
+ import type { PencilExperience } from './experience'
++import { registerLook } from './look'
+ 
+ /**
+  * Single place where scene modules are attached to the experience.
+@@ -8,6 +9,7 @@ export function registerModules(exp: PencilExperience): void {
+   void exp
+ 
+   // ---- look: pointer rig / light sweep / post FX / contact shadows ----
++  registerLook(exp)
+ 
+   // ---- drawing: technical-drawing overlay / x-ray scan / mechanism ----
+ 
+diff --git a/src/three/stage.ts b/src/three/stage.ts
+index bf89d40..be9aa3d 100644
+--- a/src/three/stage.ts
++++ b/src/three/stage.ts
+@@ -12,6 +12,12 @@ export interface Stage {
+   camera: THREE.PerspectiveCamera
+   composer: EffectComposer
+   key: THREE.DirectionalLight
++  /**
++   * All directional lights live in this group so the LOOK light sweep can
++   * rotate them together with `scene.environmentRotation` (coherent
++   * highlights). Identity at rest.
++   */
++  lightRig: THREE.Group
+   setSize: (w: number, h: number) => void
+   dispose: () => void
+ }
+@@ -68,7 +74,10 @@ export async function createStage(
+   // gives the anodized chamfers their sheen.
+   const key = new THREE.DirectionalLight(0xfff1e2, 3.2)
+   key.position.set(4.5, 6, 3.5)
+-  key.castShadow = cfg.quality === 'high'
++  // No mesh receives directional shadows (contact shadows replace the old
++  // ShadowMaterial ground), so the key's shadow map would be pure cost. The
++  // LOOK shadow module re-enables it if any part opts into receiveShadow.
++  key.castShadow = false
+   const s = cfg.quality === 'high' ? 2048 : 1024
+   key.shadow.mapSize.set(s, s)
+   key.shadow.bias = -0.00015
+@@ -88,16 +97,10 @@ export async function createStage(
+   top.position.set(0.5, 7.5, -0.5)
+   const strip = new THREE.DirectionalLight(0xe8f0ff, 1.0)
+   strip.position.set(6.5, 1.2, -2.5)
+-  scene.add(key, rim, fill, top, strip)
+-
+-  const ground = new THREE.Mesh(
+-    new THREE.PlaneGeometry(40, 40),
+-    new THREE.ShadowMaterial({ opacity: 0.16 }),
+-  )
+-  ground.rotation.x = -Math.PI / 2
+-  ground.position.y = -4.8
+-  ground.receiveShadow = true
+-  scene.add(ground)
++  const lightRig = new THREE.Group()
++  lightRig.name = 'LightRig'
++  lightRig.add(key, rim, fill, top, strip)
++  scene.add(lightRig)
+ 
+   const composer =
+     cfg.msaaSamples > 0
+@@ -121,6 +124,7 @@ export async function createStage(
+     camera,
+     composer,
+     key,
++    lightRig,
+     setSize: (w: number, h: number) => {
+       camera.aspect = w / h
+       camera.updateProjectionMatrix()

@@ -1,7 +1,29 @@
 :root{
   --paper:#F5F3EE; --card:#FFFFFF; --ink:#141412; --muted:#6E6C66;
   --hairline:#E2DFD6; --fill:#EBE8E0; --accent:#A63D22; --accent-ink:#7E2C16;
-  --radius:2px; --max:1200px; --font:"Inter Tight",-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",Arial,sans-serif;
-  --mono:"IBM Plex Mono",SFMono-Regular,Menlo,Consolas,monospace;
-  --ease-out:cubic-bezier(0.16,1,0.3,1); --ease-standard:cubic-bezier(0.22,1,0.36,1);
+  --graphite:#2E2D2B; --ink-55:rgba(20,20,18,.55);
+  --radius:2px; --max:1200px; --font:"Inter Tight","Inter Tight Fallback",-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",Arial,sans-serif;
+  --mono:"IBM Plex Mono","IBM Plex Mono Fallback",SFMono-Regular,Menlo,Consolas,monospace;
+  /* editorial serif — italic emphasis words only, never body copy */
+  --serif:"Instrument Serif","Instrument Serif Fallback","Iowan Old Style","Times New Roman",serif;
+
+  /* ---- motion tokens (mirrored in src/motion/math.ts) ---- */
+  --ease-out:cubic-bezier(0.16,1,0.3,1);        /* expo.out: reveals, rolls */
+  --ease-standard:cubic-bezier(0.22,1,0.36,1);  /* quint.out: UI state */
+  --ease-inout:cubic-bezier(0.76,0,0.24,1);     /* quart.inOut: wipes, curtains */
+  --ease-draw:cubic-bezier(0.65,0,0.35,1);      /* cubic.inOut: hairline / SVG draw-ons */
+  --ease-back:cubic-bezier(0.34,1.56,0.64,1);   /* magnetic release ONLY */
+  --t-hover:220ms; --t-ui:420ms; --t-reveal:1100ms; --t-wipe:1000ms; --t-draw:900ms;
+  --stagger:80ms;
+
+  /* ---- display type ---- */
+  --fs-h1:clamp(46px,min(6.7vw,11.6vh),116px);
+  --fs-h2:clamp(34px,4.3vw,62px);
+  --fs-h2-xl:clamp(40px,6.4vw,104px);
+  --lh-display:.94;
+  --tr-display:-0.038em;
+  --nav-h:64px;
+}
+@media (max-width:520px){
+  :root{ --nav-h:56px }
 }

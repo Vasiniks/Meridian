@@ -1,5 +1,8 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { PRICES, buyEyebrow, buyFine, buyLede, buyOptions, buySpecs, buyTitle } from "../data/content";
+import { bus } from "../fx/bus";
+import { isVariantName } from "../three/finishes";
+import { asset } from "../assetUrl";
 
 export interface BuyProps {
   onVariantChange?: (variantName: string) => void;
@@ -10,10 +13,30 @@ export default function Buy({ onVariantChange }: BuyProps) {
   const [toast, setToast] = useState("");
   const [added, setAdded] = useState(false);
 
+  // Ring ↔ form sync: the variant in front of the lineup ring (and any
+  // "Choose" action there) preselects the radio; the radio, in turn,
+  // re-finishes the pencil standing in the buy slot (see three/ring.ts).
+  useEffect(() => {
+    const offActive = bus.on("variant:active", ({ name }) => {
+      setVariant(name);
+      setAdded(false);
+    });
+    const offSelect = bus.on("variant:select", ({ name, source }) => {
+      if (source === "buy") return;
+      setVariant(name);
+      setAdded(false);
+    });
+    return () => {
+      offActive();
+      offSelect();
+    };
+  }, []);
+
   const handleChange = (value: string) => {
     setVariant(value);
     setAdded(false);
     onVariantChange?.(value);
+    if (isVariantName(value)) bus.emit("variant:select", { name: value, source: "buy" });
   };
 
   const handleSubmit = (e: FormEvent) => {
@@ -40,6 +63,21 @@ export default function Buy({ onVariantChange }: BuyProps) {
               </li>
             ))}
           </ul>
+          {/* product slot: the selected pencil flies out of the lineup ring
+              and stands here (3D), or its render shows here (static mode) */}
+          <div className="buy-stage" id="buyStage" aria-hidden="true">
+            {buyOptions.map((o) => (
+              <img
+                key={o.value}
+                src={asset(`variants/${o.value.toLowerCase()}.png`)}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                data-on={o.value === variant ? "true" : "false"}
+              />
+            ))}
+            <span className="buy-stage-cap mono">{variant}</span>
+          </div>
         </div>
         <form className="buy-box rv" id="buyForm" onSubmit={handleSubmit}>
           <fieldset>
@@ -52,7 +90,6 @@ export default function Buy({ onVariantChange }: BuyProps) {
                   value={o.value}
                   checked={variant === o.value}
                   onChange={() => handleChange(o.value)}
-                  {...(o.value === "Studio" ? { "data-color": "0x1e2f4f" } : {})}
                 />
                 <span>
                   <span className="t">{o.title}</span>

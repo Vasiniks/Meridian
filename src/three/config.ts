@@ -1,3 +1,6 @@
+import { asset } from '../assetUrl'
+import { FINISHES } from './finishes'
+
 export type Quality = 'high' | 'low'
 
 export interface QualityConfig {
@@ -21,17 +24,15 @@ export function detectConfig(): QualityConfig {
     dprCap: quality === 'high' ? 2 : 1.5,
     assetUrl:
       quality === 'high'
-        ? '/models/desktop/mechanical-pencil.glb'
-        : '/models/mobile/mechanical-pencil-mobile.glb',
+        ? asset('models/desktop/mechanical-pencil.glb')
+        : asset('models/mobile/mechanical-pencil-mobile.glb'),
     // AA investigation: native MSAA on the composer target (desktop only).
     // Post-process AA passes were rejected — double cost, softer facets.
     msaaSamples: quality === 'high' ? 4 : 0,
   }
 }
 
-export const ANODIZED: Record<string, number> = {
-  Core: 0x2b2f36,
-  Studio: 0x1e2f4f,
-  Pro: 0x6b5a3e,
-  Limited: 0x4a4e55,
-}
+/** Barrel tint per variant (derived from FINISHES — edit colors there). */
+export const ANODIZED: Record<string, number> = Object.fromEntries(
+  Object.entries(FINISHES).map(([k, f]) => [k, f.color]),
+)

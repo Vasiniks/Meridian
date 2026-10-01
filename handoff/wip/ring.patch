@@ -1,0 +1,2517 @@
+diff --git a/src/components/Buy.tsx b/src/components/Buy.tsx
+index 2b6fd05..30bad34 100644
+--- a/src/components/Buy.tsx
++++ b/src/components/Buy.tsx
+@@ -1,5 +1,8 @@
+-import { useState, type FormEvent } from "react";
++import { useEffect, useState, type FormEvent } from "react";
+ import { PRICES, buyEyebrow, buyFine, buyLede, buyOptions, buySpecs, buyTitle } from "../data/content";
++import { bus } from "../fx/bus";
++import { isVariantName } from "../three/finishes";
++import { asset } from "../assetUrl";
+ 
+ export interface BuyProps {
+   onVariantChange?: (variantName: string) => void;
+@@ -10,10 +13,30 @@ export default function Buy({ onVariantChange }: BuyProps) {
+   const [toast, setToast] = useState("");
+   const [added, setAdded] = useState(false);
+ 
++  // Ring ↔ form sync: the variant in front of the lineup ring (and any
++  // "Choose" action there) preselects the radio; the radio, in turn,
++  // re-finishes the pencil standing in the buy slot (see three/ring.ts).
++  useEffect(() => {
++    const offActive = bus.on("variant:active", ({ name }) => {
++      setVariant(name);
++      setAdded(false);
++    });
++    const offSelect = bus.on("variant:select", ({ name, source }) => {
++      if (source === "buy") return;
++      setVariant(name);
++      setAdded(false);
++    });
++    return () => {
++      offActive();
++      offSelect();
++    };
++  }, []);
++
+   const handleChange = (value: string) => {
+     setVariant(value);
+     setAdded(false);
+     onVariantChange?.(value);
++    if (isVariantName(value)) bus.emit("variant:select", { name: value, source: "buy" });
+   };
+ 
+   const handleSubmit = (e: FormEvent) => {
+@@ -40,6 +63,21 @@ export default function Buy({ onVariantChange }: BuyProps) {
+               </li>
+             ))}
+           </ul>
++          {/* product slot: the selected pencil flies out of the lineup ring
++              and stands here (3D), or its render shows here (static mode) */}
++          <div className="buy-stage" id="buyStage" aria-hidden="true">
++            {buyOptions.map((o) => (
++              <img
++                key={o.value}
++                src={asset(`variants/${o.value.toLowerCase()}.png`)}
++                alt=""
++                loading="lazy"
++                decoding="async"
++                data-on={o.value === variant ? "true" : "false"}
++              />
++            ))}
++            <span className="buy-stage-cap mono">{variant}</span>
++          </div>
+         </div>
+         <form className="buy-box rv" id="buyForm" onSubmit={handleSubmit}>
+           <fieldset>
+@@ -52,7 +90,6 @@ export default function Buy({ onVariantChange }: BuyProps) {
+                   value={o.value}
+                   checked={variant === o.value}
+                   onChange={() => handleChange(o.value)}
+-                  {...(o.value === "Studio" ? { "data-color": "0x1e2f4f" } : {})}
+                 />
+                 <span>
+                   <span className="t">{o.title}</span>
+diff --git a/src/components/FrameFallback.tsx b/src/components/FrameFallback.tsx
+index 3485021..4711d02 100644
+--- a/src/components/FrameFallback.tsx
++++ b/src/components/FrameFallback.tsx
+@@ -1,6 +1,9 @@
+ import { useEffect, useRef } from 'react'
+-import { KEYS } from '../data/scroll'
++import { KEYS, LINEUP_PIN, RING_IN, ringIndex, ringTarget, sstep } from '../data/scroll'
+ import { asset } from '../assetUrl'
++import { bus } from '../fx/bus'
++import { VARIANT_ORDER } from '../three/finishes'
++import { sizeLineup } from './lineupNav'
+ 
+ const DESKTOP_COUNT = 80
+ const MOBILE_COUNT = 60
+@@ -16,15 +19,6 @@ function driveDom(p: number): void {
+   while (li < KEYS.length - 1 && p > KEYS[li + 1].p) li++
+   const label = document.getElementById('sceneLabel')
+   if (label) label.textContent = KEYS[li].label
+-  const lineupSec = document.getElementById('lineup')
+-  const track = document.getElementById('lineupTrack')
+-  if (lineupSec && track) {
+-    const r = lineupSec.getBoundingClientRect()
+-    const total = r.height - window.innerHeight
+-    const lp = total > 0 ? Math.min(1, Math.max(0, -r.top / total)) : 0
+-    const dist = Math.max(0, track.scrollWidth - window.innerWidth + 60)
+-    track.style.transform = `translate3d(${-dist * lp}px,0,0)`
+-  }
+   const mechSec = document.getElementById('mechanism')
+   if (mechSec) {
+     const r = mechSec.getBoundingClientRect()
+@@ -36,6 +30,30 @@ function driveDom(p: number): void {
+   }
+ }
+ 
++// ---- lineup (static mode) ----------------------------------------------
++// Same section-local mapping as the 3D ring: --ring drives the CSS prism of
++// renders + the dial, `variant:active` drives the overlay text and the buy
++// form. The pre-rendered frames show the old single pencil, so they fade
++// out while the prism (and the buy-slot render) take over.
++let lastLineupIdx = 0
++function driveLineup(img: HTMLImageElement | null): void {
++  const sec = document.getElementById('lineup')
++  if (!sec) return
++  const u = -sec.getBoundingClientRect().top / Math.max(1, window.innerHeight)
++  const pos = ringTarget(u)
++  const reduced =
++    document.body.classList.contains('reduced') ||
++    window.matchMedia('(prefers-reduced-motion: reduce)').matches
++  sec.style.setProperty('--ring', String(reduced ? ringIndex(pos) : Math.round(pos * 1000) / 1000))
++  sec.style.setProperty('--lu-out', sstep(LINEUP_PIN + 0.02, LINEUP_PIN + 0.38, u).toFixed(3))
++  const i = ringIndex(pos)
++  if (u > RING_IN[0] && u < LINEUP_PIN + 0.15 && i !== lastLineupIdx) {
++    lastLineupIdx = i
++    bus.emit('variant:active', { name: VARIANT_ORDER[i] })
++  }
++  if (img) img.style.opacity = String(1 - sstep(-0.75, -0.25, u))
++}
++
+ /**
+  * Zero-GPU fallback: pre-rendered JPEG frames driven by scroll progress.
+  * Used when WebGL is unavailable, on very weak hardware, or ?static=1.
+@@ -75,6 +93,7 @@ export default function FrameFallback() {
+       const p = max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0
+       show(Math.min(count - 1, Math.floor(p * count)))
+       driveDom(p)
++      driveLineup(img)
+     }
+     const onScroll = (): void => {
+       if (!queued) {
+@@ -83,6 +102,12 @@ export default function FrameFallback() {
+       }
+     }
+ 
++    document.body.classList.add('is-static')
++    sizeLineup()
++    const onResize = (): void => {
++      sizeLineup()
++      onScroll()
++    }
+     show(0)
+     driveDom(0)
+     update()
+@@ -101,12 +126,13 @@ export default function FrameFallback() {
+     const gl = document.getElementById('gl')
+     if (gl) gl.style.display = 'none'
+     window.addEventListener('scroll', onScroll, { passive: true })
+-    window.addEventListener('resize', onScroll)
++    window.addEventListener('resize', onResize)
+     document.getElementById('loader')?.classList.add('done')
+     return () => {
+       cancelAnimationFrame(raf)
+       window.removeEventListener('scroll', onScroll)
+-      window.removeEventListener('resize', onScroll)
++      window.removeEventListener('resize', onResize)
++      document.body.classList.remove('is-static')
+     }
+   }, [])
+ 
+diff --git a/src/components/Lineup.tsx b/src/components/Lineup.tsx
+index bb8bf54..ce11429 100644
+--- a/src/components/Lineup.tsx
++++ b/src/components/Lineup.tsx
+@@ -1,46 +1,187 @@
+-import { lineupHint, lineupTitle, variants } from "../data/content";
++import { useEffect, useRef, useState, type CSSProperties } from "react";
++import { lineupTitle, variants } from "../data/content";
++import { bus } from "../fx/bus";
++import { isVariantName } from "../three/finishes";
++import { gotoBuy, gotoDetent, variantIndex } from "./lineupNav";
+ import { asset } from "../assetUrl";
+ 
+-function colorToHex(colorHex: number): string {
+-  return "0x" + colorHex.toString(16).padStart(6, "0");
++/**
++ * Lineup — typographic overlay for the 3D variant ring (three/ring.ts).
++ *
++ * The ring announces the variant in front via `variant:active`; this
++ * component only renders text for it (masked character roll on the giant
++ * name, odometer counter + price, dial). Every control scrolls the page to
++ * a detent — scroll position stays the single source of truth.
++ *
++ * `--ring` (0..3, continuous) is written on #lineup every frame by the ring
++ * (or by FrameFallback in static mode); the dial needle and the static CSS
++ * prism read it without React re-renders.
++ */
++
++interface Swap {
++  idx: number;
++  prev: number;
++  dir: 1 | -1;
++  n: number;
++}
++
++/** Masked per-character roll between two words (direction-aware). */
++function RollWord({ swap, words, className }: { swap: Swap; words: string[]; className: string }) {
++  const cur = words[swap.idx];
++  const prev = swap.prev >= 0 ? words[swap.prev] : null;
++  const chars = (w: string) =>
++    [...w].map((ch, i) => (
++      <span className="rc" style={{ "--i": i } as CSSProperties} key={i}>
++        {ch === " " ? " " : ch}
++      </span>
++    ));
++  return (
++    <span className={`roll ${className}`} data-dir={swap.dir > 0 ? "up" : "down"} aria-hidden="true">
++      {prev !== null && prev !== cur ? (
++        <span className="roll-l roll-out" key={`o${swap.n}`}>
++          {chars(prev)}
++        </span>
++      ) : null}
++      <span className={`roll-l ${swap.n > 0 ? "roll-in" : ""}`} key={`i${swap.n}`}>
++        {chars(cur)}
++      </span>
++    </span>
++  );
++}
++
++/** Rolling digits: each slot is a 0–9 column translated by its digit. */
++function Odometer({ value, width, pad = " " }: { value: number; width: number; pad?: string }) {
++  const s = String(value).padStart(width, pad);
++  return (
++    <span className="odo" aria-hidden="true">
++      {[...s].map((d, i) => {
++        const blank = d === " ";
++        const n = blank ? 0 : Number(d);
++        return (
++          <span
++            className={`odo-slot${blank ? " is-blank" : ""}`}
++            key={i}
++            style={{ "--d": n, "--k": width - 1 - i } as CSSProperties}
++          >
++            <span className="odo-col">
++              {"0123456789".split("").map((c) => (
++                <span key={c}>{c}</span>
++              ))}
++            </span>
++          </span>
++        );
++      })}
++    </span>
++  );
+ }
+ 
+ export default function Lineup() {
++  const [swap, setSwap] = useState<Swap>({ idx: 0, prev: -1, dir: 1, n: 0 });
++  const idxRef = useRef(0);
++
++  useEffect(
++    () =>
++      bus.on("variant:active", ({ name }) => {
++        if (!isVariantName(name)) return;
++        const i = variantIndex(name);
++        if (i === idxRef.current) return;
++        const prev = idxRef.current;
++        idxRef.current = i;
++        setSwap((s) => ({ idx: i, prev, dir: i > prev ? 1 : -1, n: s.n + 1 }));
++      }),
++    [],
++  );
++
++  const v = variants[swap.idx];
++  const names = variants.map((x) => x.name);
++  const mats = variants.map((x) => x.mat);
++
++  const choose = () => {
++    if (isVariantName(v.name)) bus.emit("variant:select", { name: v.name, source: "ring" });
++    gotoBuy(swap.idx);
++  };
++
+   return (
+     <section id="lineup" aria-labelledby="h-line">
+       <div className="pin" id="lineupPin">
+-        <div className="track" id="lineupTrack">
+-          {variants.map((v, i) => (
+-            <div
+-              className="variant"
+-              key={v.name}
+-              data-color={colorToHex(v.colorHex)}
+-              data-name={v.name}
+-            >
+-              {i === 0 ? (
+-                <div className="wrap" style={{ padding: "0 0 26px" }}>
+-                  <h2 id="h-line">{lineupTitle}</h2>
+-                </div>
+-              ) : null}
+-              <div className="shot">
+-                <span className="dot">{v.dot}</span>
+-                <img
+-                  src={asset(`variants/${v.name.toLowerCase()}.png`)}
+-                  alt={`${v.name} variant render`}
+-                />
+-              </div>
+-              <h3>{v.name}</h3>
+-              <div className="mat">{v.mat}</div>
+-              <p>{v.desc}</p>
+-              <div className="row">
+-                <span className="swatch" style={{ background: v.swatch }}></span>
+-                <span className="price">${v.price}</span>
+-              </div>
++        <div className="lu-grid">
++          <header className="lu-head">
++            <div className="lu-eyebrow mono">
++              <span>Lineup</span>
++              <span className="lu-count">
++                <Odometer value={swap.idx + 1} width={2} pad="0" />
++                <span className="lu-of"> / 04</span>
++              </span>
++            </div>
++            <h2 id="h-line">{lineupTitle}</h2>
++          </header>
++
++          <div className="lu-stage" id="ringStage" aria-hidden="true">
++            {/* static (zero-GPU) mode: CSS 3D prism of the four renders */}
++            <div className="lu-prism">
++              {variants.map((x, i) => (
++                <figure className="lu-card" key={x.name} style={{ "--i": i } as CSSProperties}>
++                  <img src={asset(`variants/${x.name.toLowerCase()}.png`)} alt="" loading="lazy" decoding="async" />
++                  <figcaption className="mono">{x.dot}</figcaption>
++                </figure>
++              ))}
++            </div>
++          </div>
++
++          <div className="lu-info">
++            <h3 className="lu-name" aria-label={v.name}>
++              <RollWord swap={swap} words={names} className="lu-name-roll" />
++            </h3>
++            <div className="lu-mat mono">
++              <RollWord swap={swap} words={mats} className="lu-mat-roll" />
+             </div>
+-          ))}
+-          <div className="variant" aria-hidden="true" style={{ flexBasis: "20vw" }}></div>
++            <p className="lu-desc" key={swap.n}>
++              {v.desc}
++            </p>
++            <div className="lu-buyrow">
++              <span className="lu-price" aria-label={`$${v.price}`}>
++                <span className="lu-cur">$</span>
++                <Odometer value={v.price} width={3} />
++              </span>
++              <button type="button" className="lu-cta" onClick={choose}>
++                <span className="lu-cta-t">Choose {v.name}</span>
++                <span className="lu-cta-a" aria-hidden="true">→</span>
++              </button>
++            </div>
++          </div>
++
++          <div className="lu-dial">
++            <div className="lu-scale" aria-hidden="true">
++              <i className="lu-needle" />
++            </div>
++            <div className="lu-stops" role="radiogroup" aria-label="Finish in front">
++              {variants.map((x, i) => (
++                <label className="lu-stop" key={x.name} data-on={i === swap.idx ? "true" : "false"}>
++                  <input
++                    type="radio"
++                    name="lu-finish"
++                    value={x.name}
++                    checked={i === swap.idx}
++                    onChange={() => gotoDetent(i)}
++                  />
++                  <span className="lu-stop-n">{String(i + 1).padStart(2, "0")}</span>
++                  <span className="lu-stop-t">{x.name}</span>
++                </label>
++              ))}
++            </div>
++          </div>
++
++          {/* technical-drawing leader: material line → front pencil's barrel
++              (endpoints written per frame by three/ring.ts; landscape only) */}
++          <svg className="lu-leader" aria-hidden="true" key={`lead${swap.n}`}>
++            <line id="luLeadLine" pathLength={1} />
++            <circle id="luLeadDot" r={2.75} />
++          </svg>
++
++          <p className="sr-only" aria-live="polite">
++            {`${v.name}, ${v.mat.toLowerCase()}, $${v.price}`}
++          </p>
+         </div>
+-        <div className="lineup-hint mono panel">{lineupHint}</div>
+       </div>
+     </section>
+   );
+diff --git a/src/components/lineupNav.ts b/src/components/lineupNav.ts
+new file mode 100644
+index 0000000..ab203c2
+--- /dev/null
++++ b/src/components/lineupNav.ts
+@@ -0,0 +1,103 @@
++import { LINEUP_PIN, LINEUP_VH, RING_SNAPS } from '../data/scroll'
++import { VARIANT_ORDER, type VariantName } from '../three/finishes'
++
++/**
++ * Lineup navigation shared by the DOM overlay (Lineup.tsx), the 3D ring
++ * (three/ring.ts) and the static fallback (FrameFallback.tsx).
++ *
++ * Scroll position is the single source of truth for which variant is in
++ * front: clicks, drags, the dial and the "Choose" CTA all scroll the page
++ * to a detent. While such a programmatic scroll is in flight the ring
++ * holds the requested variant (`nav.hold`) so it doesn't spin through the
++ * detents it passes on the way.
++ */
++export const nav = {
++  /** variant index the ring holds in front while a programmatic scroll runs (-1 = none) */
++  hold: -1,
++  /** scroll target of that programmatic scroll */
++  holdY: 0,
++  /** performance.now() when the hold started */
++  holdT: 0,
++}
++
++export const variantIndex = (name: string): number => {
++  const i = VARIANT_ORDER.indexOf(name as VariantName)
++  return i < 0 ? 0 : i
++}
++
++/** Absolute (document) top of #lineup in px, or null when it isn't mounted. */
++export function lineupTop(): number | null {
++  const sec = document.getElementById('lineup')
++  if (!sec) return null
++  return sec.getBoundingClientRect().top + window.scrollY
++}
++
++/** Keep the pinned section's height in sync with the detent layout. */
++export function sizeLineup(vh = window.innerHeight): void {
++  const sec = document.getElementById('lineup')
++  if (sec) sec.style.height = `${Math.round(vh * LINEUP_VH)}px`
++}
++
++/** Section-local scroll position (viewport heights from pin start). */
++export function lineupU(scrollY = window.scrollY): number {
++  const top = lineupTop()
++  if (top === null) return -1e3
++  return (scrollY - top) / Math.max(1, window.innerHeight)
++}
++
++/** Document scrollY that parks variant `i` in front of the ring. */
++export function detentY(i: number): number {
++  const top = lineupTop() ?? 0
++  const u = RING_SNAPS[Math.max(0, Math.min(RING_SNAPS.length - 1, i))]
++  return Math.round(top + Math.min(LINEUP_PIN, u) * window.innerHeight)
++}
++
++/** Document scrollY that brings the Buy form into view. */
++export function buyY(): number {
++  const max = document.documentElement.scrollHeight - window.innerHeight
++  const buy = document.getElementById('buy')
++  if (!buy) return max
++  const stage = buy.querySelector<HTMLElement>('.buy-grid') ?? buy
++  const top = stage.getBoundingClientRect().top + window.scrollY
++  return Math.min(max, Math.round(top - Math.min(140, window.innerHeight * 0.14)))
++}
++
++interface LenisLike {
++  scrollTo: (y: number, o?: { duration?: number; immediate?: boolean }) => void
++}
++
++/** Scroll the document, through Lenis when the FX layer installed it. */
++export function scrollToY(y: number, smooth = true): void {
++  const lenis = (window as unknown as { __lenis?: LenisLike }).__lenis
++  if (lenis && typeof lenis.scrollTo === 'function') {
++    lenis.scrollTo(y, smooth ? { duration: 1.1 } : { immediate: true })
++    return
++  }
++  window.scrollTo({ top: y, behavior: smooth ? 'smooth' : 'instant' })
++}
++
++const reduced = (): boolean =>
++  document.body.classList.contains('reduced') ||
++  window.matchMedia('(prefers-reduced-motion: reduce)').matches
++
++/** Park variant `i` in front (smooth scroll to its detent, ring holds it). */
++export function gotoDetent(i: number): void {
++  const y = detentY(i)
++  nav.hold = i
++  nav.holdY = y
++  nav.holdT = performance.now()
++  scrollToY(y, !reduced())
++}
++
++/** "Choose {name}": hold that variant in front and scroll on into Buy. */
++export function gotoBuy(i: number): void {
++  const y = buyY()
++  nav.hold = i
++  nav.holdY = y
++  nav.holdT = performance.now()
++  scrollToY(y, !reduced())
++}
++
++export function releaseHold(): void {
++  nav.hold = -1
++}
+diff --git a/src/data/scroll.ts b/src/data/scroll.ts
+index 06d3287..d2e4f70 100644
+--- a/src/data/scroll.ts
++++ b/src/data/scroll.ts
+@@ -15,8 +15,10 @@ export const KEYS: CamKey[] = [
+   { p: 0.44, pos: [2.2, 4.4, 2.6], tgt: [0, 3.9, 0], fov: 25, label: '05 — Mechanism' },
+   { p: 0.56, pos: [-3.4, 1.3, 6.4], tgt: [0, 0, 0], fov: 35, label: '06 — Reassembly' },
+   { p: 0.63, pos: [2.8, 1.0, 5.8], tgt: [0, -0.1, 0], fov: 32, label: '07 — Object' },
+-  // reached at p=0.90 and held through buy
+-  { p: 0.9, pos: [2.4, 0.7, 6.4], tgt: [0, 0, 0], fov: 33, label: '08 — Lineup' },
++  // Lineup + buy: the ring module (src/three/ring.ts) takes the camera over
++  // from here with its own section-local framing, so this key only holds
++  // the Object framing (and flips the scene label as the lineup pins).
++  { p: 0.65, pos: [2.8, 1.0, 5.8], tgt: [0, -0.1, 0], fov: 32, label: '08 — Lineup' },
+ ]
+ 
+ export const sstep = (a: number, b: number, x: number): number => {
+@@ -36,3 +38,64 @@ export const heroOffF = (p: number): number => 1 - sstep(0.02, 0.1, p)
+ export const reOffF = (p: number): number =>
+   sstep(0.55, 0.58, p) * (1 - sstep(0.63, 0.68, p))
+ export const canvasDimF = (_p: number): number => 1
++
++// ---- lineup ring mapping ----------------------------------------------
++// Everything below is SECTION-LOCAL so it survives resizes and layout
++// changes elsewhere on the page: `u` is the scroll distance from the
++// moment #lineup pins, in viewport heights (u<0 approaching, 0..PIN pinned,
++// >PIN unpinning into Buy). The 3D ring, the DOM overlay, the static
++// CSS ring and the dial all read these same numbers.
++
++/** #lineup height in viewport heights (kept at 4 so page-progress keys elsewhere stay put). */
++export const LINEUP_VH = 4
++/** pinned scroll distance, in viewport heights */
++export const LINEUP_PIN = LINEUP_VH - 1
++export const LINEUP_COUNT = 4
++
++/**
++ * Detent layout (u). The ring rests on a variant between moves and swings
++ * to the next one inside each [start, end] window. The last move (into
++ * Limited) is ~1.3x longer: the crescendo.
++ */
++export const RING_MOVES: ReadonlyArray<readonly [number, number]> = [
++  [0.55, 0.91],
++  [1.36, 1.72],
++  [2.17, 2.64],
++]
++/** Plateau centres: where click / drag / dial navigation parks each variant. */
++export const RING_SNAPS: readonly number[] = [0.34, 1.135, 1.945, 2.84]
++/** Handoff: hero pencil glides into the front slot, siblings rise in. */
++export const RING_IN: readonly [number, number] = [-0.62, 0.12]
++/** Siblings materialize window (staggered inside it). */
++export const RING_RISE: readonly [number, number] = [-0.42, 0.3]
++/** Exit: unselected pencils sink, the presenter flies into the Buy slot. */
++export const RING_SINK: readonly [number, number] = [2.96, 3.5]
++export const RING_OUT: readonly [number, number] = [3.0, 3.8]
++
++const easeInOutCubic = (t: number): number =>
++  t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
++
++/** Scroll-mapped ring position 0..COUNT-1 (integer = a variant at rest in front). */
++export function ringTarget(u: number): number {
++  let pos = 0
++  for (let i = 0; i < RING_MOVES.length; i++) {
++    const [a, b] = RING_MOVES[i]
++    if (u <= a) break
++    pos = i + (u >= b ? 1 : easeInOutCubic((u - a) / (b - a)))
++    if (u < b) break
++  }
++  return pos
++}
++
++/** Nearest resting ring index for a (possibly mid-swing) position. */
++export const ringIndex = (pos: number): number =>
++  Math.min(LINEUP_COUNT - 1, Math.max(0, Math.round(pos)))
++
++/** True while u sits inside a move window (the ring is between detents). */
++export function ringMoving(u: number): number {
++  for (let i = 0; i < RING_MOVES.length; i++) {
++    const [a, b] = RING_MOVES[i]
++    if (u > a && u < b) return i
++  }
++  return -1
++}
+diff --git a/src/styles/buy.css b/src/styles/buy.css
+index de84019..23ac527 100644
+--- a/src/styles/buy.css
++++ b/src/styles/buy.css
+@@ -19,3 +19,15 @@ legend{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform
+ .fine{font-size:13px;color:var(--muted);margin-top:12px;text-align:center}
+ #toast{margin-top:12px;font-size:14px;color:var(--accent-ink);min-height:22px;text-align:center}
+ .buy-copy{display:flex;flex-direction:column;min-width:0}
++/* product slot: the lineup ring's selected pencil lands here (ring.ts
++   projects into this box every frame); static mode shows the render */
++.buy-stage{position:relative;flex:1 1 auto;min-height:max(300px,44dvh);margin-top:28px}
++.buy-stage img{display:none}
++.buy-stage-cap{position:absolute;left:0;bottom:0;display:flex;align-items:center;gap:10px;color:var(--muted);font-size:11px}
++.buy-stage-cap::before{content:"";width:22px;height:1px;background:var(--accent)}
++.is-static .buy-stage img{display:block;position:absolute;left:0;right:0;top:50%;width:100%;height:auto;
++  transform:translateY(-50%);opacity:0;transition:opacity .5s var(--ease-standard);mix-blend-mode:multiply}
++.is-static .buy-stage img[data-on="true"]{opacity:1}
++@media (max-width:900px){
++  .buy-stage{min-height:46dvh;margin-top:20px;margin-bottom:8px}
++}
+diff --git a/src/styles/lineup.css b/src/styles/lineup.css
+index 9d766b8..9bf2d53 100644
+--- a/src/styles/lineup.css
++++ b/src/styles/lineup.css
+@@ -1,22 +1,152 @@
+-/* ---------- horizontal lineup ---------- */
+-#lineup{position:relative}
+-.pin{position:sticky;top:0;height:100dvh;overflow:hidden;display:flex;align-items:center}
+-.track{display:flex;gap:0;will-change:transform;padding-left:max(24px,calc((100vw - 1200px)/2 + 24px))}
+-.variant{flex:0 0 min(78vw,560px);padding-right:56px}
+-.variant .shot{height:300px;border:1px solid var(--hairline);background:var(--card);border-radius:var(--radius);
+-  display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
+-.variant .shot svg{width:70%;height:auto}
+-.variant .shot img{width:92%;height:auto;display:block}
+-.variant .dot{position:absolute;top:14px;left:14px;font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--muted)}
+-.variant h3{font-size:30px;margin-top:20px}
+-.variant .mat{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:6px;letter-spacing:.06em}
+-.variant p{color:var(--muted);margin-top:10px;font-size:15px}
+-.variant .row{display:flex;align-items:center;gap:16px;margin-top:16px}
+-.price{font-variant-numeric:tabular-nums;font-weight:700;font-size:17px}
+-.swatch{width:22px;height:22px;border-radius:50%;border:1px solid var(--hairline);display:inline-block}
+-.lineup-hint{position:absolute;bottom:26px;left:0;right:0;text-align:center}
+-/* motion paused / reduced-motion fallback: lineup becomes native horizontal scroll */
+-.reduced #lineup{height:auto !important}
+-.reduced .pin{position:static;height:auto;overflow-x:auto;overflow-y:hidden}
+-.reduced .track{transform:none !important}
+-.reduced .lineup-hint{display:none}
++/* ---------- lineup: 3D ring overlay ---------- */
++@property --ring{syntax:'<number>';inherits:true;initial-value:0}
++#lineup{position:relative;overflow-anchor:none;--ring:0;--gut:max(24px,calc((100vw - var(--max))/2 + 24px))}
++#lineup .pin{position:sticky;top:0;height:100dvh;overflow:hidden;touch-action:pan-y;
++  -webkit-user-select:none;user-select:none}
++#lineup .pin.is-dragging{cursor:grabbing}
++.lu-grid{position:relative;height:100%;display:grid;
++  grid-template-columns:minmax(0,.42fr) minmax(0,.58fr);grid-template-rows:auto minmax(0,1fr) auto;
++  padding:104px var(--gut) 40px;column-gap:24px}
++.lu-head{grid-column:1;grid-row:1;position:relative;z-index:1}
++/* the overlay dissolves as the ring collapses into Buy (--lu-out 0→1) */
++.lu-head,.lu-info,.lu-dial{opacity:calc(1 - var(--lu-out,0))}
++.lu-eyebrow{display:flex;align-items:baseline;gap:14px;color:var(--muted)}
++.lu-eyebrow>span:first-child::after{content:"";display:inline-block;width:28px;height:1px;background:var(--hairline);
++  vertical-align:middle;margin-left:14px}
++.lu-count{color:var(--ink);display:inline-flex;align-items:baseline}
++.lu-of{color:var(--muted);white-space:pre}
++#lineup h2{font-size:clamp(26px,2.4vw,34px);font-weight:600;margin-top:12px;max-width:16ch}
++
++/* the 3D ring renders into this box (ring.ts reads its pinned rect) */
++.lu-stage{grid-column:2;grid-row:1 / 4;position:relative;margin:-40px calc(-1 * var(--gut)) -40px 0;min-height:0}
++
++.lu-info{grid-column:1;grid-row:2;align-self:center;position:relative;z-index:1;padding-bottom:2vh}
++.lu-name{font-size:clamp(64px,8.4vw,136px);font-weight:500;letter-spacing:-0.05em;line-height:.9;margin:0 0 0 -0.04em}
++.lu-mat{margin-top:20px;color:var(--ink);letter-spacing:.12em;font-size:12px}
++.lu-desc{margin-top:14px;color:var(--muted);font-size:16px;line-height:1.55;max-width:33ch;min-height:3.1em;
++  animation:lu-desc-in .9s var(--ease-standard) both}
++.lu-buyrow{display:flex;align-items:center;gap:22px;margin-top:28px}
++.lu-price{display:inline-flex;align-items:baseline;font-size:24px;font-weight:600;letter-spacing:-0.02em;
++  font-variant-numeric:tabular-nums}
++.lu-cur{font-size:.72em;margin-right:2px;color:var(--muted);font-weight:500}
++.lu-cta{display:inline-flex;align-items:center;gap:12px;background:var(--ink);color:var(--paper);border:0;
++  border-radius:var(--radius);padding:14px 20px;font-weight:600;font-size:15px;cursor:pointer;
++  transition:background .18s ease,transform .18s var(--ease-out)}
++.lu-cta:hover{background:#000}
++.lu-cta:active{transform:scale(.98)}
++.lu-cta-a{display:inline-block;transition:transform .32s var(--ease-out)}
++.lu-cta:hover .lu-cta-a{transform:translateX(4px)}
++
++/* leader callout (ring.ts sets the endpoints + --lead-o) */
++.lu-leader{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:0;
++  opacity:calc(var(--lead-o,0) * (1 - var(--lu-out,0)))}
++.lu-leader line{stroke:var(--ink);stroke-opacity:.42;stroke-width:1;vector-effect:non-scaling-stroke}
++.lu-leader circle{fill:var(--accent);opacity:0;animation:lu-dot .3s ease .9s forwards}
++@keyframes lu-dot{to{opacity:1}}
++.is-static .lu-leader{display:none}
++/* masked character roll (direction-aware) */
++.roll{display:inline-grid;overflow:clip;overflow-clip-margin:.06em;vertical-align:top;
++  padding:0 .06em .08em 0;margin-bottom:-.08em}
++.roll-l{grid-area:1 / 1;white-space:nowrap}
++.rc{display:inline-block;will-change:transform}
++.roll-in .rc{animation:rc-in-up .8s var(--ease-out) both;animation-delay:calc(var(--i) * 24ms)}
++.roll-out .rc{animation:rc-out-up .6s var(--ease-out) both;animation-delay:calc(var(--i) * 16ms)}
++.roll[data-dir="down"] .roll-in .rc{animation-name:rc-in-down}
++.roll[data-dir="down"] .roll-out .rc{animation-name:rc-out-down}
++.lu-mat-roll .rc{animation-duration:.6s;animation-delay:calc(var(--i) * 8ms)}
++@keyframes rc-in-up{from{transform:translateY(108%)}to{transform:none}}
++@keyframes rc-out-up{from{transform:none}to{transform:translateY(-108%)}}
++@keyframes rc-in-down{from{transform:translateY(-108%)}to{transform:none}}
++@keyframes rc-out-down{from{transform:none}to{transform:translateY(108%)}}
++@keyframes lu-desc-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
++
++/* odometer digits */
++.odo{display:inline-flex;font-variant-numeric:tabular-nums}
++.odo-slot{display:inline-block;height:1em;line-height:1em;overflow:clip;width:1ch;
++  transition:width .5s var(--ease-out),opacity .3s ease}
++.odo-slot.is-blank{width:0;opacity:0}
++.odo-col{display:flex;flex-direction:column;transform:translateY(calc(var(--d) * -1em));
++  transition:transform .9s var(--ease-out) calc(var(--k) * 40ms)}
++.odo-col span{display:block;height:1em}
++
++/* dial: a caliper scale; the needle follows the ring continuously */
++.lu-dial{grid-column:1;grid-row:3;position:relative;z-index:1;width:min(100%,420px);align-self:end}
++.lu-scale{position:relative;height:12px;margin:0 12.5%;
++  background:
++    linear-gradient(var(--ink),var(--ink)) 0% 100% / 1px 12px no-repeat,
++    linear-gradient(var(--ink),var(--ink)) 33.333% 100% / 1px 12px no-repeat,
++    linear-gradient(var(--ink),var(--ink)) 66.667% 100% / 1px 12px no-repeat,
++    linear-gradient(var(--ink),var(--ink)) 100% 100% / 1px 12px no-repeat,
++    repeating-linear-gradient(90deg,rgba(20,20,18,.32) 0 1px,transparent 1px calc(100% / 30)) 0 100% / 100% 5px no-repeat;
++  border-bottom:1px solid var(--hairline)}
++.lu-needle{position:absolute;bottom:-1px;left:calc(var(--ring) / 3 * 100%);width:1px;height:22px;background:var(--accent);
++  transform:translateX(-.5px)}
++.lu-needle::before{content:"";position:absolute;top:-5px;left:-3.5px;border:4px solid transparent;border-top:6px solid var(--accent);
++  border-bottom:0}
++.lu-stops{display:grid;grid-template-columns:repeat(4,1fr);margin-top:10px}
++.lu-stop{position:relative;display:flex;flex-direction:column;align-items:center;gap:1px;cursor:pointer;padding:4px 0;
++  color:var(--muted);transition:color .25s ease;border-radius:var(--radius)}
++.lu-stop input{position:absolute;opacity:0;width:1px;height:1px;margin:0;pointer-events:none}
++.lu-stop-n{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em}
++.lu-stop-t{font-size:13px;letter-spacing:-0.005em}
++.lu-stop:hover{color:var(--ink)}
++.lu-stop[data-on="true"]{color:var(--ink)}
++.lu-stop[data-on="true"] .lu-stop-t{font-weight:600}
++.lu-stop[data-on="true"] .lu-stop-n{color:var(--accent)}
++.lu-stop:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
++#lineup .sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);
++  white-space:nowrap;border:0}
++
++/* ---------- static (zero-GPU) mode: CSS 3D prism of the four renders ---------- */
++.lu-prism{display:none}
++.is-static #lineup{transition:--ring .55s var(--ease-out)}
++.is-static .lu-stage{perspective:1500px}
++.is-static .lu-prism{display:block;position:absolute;inset:0;--cw:min(540px,34vw);
++  transform-style:preserve-3d;transform:rotateX(-9deg) rotateY(-18deg)}
++.lu-card{position:absolute;left:50%;top:50%;width:var(--cw);aspect-ratio:2.5;margin:0;
++  border:1px solid var(--hairline);background:#F3F2EE;border-radius:var(--radius);overflow:hidden;
++  backface-visibility:hidden;-webkit-backface-visibility:hidden;
++  transform:translate(-50%,-50%) rotateX(calc((var(--i) - var(--ring)) * -90deg)) translateZ(calc(var(--cw) / 5));
++  opacity:max(0,calc(1 - (var(--i) - var(--ring)) * (var(--i) - var(--ring)) * .6))}
++.lu-card img{display:block;width:100%;height:100%;object-fit:cover}
++.lu-card figcaption{position:absolute;top:10px;left:12px;font-size:10.5px}
++@media (prefers-reduced-motion:reduce){
++  .roll .rc,.lu-desc,.lu-leader circle{animation:none !important}
++  .lu-leader circle{opacity:1}
++  .roll-out{visibility:hidden}
++  .odo-col,.odo-slot{transition:none}
++  .is-static #lineup{transition:none}
++  .is-static .lu-prism{display:grid;grid-template-columns:1fr 1fr;align-content:center;gap:14px;transform:none;padding:0 var(--gut) 0 0}
++  .is-static .lu-card{position:relative;left:auto;top:auto;width:auto;transform:none;
++    opacity:max(.4,calc(1 - (var(--i) - var(--ring)) * (var(--i) - var(--ring)) * .6))}
++}
++.reduced .roll .rc,.reduced .lu-desc,.reduced .lu-leader circle{animation:none !important}
++.reduced .lu-leader circle{opacity:1}
++.reduced .roll-out{visibility:hidden}
++.reduced .odo-col,.reduced .odo-slot{transition:none}
++.reduced.is-static #lineup{transition:none}
++.reduced.is-static .lu-prism{display:grid;grid-template-columns:1fr 1fr;align-content:center;gap:14px;transform:none;padding:0 var(--gut) 0 0}
++.reduced.is-static .lu-card{position:relative;left:auto;top:auto;width:auto;transform:none;
++  opacity:max(.4,calc(1 - (var(--i) - var(--ring)) * (var(--i) - var(--ring)) * .6))}
++
++/* ---------- small screens: ring on top, labels stacked below ---------- */
++@media (max-width:900px){
++  .lu-grid{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto auto;
++    padding:80px 20px 18px;row-gap:0}
++  .lu-head{grid-column:1;grid-row:1}
++  #lineup h2{font-size:22px;margin-top:6px}
++  .lu-stage{grid-column:1;grid-row:2;margin:0 -20px}
++  .lu-info{grid-column:1;grid-row:3;align-self:end;padding-bottom:0}
++  .lu-name{font-size:clamp(46px,14vw,76px)}
++  .lu-mat{margin-top:10px;font-size:11px}
++  .lu-desc{font-size:14px;margin-top:8px;min-height:0;max-width:40ch}
++  .lu-buyrow{margin-top:14px;gap:16px}
++  .lu-price{font-size:20px}
++  .lu-cta{padding:12px 16px;font-size:14px}
++  .lu-dial{grid-column:1;grid-row:4;width:100%;margin-top:16px}
++  .lu-leader{display:none}
++  .is-static .lu-prism{--cw:84vw}
++}
++@media (max-width:900px) and (max-height:700px){
++  .lu-desc{display:none}
++}
+diff --git a/src/three/experience.ts b/src/three/experience.ts
+index fb9c029..7272ab8 100644
+--- a/src/three/experience.ts
++++ b/src/three/experience.ts
+@@ -1,9 +1,11 @@
+ import * as THREE from 'three'
+-import { ANODIZED, detectConfig, type QualityConfig } from './config'
++import { detectConfig, type QualityConfig } from './config'
+ import { createStage, type Stage } from './stage'
+ import { loadAssembly, type Assembly } from './assembly'
+ import { sampleCam } from './cameraRig'
+ import type { FrameCtx, SceneModule } from './modules'
++import type { RingModule } from './ring'
++import { sizeLineup } from '../components/lineupNav'
+ import {
+   canvasDimF,
+   detailF,
+@@ -11,7 +13,6 @@ import {
+   heroOffF,
+   mechF,
+   reOffF,
+-  sstep,
+   xrayF,
+ } from '../data/scroll'
+ 
+@@ -44,13 +45,15 @@ export class PencilExperience {
+   private aspect = 1
+   private mobEff = 1
+   private edgeK = 1
+-  // Lineup turntable: accumulated spin (time-based, so scrubbing back and
+-  // forth stays continuous) + smooth color chase toward the active card.
+-  private spin = 0
+-  private colorTarget = new THREE.Color(ANODIZED.Core)
+-  // True while a tint chase still has visible distance to cover — keeps
+-  // the loop ticking after scroll settles so variant clicks always play.
+-  private colorDirty = true
++  // Pencil attitude, integrated here and written absolutely every frame so
++  // transient offsets (ring handoff, pointer rigs) never accumulate.
++  private attX = 0.08
++  private attY = 0
++  private attZ = -0.42
++  private baseScale = 0.6
++  // Lineup ring (src/three/ring.ts): owns the lineup camera, the hero
++  // handoff into the ring, the variant finishes and the buy pose.
++  private ring: RingModule | null = null
+   // Pluggable scene modules (see modules.ts) + shared per-frame context.
+   private modules: SceneModule[] = []
+   private ready = false
+@@ -79,8 +82,7 @@ export class PencilExperience {
+     if (!this.stage) return
+     this.refreshViewport()
+     this.stage.setSize(window.innerWidth, window.innerHeight)
+-    const lineupSec = document.getElementById('lineup')
+-    if (lineupSec) lineupSec.style.height = `${window.innerHeight * 4}px`
++    sizeLineup(window.innerHeight)
+     for (const m of this.modules) m.onResize?.(window.innerWidth, window.innerHeight)
+     this.lastY = -1
+   }
+@@ -143,8 +145,11 @@ export class PencilExperience {
+         }),
+       { threshold: 0.18 }).observe(el)
+     })
+-    const lineupSec = document.getElementById('lineup')
+-    if (lineupSec) lineupSec.style.height = `${window.innerHeight * 4}px`
++    sizeLineup(window.innerHeight)
++    this.attX = this.asm.group.rotation.x
++    this.attY = this.asm.group.rotation.y
++    this.attZ = this.asm.group.rotation.z
++    this.baseScale = this.asm.group.scale.x
+     for (const m of this.modules) {
+       try {
+         await m.init?.(this.stage, this.asm, this.cfg)
+@@ -159,12 +164,15 @@ export class PencilExperience {
+     this.loop()
+   }
+ 
++  /** Buy-form selection → the ring's presenter finish chase. */
+   setVariant(name: string): void {
+-    const hex = ANODIZED[name] ?? 0x1e2f4f
+-    if (this.colorTarget.getHex() !== hex) {
+-      this.colorTarget.setHex(hex)
+-      this.colorDirty = true
+-    }
++    this.ringModule()?.select(name, 'buy')
++    this.lastY = -1
++  }
++
++  private ringModule(): RingModule | null {
++    if (!this.ring) this.ring = this.getModule<RingModule>('ring') ?? null
++    return this.ring
+   }
+ 
+   setMotionOK(ok: boolean): void {
+@@ -194,36 +202,7 @@ export class PencilExperience {
+     const progressFill = document.getElementById('progressFill')
+     if (progressFill) progressFill.style.transform = `scaleX(${this.tgtP})`
+     document.getElementById('nav')?.classList.toggle('scrolled', y > 40)
+-    // horizontal lineup
+-    const lineupSec = document.getElementById('lineup')
+-    const track = document.getElementById('lineupTrack')
+-    if (lineupSec && track) {
+-      const r = lineupSec.getBoundingClientRect()
+-      const total = r.height - window.innerHeight
+-      const lp = total > 0 ? Math.min(1, Math.max(0, -r.top / total)) : 0
+-      if (this.motionOK) {
+-        const dist = Math.max(0, track.scrollWidth - window.innerWidth + 60)
+-        track.style.transform = `translate3d(${-dist * lp}px,0,0)`
+-      }
+-      const variants = [...document.querySelectorAll<HTMLElement>('.variant[data-color]')]
+-      const vi = Math.min(variants.length - 1, Math.floor(lp * variants.length))
+-      // Chase card colors only while the lineup is actually on screen.
+-      // Past it (buy section), the buy form owns the tint — otherwise any
+-      // scroll tick would yank the color back to the last card.
+-      // Above it, settle back to the hero Core.
+-      const setTarget = (hex: number): void => {
+-        if (this.colorTarget.getHex() !== hex) {
+-          this.colorTarget.setHex(hex)
+-          this.colorDirty = true
+-        }
+-      }
+-      if (lp > 0 && lp < 1) {
+-        const v = variants[vi]
+-        if (v?.dataset.color) setTarget(parseInt(v.dataset.color))
+-      } else if (r.top >= window.innerHeight) {
+-        setTarget(ANODIZED.Core)
+-      }
+-    }
++    // (lineup: the ring module maps section-local scroll itself)
+     // mechanism steps highlight
+     const mechSec = document.getElementById('mechanism')
+     if (mechSec) {
+@@ -248,9 +227,8 @@ export class PencilExperience {
+     const dt = Math.min(0.05, (now - this.last) / 1000)
+     this.last = now
+     const kf = this.motionOK ? 1 - Math.exp(-6 * dt) : 1
+-    // Settled-frame optimization — BUT keep ticking while the turntable
+-    // spins or a tint chase is in flight, otherwise the spin would freeze
+-    // the moment scrolling stops and variant clicks would never animate.
++    // Settled-frame optimization — modules (ring turntable, finish chase,
++    // detent spring) keep the loop alive through wantsFrame().
+     const moved = this.readProgress()
+     // scroll velocity (progress units / s), smoothed — feeds velocity FX
+     const instVel = dt > 0 ? (this.tgtP - this.prevTgtP) / dt : 0
+@@ -258,9 +236,8 @@ export class PencilExperience {
+     this.scrollVel += (instVel - this.scrollVel) * (1 - Math.exp(-10 * dt))
+     if (Math.abs(this.scrollVel) < 1e-4) this.scrollVel = 0
+     if (!moved && !this.firstFrame) {
+-      const idleSpin = this.motionOK && sstep(0.62, 0.72, this.cur) > 0
+       const modWants = this.modules.some((m) => m.wantsFrame?.() === true)
+-      if (!idleSpin && !this.colorDirty && !modWants && this.scrollVel === 0) return
++      if (!modWants && this.scrollVel === 0) return
+     }
+     const asm = this.asm
+     const mob = this.mobEff
+@@ -300,26 +277,19 @@ export class PencilExperience {
+       this.vTgt.x -= 0.25 * mc * edge
+       this.camFov += (24 - this.camFov) * kf * mc
+     }
++    // Lineup + buy: blend into the ring's own framing (fresh targets only —
++    // camPos/camTgt are the smoothed state and must never be offset).
++    const ring = this.ringModule()
++    if (ring) {
++      const rw = ring.applyCamera(this.vPos, this.vTgt)
++      if (rw > 0) this.camFov += (ring.ringFov - this.camFov) * kf * rw
++    }
+     if (this.firstFrame) {
+       this.camPos.copy(this.vPos)
+       this.camTgt.copy(this.vTgt)
+       this.firstFrame = false
+     }
+     const k = this.motionOK ? 1 - Math.exp(-5 * dt) : 1
+-    // Lineup backdrop: tuck the spinning pencil behind/right and dolly out
+-    // so the cards stay readable (no fade-out anymore). Applied to the
+-    // FRESH per-frame targets (vPos/vTgt are reset by sampleCam every
+-    // frame) — never to the smoothed camPos/camTgt, which would integrate
+-    // the offset every frame and drift out of frame.
+-    const lineupDolly = sstep(0.62, 0.72, p)
+-    if (lineupDolly > 0.001) {
+-      this.vTgt.x -= 2.2 * lineupDolly
+-      this.vTgt.y += 1.6 * lineupDolly
+-      this.vTmp.copy(this.vPos).sub(this.vTgt)
+-      this.vTmp.multiplyScalar(1 + 1.4 * lineupDolly)
+-      this.vPos.copy(this.vTgt).add(this.vTmp)
+-    }
+-    // (buy handoff runs after the attitude code below)
+     this.camPos.lerp(this.vPos, k)
+     this.camTgt.lerp(this.vTgt, k)
+     this.stage.camera.position.copy(this.camPos)
+@@ -334,53 +304,19 @@ export class PencilExperience {
+     const heroOff = heroOffF(p)
+     const reOff = reOffF(p)
+     const isSmall = this.cfg.isSmall
+-    asm.group.position.x =
+-      (isSmall ? 1.7 : 1.05) * Math.max(heroOff, reOff * 0.8)
+-    asm.group.position.y = 0.2 + (isSmall ? 1.5 * heroOff : 0)
+-    // Lineup turntable: continuous time-based spin layered over the scroll
+-    // pose (ramps in with the lineup, stays on through buy).
+-    const lineupF = sstep(0.62, 0.72, p)
+-    if (this.motionOK) this.spin += dt * 0.55 * lineupF
+-    asm.group.rotation.y +=
+-      (p * 2.4 - 0.4 + ex * 0.5 + this.spin - asm.group.rotation.y) * pk
+-    // Lineup: lay the pencil flatter so it floats behind the cards like
+-    // the card renders (ramps both directions with the dolly weight).
+-    // Undone through the buy range so the finale stands upright again.
+-    const lineupTilt = sstep(0.62, 0.72, p)
+-    const buyUp = sstep(0.96, 1.0, p)
+-    asm.group.rotation.z +=
+-      (-0.42 + ex * 0.42 + mc * 0.1 - 0.8 * lineupTilt * (1 - buyUp) - asm.group.rotation.z) * pk
+-    // Gradual barrel tint chase — smooth in both scroll directions.
+-    if (asm.barrelMat) {
+-      const c = asm.barrelMat.color
+-      c.lerp(this.colorTarget, 1 - Math.exp(-8 * dt))
+-      const dr = c.r - this.colorTarget.r
+-      const dg = c.g - this.colorTarget.g
+-      const db = c.b - this.colorTarget.b
+-      if (dr * dr + dg * dg + db * db < 1e-8) {
+-        c.copy(this.colorTarget)
+-        this.colorDirty = false
+-      }
+-    }
+-    // Buy pose: the single model shrinks and settles into the left
+-    // whitespace while the turntable keeps spinning. Stand back upright
+-    // (undo the lineup lean) so the spin reads as a turntable, and land
+-    // centered in the open area at any window size.
+-    const buyW = sstep(0.96, 1.0, p)
+-    {
+-      const cam = this.stage.camera
+-      const dist = cam.position.distanceTo(asm.group.position)
+-      this.vTmp.setFromMatrixColumn(cam.matrixWorld, 0)
+-      this.vTmp2.setFromMatrixColumn(cam.matrixWorld, 1)
+-      const ox = -0.30 * dist * buyW
+-      const oy = -0.02 * dist * buyW
+-      asm.group.position.x += this.vTmp.x * ox + this.vTmp2.x * oy
+-      asm.group.position.y += this.vTmp.y * ox + this.vTmp2.y * oy
+-      // base z is always 0 (attitude never touches it), so assign —
+-      // += would strand an offset when scrolling back.
+-      asm.group.position.z = this.vTmp.z * ox + this.vTmp2.z * oy
+-    }
+-    asm.group.scale.setScalar(0.6 * (1 - buyW) + 0.35 * buyW)
++    asm.group.position.set(
++      (isSmall ? 1.7 : 1.05) * Math.max(heroOff, reOff * 0.8),
++      0.2 + (isSmall ? 1.5 * heroOff : 0),
++      0,
++    )
++    this.attY += (p * 2.4 - 0.4 + ex * 0.5 - this.attY) * pk
++    this.attZ += (-0.42 + ex * 0.42 + mc * 0.1 - this.attZ) * pk
++    asm.group.rotation.set(this.attX, this.attY, this.attZ)
++    asm.group.scale.setScalar(this.baseScale)
++    // Lineup handoff: the hero glides into the ring's front slot, then the
++    // ring's Core clone takes over (identical pose + finish). The buy pose
++    // and every variant finish live in ring.ts.
++    ring?.poseHero(asm)
+ 
+     // parts — the multi-stage knock sequence drives related components
+     const mScale = 0.7
+diff --git a/src/three/finishes.ts b/src/three/finishes.ts
+index 255a259..ff6dcbd 100644
+--- a/src/three/finishes.ts
++++ b/src/three/finishes.ts
+@@ -19,9 +19,9 @@ export interface Finish {
+ 
+ export const FINISHES: Record<VariantName, Finish> = {
+   Core: { color: 0x2b2f36, roughness: 0.52, metalness: 1.0, envIntensity: 1.0 },
+-  Pro: { color: 0x6b5a3e, roughness: 0.42, metalness: 1.0, envIntensity: 1.05 },
+-  Studio: { color: 0x1e2f4f, roughness: 0.5, metalness: 1.0, envIntensity: 1.0 },
+-  Limited: { color: 0x4a4e55, roughness: 0.58, metalness: 1.0, envIntensity: 1.0 },
++  Pro: { color: 0xc59b55, roughness: 0.32, metalness: 1.0, envIntensity: 1.2 },
++  Studio: { color: 0x1e2f4f, roughness: 0.4, metalness: 0.85, envIntensity: 1.1 },
++  Limited: { color: 0xb3b5b4, roughness: 0.56, metalness: 0.82, envIntensity: 1.55 },
+ }
+ 
+ export const VARIANT_ORDER: VariantName[] = ['Core', 'Pro', 'Studio', 'Limited']
+diff --git a/src/three/registerModules.ts b/src/three/registerModules.ts
+index ce2093b..d0c8060 100644
+--- a/src/three/registerModules.ts
++++ b/src/three/registerModules.ts
+@@ -1,4 +1,5 @@
+ import type { PencilExperience } from './experience'
++import { RingModule } from './ring'
+ 
+ /**
+  * Single place where scene modules are attached to the experience.
+@@ -12,4 +13,5 @@ export function registerModules(exp: PencilExperience): void {
+   // ---- drawing: technical-drawing overlay / x-ray scan / mechanism ----
+ 
+   // ---- lineup: 3D variant ring ---------------------------------------
++  exp.addModule(new RingModule({ lookup: (n) => exp.getModule(n) }))
+ }
+diff --git a/src/three/ring.ts b/src/three/ring.ts
+new file mode 100644
+index 0000000..2c6252f
+--- /dev/null
++++ b/src/three/ring.ts
+@@ -0,0 +1,1434 @@
++import * as THREE from 'three'
++import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
++import type { Assembly } from './assembly'
++import type { QualityConfig } from './config'
++import type { FrameCtx, SceneModule } from './modules'
++import type { Stage } from './stage'
++import { FINISHES, VARIANT_ORDER, isVariantName, type Finish, type VariantName } from './finishes'
++import { bus } from '../fx/bus'
++import { pointer } from '../fx/pointer'
++import {
++  LINEUP_COUNT,
++  LINEUP_PIN,
++  RING_IN,
++  RING_MOVES,
++  RING_OUT,
++  RING_RISE,
++  RING_SINK,
++  ringIndex,
++  ringMoving,
++  ringTarget,
++  sstep,
++} from '../data/scroll'
++import {
++  detentY,
++  gotoBuy,
++  gotoDetent,
++  lineupTop,
++  nav,
++  releaseHold,
++  scrollToY,
++} from '../components/lineupNav'
++
++/**
++ * LINEUP RING — the four finishes on a rotary indexing plate.
++ *
++ * Four clones of the pencil (geometry merged per material once and shared;
++ * materials cloned per pencil so each wears its full FINISHES entry) stand
++ * upright on a vertical-axis ring. Scroll position is the single source of
++ * truth: `ringTarget(u)` maps section-local scroll to a ring position with
++ * dwell plateaus, a spring adds mass on top, and every interaction (click,
++ * drag, dial, CTA) scrolls the page to a detent instead of owning state.
++ *
++ * Choreography (u = viewport heights from the moment #lineup pins):
++ *   RING_IN    hero pencil (live asm.group) glides into the front slot while
++ *              the camera pulls back; at the end it is swapped for the Core
++ *              clone at an identical pose and finish (invisible swap)
++ *   RING_RISE  the three siblings rise out of the paper fog, staggered
++ *   0..PIN     detents: Core → Pro → Studio → Limited
++ *   RING_SINK  unselected pencils sink back into the fog
++ *   RING_OUT   the presenter (selected variant) flies into the Buy slot
++ *              (#buyStage), locked to that DOM box; buy radios chase its
++ *              finish there.
++ */
++
++const STEP = (Math.PI * 2) / LINEUP_COUNT
++/** world-space pencil length on the ring (scene units) */
++const PENCIL_LEN = 7
++/** ring radius relative to pencil length */
++const RADIUS = 2.25
++/** tangential lean of each pencil on the ring (rad) */
++const LEAN = 0.09
++/** camera azimuth off the front axis (rad): separates back from front pencils */
++const AZIMUTH = 0.34
++const PICK_LAYER = 31
++/** QA: `?nosnap` freezes mid-swing positions for inspection */
++const NO_SNAP = typeof location !== 'undefined' && location.search.includes('nosnap')
++
++const tmpV = new THREE.Vector3()
++const tmpV2 = new THREE.Vector3()
++const tmpQ = new THREE.Quaternion()
++const tmpM = new THREE.Matrix4()
++const tmpS = new THREE.Vector3()
++const Y_AXIS = new THREE.Vector3(0, 1, 0)
++const Z_AXIS = new THREE.Vector3(0, 0, 1)
++
++const easeInOutCubic = (t: number): number =>
++  t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
++
++/** Apply a full finish (albedo + roughness + metalness + env) to a material. */
++export function applyFinish(mat: THREE.MeshStandardMaterial, f: Finish, envScale = 1): void {
++  mat.color.setHex(f.color)
++  mat.roughness = f.roughness
++  mat.metalness = f.metalness
++  mat.envMapIntensity = f.envIntensity * envScale
++}
++
++interface FinishState {
++  color: THREE.Color
++  roughness: number
++  metalness: number
++  env: number
++}
++
++const finishState = (f: Finish): FinishState => ({
++  color: new THREE.Color().setHex(f.color),
++  roughness: f.roughness,
++  metalness: f.metalness,
++  env: f.envIntensity,
++})
++
++function setFinishState(s: FinishState, f: Finish): void {
++  s.color.setHex(f.color)
++  s.roughness = f.roughness
++  s.metalness = f.metalness
++  s.env = f.envIntensity
++}
++
++interface Member {
++  name: VariantName
++  idx: number
++  root: THREE.Group
++  meshes: THREE.Mesh[]
++  mats: THREE.MeshStandardMaterial[]
++  baseEnv: number[]
++  barrel: THREE.MeshStandardMaterial | null
++  proxy: THREE.Mesh
++  /** angle on the ring (0 = front), focus weight (1 front … 0 side/back) */
++  theta: number
++  focus: number
++  spin: number
++  /** resolved slot pose (ring-parent space) */
++  pos: THREE.Vector3
++  quat: THREE.Quaternion
++  scale: number
++  visible: boolean
++  envK: number
++}
++
++// ---------------------------------------------------------------- tone maps
++// The canvas is transparent over CSS paper, so "fade into the paper" means
++// fogging toward the LINEAR colour that the OutputPass tone-maps back to
++// #F5F3EE. Invert whatever tone mapping the renderer uses (numerically).
++function neutralTM(c: number[], exposure: number): number[] {
++  const sc = 0.8 - 0.04
++  const desat = 0.15
++  let r = c[0] * exposure
++  let g = c[1] * exposure
++  let b = c[2] * exposure
++  const x = Math.min(r, g, b)
++  const off = x < 0.08 ? x - 6.25 * x * x : 0.04
++  r -= off
++  g -= off
++  b -= off
++  const peak = Math.max(r, g, b)
++  if (peak < sc) return [r, g, b]
++  const d = 1 - sc
++  const np = 1 - (d * d) / (peak + d - sc)
++  const k = np / peak
++  r *= k
++  g *= k
++  b *= k
++  const gg = 1 - 1 / (desat * (peak - np) + 1)
++  return [r + (np - r) * gg, g + (np - g) * gg, b + (np - b) * gg]
++}
++
++function acesTM(c: number[], exposure: number): number[] {
++  // three's ACESFilmicToneMapping
++  const e = exposure / 0.6
++  const v = [c[0] * e, c[1] * e, c[2] * e]
++  const i0 = 0.59719 * v[0] + 0.35458 * v[1] + 0.04823 * v[2]
++  const i1 = 0.076 * v[0] + 0.90834 * v[1] + 0.01566 * v[2]
++  const i2 = 0.0284 * v[0] + 0.13383 * v[1] + 0.83777 * v[2]
++  const fit = (x: number): number => {
++    const a = x * (x + 0.0245786) - 0.000090537
++    const b = x * (0.983729 * x + 0.432951) + 0.238081
++    return a / b
++  }
++  const f0 = fit(i0)
++  const f1 = fit(i1)
++  const f2 = fit(i2)
++  const o0 = 1.60475 * f0 - 0.53108 * f1 - 0.07367 * f2
++  const o1 = -0.10208 * f0 + 1.10813 * f1 - 0.00605 * f2
++  const o2 = -0.00327 * f0 - 0.07276 * f1 + 1.07602 * f2
++  return [Math.min(1, Math.max(0, o0)), Math.min(1, Math.max(0, o1)), Math.min(1, Math.max(0, o2))]
++}
++
++function inverseToneMap(target: THREE.Color, renderer: THREE.WebGLRenderer, out: THREE.Color): void {
++  const exp = renderer.toneMappingExposure
++  const tm =
++    renderer.toneMapping === THREE.NeutralToneMapping
++      ? neutralTM
++      : renderer.toneMapping === THREE.ACESFilmicToneMapping
++        ? acesTM
++        : renderer.toneMapping === THREE.LinearToneMapping
++          ? (c: number[], e: number) => [c[0] * e, c[1] * e, c[2] * e]
++          : null
++  const t = [target.r, target.g, target.b]
++  if (!tm) {
++    out.setRGB(t[0], t[1], t[2])
++    return
++  }
++  // Newton with a full numeric Jacobian (channels couple through the
++  // peak / desaturation terms, so a per-channel solve diverges)
++  const det = (m: number[][]): number =>
++    m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) -
++    m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) +
++    m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0])
++  let x = t.map((v) => v * 1.2)
++  const J = [
++    [0, 0, 0],
++    [0, 0, 0],
++    [0, 0, 0],
++  ]
++  for (let it = 0; it < 80; it++) {
++    const y = tm(x, exp)
++    const r = [t[0] - y[0], t[1] - y[1], t[2] - y[2]]
++    if (Math.max(Math.abs(r[0]), Math.abs(r[1]), Math.abs(r[2])) < 1e-7) break
++    for (let j = 0; j < 3; j++) {
++      const h = 1e-5 + x[j] * 1e-4
++      const xp = x.slice()
++      xp[j] += h
++      const yp = tm(xp, exp)
++      for (let i = 0; i < 3; i++) J[i][j] = (yp[i] - y[i]) / h
++    }
++    const D = det(J)
++    if (Math.abs(D) < 1e-12) break
++    const dx = [0, 1, 2].map((k) => det(J.map((row, i) => row.map((v, j) => (j === k ? r[i] : v)))) / D)
++    x = x.map((v, i) => Math.min(64, Math.max(0, v + dx[i])))
++  }
++  out.setRGB(x[0], x[1], x[2])
++}
++
++// ---------------------------------------------------------------- module
++export interface RingOptions {
++  /** look up sibling modules (e.g. the LOOK layer's light sweep) */
++  lookup?: (name: string) => SceneModule | undefined
++}
++
++export class RingModule implements SceneModule {
++  readonly name = 'ring'
++  private opts: RingOptions
++
++  constructor(opts: RingOptions = {}) {
++    this.opts = opts
++  }
++
++  private stage: Stage | null = null
++  private asm: Assembly | null = null
++  private parent: THREE.Object3D | null = null
++  private root = new THREE.Group()
++  private members: Member[] = []
++  private geoms: { geometry: THREE.BufferGeometry; matIndex: number; matrix?: THREE.Matrix4 }[] = []
++  private ownGeoms: THREE.BufferGeometry[] = []
++  private srcMats: THREE.Material[] = []
++  private barrelSrcIndex = -1
++  private pencilMidY = 0
++  private pencilLen0 = 15
++  private sBase = 0.46
++  private motionOK = true
++
++  // plate (rotary indexing table drawn in hairlines)
++  private plate = new THREE.Group()
++  private plateSpin = new THREE.Group()
++  private plateLines: THREE.LineSegments[] = []
++  private plateMats: THREE.LineBasicMaterial[] = []
++  private plateCounts: number[] = []
++  private indexMark: THREE.Mesh | null = null
++
++  // layout (refreshed on resize / document-height changes)
++  private vw = 1
++  private vh = 1
++  private maxScroll = 1
++  private secTop = 0
++  private docH = 0
++  private haveLayout = false
++  private stageBox = { x: 0, y: 0, w: 1, h: 1 }
++  private portrait = false
++  private camPos = new THREE.Vector3()
++  private camTgt = new THREE.Vector3()
++  private camFov = 30
++  private camUp = new THREE.Vector3(0, 1, 0)
++  private camHalfH = 1
++  private camPosLive = new THREE.Vector3()
++  private camTgtLive = new THREE.Vector3()
++  private R = RADIUS
++  private lastOutCss = -1
++  private frontDist = 12
++  private pxPerDetent = 260
++
++  // per-frame state
++  private uS = -10
++  private uR = -10
++  private inW = 0
++  private camW = 0
++  private outW = 0
++  private sinkW = 0
++  private rho = 0
++  private rhoV = 0
++  private frontIdx = 0
++  private emittedIdx = 0
++  private selected: VariantName = 'Core'
++  private presenter = -1
++  private chase: FinishState = finishState(FINISHES.Core)
++  private chaseTarget: Finish = FINISHES.Core
++  private chaseLive = false
++  private active = false
++  private ringVisible = false
++  private lastRingCss = -1
++  private lastScrollY = -1
++  private lastScrollMoveT = 0
++  private snapGuardU = -100
++  private fog: THREE.Fog | null = null
++  private fogColor = new THREE.Color()
++  private fogKey = ''
++  private fogNear0 = 1e5
++  private fogFar0 = 1e5 + 1
++  private paper = new THREE.Color('#F5F3EE')
++  private buyEl: HTMLElement | null = null
++  private pinEl: HTMLElement | null = null
++  private sectionEl: HTMLElement | null = null
++  private stageEl: HTMLElement | null = null
++  private buyPos = new THREE.Vector3()
++  private buyQuat = new THREE.Quaternion()
++  private buyScale = 0.3
++  private buySpin = 0
++  private parentInv = new THREE.Matrix4()
++
++  // pointer / picking
++  private raycaster = new THREE.Raycaster()
++  private ndc = new THREE.Vector2()
++  private needPick = false
++  private hover = -1
++  private cursorMode: 'default' | 'view' | 'drag' = 'default'
++  private drag: {
++    id: number
++    x0: number
++    y0: number
++    lastX: number
++    lastT: number
++    vx: number
++    base: number
++    on: boolean
++  } | null = null
++  private dragOffset = 0
++  private suppressClick = false
++  private offBus: Array<() => void> = []
++  private listeners: Array<() => void> = []
++
++  // ------------------------------------------------------------ setup
++  init(stage: Stage, asm: Assembly, _cfg: QualityConfig): void {
++    this.stage = stage
++    this.asm = asm
++    this.motionOK = !window.matchMedia('(prefers-reduced-motion: reduce)').matches
++    this.raycaster.layers.set(PICK_LAYER)
++    // the hero always wears the Core finish outside the lineup
++    if (asm.barrelMat) applyFinish(asm.barrelMat, FINISHES.Core)
++    this.buildGeometry(asm)
++    this.parent = asm.group.parent ?? stage.scene
++    this.root.name = 'LineupRing'
++    this.parent.add(this.root)
++    for (let i = 0; i < VARIANT_ORDER.length; i++) this.members.push(this.buildMember(i))
++    this.buildPlate()
++    this.installFog(stage.scene)
++    this.root.visible = false
++    this.hideAll()
++    this.offBus.push(
++      bus.on('variant:select', ({ name, source }) => this.select(name, source)),
++    )
++    const release = (): void => {
++      if (nav.hold >= 0 && performance.now() - nav.holdT > 90) releaseHold()
++    }
++    const onKey = (e: KeyboardEvent): void => {
++      if (/^(Arrow|Page|Home|End| )/.test(e.key) || e.key === ' ') release()
++    }
++    window.addEventListener('wheel', release, { passive: true })
++    window.addEventListener('touchstart', release, { passive: true })
++    window.addEventListener('keydown', onKey)
++    this.listeners.push(() => {
++      window.removeEventListener('wheel', release)
++      window.removeEventListener('touchstart', release)
++      window.removeEventListener('keydown', onKey)
++    })
++    this.refreshLayout()
++    // Precompile the clones' programs so the ring's first appearance
++    // doesn't hitch (members are hidden; compile() walks every object).
++    const r = stage.renderer
++    if (r.extensions.has('KHR_parallel_shader_compile')) {
++      void r.compileAsync(stage.scene, stage.camera).catch(() => {})
++    } else {
++      r.compile(stage.scene, stage.camera)
++    }
++  }
++
++  /** Merge each material's static meshes once (shared by all four clones). */
++  private buildGeometry(asm: Assembly): void {
++    const group = asm.group
++    group.updateMatrixWorld(true)
++    const inv = new THREE.Matrix4().copy(group.matrixWorld).invert()
++    const byMat = new Map<THREE.Material, THREE.BufferGeometry[]>()
++    const box = new THREE.Box3()
++    const singles: { geometry: THREE.BufferGeometry; mat: THREE.Material; matrix: THREE.Matrix4 }[] = []
++    group.traverse((o) => {
++      const mesh = o as THREE.Mesh
++      if (!mesh.isMesh || Array.isArray(mesh.material)) return
++      const mat = mesh.material as THREE.Material
++      // genuinely see-through internals (reservoir glass) are invisible
++      // inside the barrel: skip them on the clones.
++      if (mat.transparent && mat.opacity < 0.98) return
++      const rel = new THREE.Matrix4().multiplyMatrices(inv, mesh.matrixWorld)
++      if ((mesh as THREE.InstancedMesh).isInstancedMesh || (mesh as THREE.SkinnedMesh).isSkinnedMesh) {
++        singles.push({ geometry: mesh.geometry, mat, matrix: rel })
++        return
++      }
++      const g = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry.clone()
++      for (const name of Object.keys(g.attributes)) {
++        if (name !== 'position' && name !== 'normal' && name !== 'uv') g.deleteAttribute(name)
++      }
++      g.morphAttributes = {}
++      g.applyMatrix4(rel)
++      g.computeBoundingBox()
++      if (g.boundingBox) box.union(g.boundingBox)
++      let list = byMat.get(mat)
++      if (!list) byMat.set(mat, (list = []))
++      list.push(g)
++    })
++    const matIndex = (m: THREE.Material): number => {
++      let i = this.srcMats.indexOf(m)
++      if (i < 0) {
++        i = this.srcMats.length
++        this.srcMats.push(m)
++      }
++      return i
++    }
++    for (const [mat, list] of byMat) {
++      const idx = matIndex(mat)
++      if (mat === asm.barrelMat) this.barrelSrcIndex = idx
++      // only merge geometries that share the same attribute set
++      const buckets = new Map<string, THREE.BufferGeometry[]>()
++      for (const g of list) {
++        const key = Object.keys(g.attributes).sort().join(',')
++        let b = buckets.get(key)
++        if (!b) buckets.set(key, (b = []))
++        b.push(g)
++      }
++      for (const b of buckets.values()) {
++        const merged = b.length > 1 ? mergeGeometries(b, false) : b[0]
++        if (merged) {
++          if (merged !== b[0]) b.forEach((g) => g.dispose())
++          merged.computeBoundingSphere()
++          this.geoms.push({ geometry: merged, matIndex: idx })
++          this.ownGeoms.push(merged)
++        } else {
++          for (const g of b) {
++            this.geoms.push({ geometry: g, matIndex: idx })
++            this.ownGeoms.push(g)
++          }
++        }
++      }
++    }
++    for (const s of singles) {
++      const idx = matIndex(s.mat)
++      if (s.mat === asm.barrelMat) this.barrelSrcIndex = idx
++      this.geoms.push({ geometry: s.geometry, matIndex: idx, matrix: s.matrix })
++    }
++    if (!box.isEmpty()) {
++      this.pencilLen0 = Math.max(1e-3, box.max.y - box.min.y)
++      this.pencilMidY = (box.max.y + box.min.y) / 2
++    }
++    this.sBase = PENCIL_LEN / this.pencilLen0
++  }
++
++  private buildMember(i: number): Member {
++    const name = VARIANT_ORDER[i]
++    const root = new THREE.Group()
++    root.name = `ring-${name}`
++    const mats = this.srcMats.map((m) => {
++      const c = (m as THREE.MeshStandardMaterial).clone()
++      // clones live in the opaque pass (the hero's shell clones toggle
++      // transparency for x-ray; the ring never needs it)
++      if (c.opacity >= 0.98) {
++        c.transparent = false
++        c.opacity = 1
++        c.depthWrite = true
++      }
++      return c
++    })
++    const baseEnv = mats.map((m) => (m as THREE.MeshStandardMaterial).envMapIntensity ?? 1)
++    const barrel =
++      this.barrelSrcIndex >= 0 ? (mats[this.barrelSrcIndex] as THREE.MeshStandardMaterial) : null
++    if (barrel) applyFinish(barrel, FINISHES[name])
++    const meshes: THREE.Mesh[] = []
++    for (const g of this.geoms) {
++      const mat = mats[g.matIndex]
++      let mesh: THREE.Mesh
++      if (g.matrix) {
++        mesh = new THREE.Mesh(g.geometry, mat)
++        mesh.matrixAutoUpdate = false
++        mesh.matrix.copy(g.matrix)
++      } else {
++        mesh = new THREE.Mesh(g.geometry, mat)
++      }
++      mesh.castShadow = false
++      mesh.receiveShadow = false
++      root.add(mesh)
++      meshes.push(mesh)
++    }
++    // cheap pick proxy on its own layer: never rendered, never hit by
++    // anyone else's raycasts. ~2x the barrel radius: a forgiving target.
++    const proxy = new THREE.Mesh(
++      new THREE.CylinderGeometry(1.0, 1.0, this.pencilLen0 * 1.04, 8),
++      new THREE.MeshBasicMaterial(),
++    )
++    proxy.position.y = this.pencilMidY
++    proxy.layers.set(PICK_LAYER)
++    proxy.userData.ringIndex = i
++    root.add(proxy)
++    this.root.add(root)
++    return {
++      name,
++      idx: i,
++      root,
++      meshes,
++      mats: mats as THREE.MeshStandardMaterial[],
++      baseEnv,
++      barrel,
++      proxy,
++      theta: i * STEP,
++      focus: 0,
++      spin: 0.35 * i,
++      pos: new THREE.Vector3(),
++      quat: new THREE.Quaternion(),
++      scale: this.sBase,
++      visible: false,
++      envK: 1,
++    }
++  }
++
++  /** Rotary indexing plate: two hairline circles + degree ticks + index mark. */
++  private buildPlate(): void {
++    // unit radius; scaled to the live ring radius every frame
++    const R = 1
++    const ink = new THREE.Color('#141412')
++    const mk = (opacity: number): THREE.LineBasicMaterial => {
++      const m = new THREE.LineBasicMaterial({
++        color: ink,
++        transparent: true,
++        opacity,
++        depthWrite: false,
++      })
++      m.userData.baseOpacity = opacity
++      this.plateMats.push(m)
++      return m
++    }
++    // Segments are ordered by distance from the front (+z) alternating
++    // left/right, so a growing draw range sweeps both ways out of the index
++    // mark and closes at the back — drafted, like a compass stroke.
++    const order = (n: number): number[] => {
++      const o: number[] = []
++      for (let k = 0; o.length < n; k++) {
++        o.push(k)
++        if (o.length < n && k > 0) o.push(n - k)
++      }
++      return o.filter((v, i, a) => a.indexOf(v) === i).slice(0, n)
++    }
++    const circle = (r: number, seg: number): THREE.BufferGeometry => {
++      const pts: number[] = []
++      for (const i of order(seg)) {
++        // segment i spans angle [i, i+1]; mirror the left half so each
++        // pair grows symmetrically from the front
++        const a0 = (i / seg) * Math.PI * 2
++        const a1 = ((i + 1) / seg) * Math.PI * 2
++        pts.push(Math.sin(a0) * r, 0, Math.cos(a0) * r, Math.sin(a1) * r, 0, Math.cos(a1) * r)
++      }
++      const g = new THREE.BufferGeometry()
++      g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3))
++      return g
++    }
++    const ticks = (): THREE.BufferGeometry => {
++      const pts: number[] = []
++      for (const i of order(72)) {
++        const a = (i / 72) * Math.PI * 2
++        const major = i % 18 === 0
++        const mid = i % 6 === 0
++        const r0 = major ? R * 0.8 : mid ? R * 1.1 : R * 1.15
++        const r1 = R * 1.2
++        pts.push(Math.sin(a) * r0, 0, Math.cos(a) * r0, Math.sin(a) * r1, 0, Math.cos(a) * r1)
++      }
++      const g = new THREE.BufferGeometry()
++      g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3))
++      return g
++    }
++    const add = (g: THREE.BufferGeometry, m: THREE.LineBasicMaterial): void => {
++      const l = new THREE.LineSegments(g, m)
++      l.frustumCulled = false
++      this.plateLines.push(l)
++      this.plateCounts.push(g.getAttribute('position').count)
++      this.ownGeoms.push(g)
++      this.plateSpin.add(l)
++    }
++    add(circle(R * 1.2, 160), mk(0.42))
++    add(circle(R * 0.8, 128), mk(0.2))
++    add(ticks(), mk(0.34))
++    // fixed index mark at the front slot (accent): a small filled triangle
++    const tri = new THREE.BufferGeometry()
++    const r = R * 1.27
++    tri.setAttribute(
++      'position',
++      new THREE.Float32BufferAttribute([0, 0, r, -0.03, 0, r + 0.075, 0.03, 0, r + 0.075], 3),
++    )
++    this.ownGeoms.push(tri)
++    const triMat = new THREE.MeshBasicMaterial({
++      color: new THREE.Color('#A63D22'),
++      transparent: true,
++      opacity: 0.9,
++      depthWrite: false,
++      side: THREE.DoubleSide,
++    })
++    triMat.userData.baseOpacity = 0.9
++    this.indexMark = new THREE.Mesh(tri, triMat)
++    this.indexMark.frustumCulled = false
++    this.plate.add(this.plateSpin, this.indexMark)
++    this.root.add(this.plate)
++  }
++
++  private installFog(scene: THREE.Scene): void {
++    // Fog is a program define: install it once, before anything compiles,
++    // parked out of reach (no visual effect) until the lineup needs it.
++    if (scene.fog instanceof THREE.Fog) {
++      this.fog = scene.fog
++      this.fogNear0 = scene.fog.near
++      this.fogFar0 = scene.fog.far
++    } else if (!scene.fog) {
++      this.fog = new THREE.Fog(0xffffff, 1e5, 1e5 + 1)
++      scene.fog = this.fog
++    }
++  }
++
++  private hideAll(): void {
++    for (const m of this.members) {
++      m.root.visible = false
++      m.visible = false
++    }
++  }
++
++  // ------------------------------------------------------------ layout
++  private refreshLayout(): void {
++    this.vw = Math.max(1, window.innerWidth)
++    this.vh = Math.max(1, window.innerHeight)
++    this.docH = document.documentElement.scrollHeight
++    this.maxScroll = Math.max(1, this.docH - this.vh)
++    this.portrait = this.vw / this.vh < 0.9
++    // tighter ring on portrait screens: bigger pencils for the same width
++    this.R = this.portrait ? 1.7 : RADIUS
++    const top = lineupTop()
++    this.sectionEl = document.getElementById('lineup')
++    this.pinEl = document.getElementById('lineupPin')
++    this.stageEl = document.getElementById('ringStage')
++    this.buyEl = document.getElementById('buyStage')
++    if (top !== null) this.secTop = top
++    // the stage box as it sits while the section is pinned (pin top = 0)
++    if (this.stageEl && this.pinEl) {
++      const sr = this.stageEl.getBoundingClientRect()
++      const pr = this.pinEl.getBoundingClientRect()
++      this.stageBox = { x: sr.left, y: sr.top - pr.top, w: sr.width, h: sr.height }
++    } else {
++      this.stageBox = this.portrait
++        ? { x: 0, y: this.vh * 0.14, w: this.vw, h: this.vh * 0.46 }
++        : { x: this.vw * 0.42, y: this.vh * 0.1, w: this.vw * 0.56, h: this.vh * 0.82 }
++    }
++    this.haveLayout = top !== null
++    this.attachPointer()
++    this.computeRingCamera()
++  }
++
++  /** Camera that frames the ring inside the stage box (pan = shifted lens). */
++  private computeRingCamera(): void {
++    const fov = this.portrait ? 32 : 28
++    const tanH = Math.tan(THREE.MathUtils.degToRad(fov / 2))
++    const aspect = this.vw / this.vh
++    const b = this.stageBox
++    const R = this.R
++    const az = this.portrait ? 0.3 : AZIMUTH
++    const el = this.portrait ? 0.24 : 0.27
++    // front pencil projected length ≈ 78% of the box height
++    const targetPx = Math.max(120, b.h * (this.portrait ? 0.8 : 0.78))
++    const df = (PENCIL_LEN * Math.cos(el) * this.vh) / (2 * tanH * targetPx)
++    let dist = df + R * Math.cos(az) * Math.cos(el)
++    // keep the whole ring (plate rim incl.) inside the box width
++    const rimPx = (r: number, d: number): number => (r * this.vh) / (2 * d * tanH)
++    const needW = (d: number): number => 2 * rimPx(R * 1.28, d)
++    if (needW(dist) > b.w * 0.98) dist = (R * 1.28 * this.vh) / (b.w * 0.98 * tanH)
++    this.frontDist = dist - R * Math.cos(az) * Math.cos(el)
++    this.pxPerDetent = Math.max(90, rimPx(R, dist) * 1.15)
++    const dir = tmpV.set(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el))
++    // ring centre sits behind the front slot (front slot = world origin)
++    const look = tmpV2.set(0, -PENCIL_LEN * 0.05, -R)
++    this.camPos.copy(look).addScaledVector(dir, dist)
++    this.camTgt.copy(look)
++    // pan so the ring centre lands on the stage box centre
++    const fwd = new THREE.Vector3().copy(dir).negate()
++    const right = new THREE.Vector3().crossVectors(fwd, Y_AXIS).normalize()
++    const up = new THREE.Vector3().crossVectors(right, fwd)
++    const bx = ((b.x + b.w / 2) / this.vw) * 2 - 1
++    const by = -(((b.y + b.h / 2) / this.vh) * 2 - 1)
++    const halfH = dist * tanH
++    const halfW = halfH * aspect
++    this.camUp.copy(up)
++    this.camHalfH = halfH
++    const shift = right.multiplyScalar(bx * halfW).addScaledVector(up, by * halfH)
++    this.camPos.sub(shift)
++    this.camTgt.sub(shift)
++    this.camFov = fov
++  }
++
++  private attachPointer(): void {
++    const pin = this.pinEl
++    if (!pin || pin.dataset.ringPointer === '1') return
++    pin.dataset.ringPointer = '1'
++    const interactive = (t: EventTarget | null): boolean =>
++      t instanceof Element && !!t.closest('a,button,input,label,select,textarea,[data-no-pick]')
++    const move = (e: PointerEvent): void => {
++      this.ndc.set((e.clientX / this.vw) * 2 - 1, -(e.clientY / this.vh) * 2 + 1)
++      this.needPick = !interactive(e.target)
++      if (!this.needPick && this.hover >= 0) this.setHover(-1)
++      const d = this.drag
++      if (d && d.id === e.pointerId) {
++        const dx = e.clientX - d.x0
++        const dy = e.clientY - d.y0
++        if (!d.on && Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 1.2) {
++          d.on = true
++          releaseHold()
++          try {
++            pin.setPointerCapture(e.pointerId)
++          } catch {
++            /* capture is best-effort */
++          }
++          pin.classList.add('is-dragging')
++          this.setCursor('drag')
++        }
++        if (d.on) {
++          const now = performance.now()
++          const dt = Math.max(1, now - d.lastT) / 1000
++          d.vx += ((e.clientX - d.lastX) / dt - d.vx) * 0.35
++          d.lastX = e.clientX
++          d.lastT = now
++          this.dragOffset = -dx / this.pxPerDetent
++          this.wake()
++        }
++      }
++    }
++    const down = (e: PointerEvent): void => {
++      if (e.button !== 0 || interactive(e.target) || !this.ringVisible) return
++      this.drag = {
++        id: e.pointerId,
++        x0: e.clientX,
++        y0: e.clientY,
++        lastX: e.clientX,
++        lastT: performance.now(),
++        vx: 0,
++        base: nav.hold >= 0 ? nav.hold : ringTarget(this.uR),
++        on: false,
++      }
++      this.suppressClick = false
++    }
++    const up = (e: PointerEvent): void => {
++      const d = this.drag
++      if (!d || d.id !== e.pointerId) return
++      this.drag = null
++      pin.classList.remove('is-dragging')
++      if (d.on) {
++        this.suppressClick = true
++        const fling = (-d.vx * 0.25) / this.pxPerDetent
++        const idx = ringIndex(d.base + this.dragOffset + fling)
++        // the spring keeps its current (dragged) position and swings on
++        this.dragOffset = 0
++        gotoDetent(idx)
++        this.setCursor(this.hover >= 0 ? 'view' : 'default')
++        this.wake()
++      }
++    }
++    const cancel = (e: PointerEvent): void => {
++      if (this.drag?.id !== e.pointerId) return
++      const wasOn = this.drag.on
++      this.drag = null
++      pin.classList.remove('is-dragging')
++      if (wasOn) {
++        const idx = ringIndex(ringTarget(this.uR) + this.dragOffset)
++        this.dragOffset = 0
++        gotoDetent(idx)
++      }
++      this.dragOffset = 0
++    }
++    const click = (e: MouseEvent): void => {
++      if (this.suppressClick) {
++        this.suppressClick = false
++        return
++      }
++      if (interactive(e.target) || !this.ringVisible) return
++      this.ndc.set((e.clientX / this.vw) * 2 - 1, -(e.clientY / this.vh) * 2 + 1)
++      const hit = this.pick()
++      if (hit < 0) return
++      if (hit === this.frontIdx) {
++        bus.emit('variant:select', { name: VARIANT_ORDER[hit], source: 'ring' })
++        gotoBuy(hit)
++      } else {
++        gotoDetent(hit)
++      }
++    }
++    const leave = (): void => {
++      this.needPick = false
++      this.setHover(-1)
++    }
++    pin.addEventListener('pointermove', move, { passive: true })
++    pin.addEventListener('pointerdown', down, { passive: true })
++    pin.addEventListener('pointerup', up, { passive: true })
++    pin.addEventListener('pointercancel', cancel, { passive: true })
++    pin.addEventListener('pointerleave', leave, { passive: true })
++    pin.addEventListener('click', click)
++    this.listeners.push(() => {
++      pin.removeEventListener('pointermove', move)
++      pin.removeEventListener('pointerdown', down)
++      pin.removeEventListener('pointerup', up)
++      pin.removeEventListener('pointercancel', cancel)
++      pin.removeEventListener('pointerleave', leave)
++      pin.removeEventListener('click', click)
++      delete pin.dataset.ringPointer
++    })
++  }
++
++  private wakeFlag = false
++  private wake(): void {
++    this.wakeFlag = true
++  }
++
++  private setCursor(mode: 'default' | 'view' | 'drag'): void {
++    const label =
++      mode === 'drag' ? 'Drag' : mode === 'view' ? (this.hover === this.frontIdx ? 'Choose' : 'Select') : undefined
++    if (mode === this.cursorMode && mode !== 'view') return
++    this.cursorMode = mode
++    bus.emit('cursor', label ? { mode, label } : { mode })
++  }
++
++  private setHover(i: number): void {
++    if (i === this.hover) return
++    this.hover = i
++    if (this.drag?.on) return
++    this.setCursor(i >= 0 ? 'view' : 'default')
++    if (this.pinEl) this.pinEl.style.cursor = i >= 0 ? 'pointer' : ''
++  }
++
++  private pick(): number {
++    if (!this.stage) return -1
++    this.raycaster.setFromCamera(this.ndc, this.stage.camera)
++    let best = -1
++    let bestD = Infinity
++    for (const m of this.members) {
++      if (!m.visible || (this.outW > 0.5 && m.idx === this.presenter)) continue
++      m.proxy.updateMatrixWorld()
++      const hits = this.raycaster.intersectObject(m.proxy, false)
++      if (hits.length && hits[0].distance < bestD) {
++        bestD = hits[0].distance
++        best = m.idx
++      }
++    }
++    return best
++  }
++
++  // ------------------------------------------------------------ API
++  /** Buy radio / ring CTA / experience.setVariant → selected finish. */
++  select(name: string, source: 'ring' | 'buy' | 'other' = 'other'): void {
++    if (!isVariantName(name)) return
++    this.selected = name
++    this.chaseTarget = FINISHES[name]
++    this.chaseLive = true
++    if (source === 'ring') this.emittedIdx = VARIANT_ORDER.indexOf(name)
++    this.wake()
++  }
++
++  /** Blend the choreography camera into the ring camera (fresh targets only). */
++  applyCamera(pos: THREE.Vector3, tgt: THREE.Vector3): number {
++    const w = this.camW
++    if (w <= 0) return 0
++    pos.lerp(this.camPosLive, w)
++    tgt.lerp(this.camTgtLive, w)
++    return w
++  }
++
++  get ringFov(): number {
++    return this.camFov
++  }
++
++  /**
++   * Hero handoff: the live assembly glides from its choreography pose into
++   * the Core slot; once there it hides and the Core clone takes over.
++   */
++  poseHero(asm: Assembly): void {
++    const w = this.inW
++    if (w <= 0 || !this.active) {
++      asm.group.visible = true
++      return
++    }
++    if (w >= 0.999) {
++      asm.group.visible = false
++      return
++    }
++    asm.group.visible = true
++    const core = this.members[0]
++    const e = easeInOutCubic(w)
++    // slot pose lives in the ring parent's space; bring it into the hero's
++    this.toHeroSpace(core.pos, core.quat, asm.group)
++    asm.group.position.lerp(tmpV, e)
++    asm.group.quaternion.slerp(tmpQ, e)
++    const s = asm.group.scale.x + (core.scale - asm.group.scale.x) * e
++    asm.group.scale.setScalar(s)
++  }
++
++  /** ring-parent-space pose → asm.group parent space (into tmpV/tmpQ). */
++  private toHeroSpace(p: THREE.Vector3, q: THREE.Quaternion, group: THREE.Object3D): void {
++    const hp = group.parent
++    if (!hp || hp === this.parent || !this.parent) {
++      tmpV.copy(p)
++      tmpQ.copy(q)
++      return
++    }
++    this.parent.updateMatrixWorld()
++    hp.updateMatrixWorld()
++    tmpM.compose(p, q, tmpS.set(1, 1, 1)).premultiply(this.parent.matrixWorld)
++    tmpM.premultiply(this.parentInv.copy(hp.matrixWorld).invert())
++    tmpM.decompose(tmpV, tmpQ, tmpS)
++  }
++
++  // ------------------------------------------------------------ frame
++  preUpdate(ctx: FrameCtx): void {
++    if (!this.asm) return
++    if (
++      !this.haveLayout ||
++      window.innerHeight !== this.vh ||
++      window.innerWidth !== this.vw ||
++      document.documentElement.scrollHeight !== this.docH
++    ) {
++      this.refreshLayout()
++    }
++    const now = performance.now()
++    const sy = window.scrollY
++    if (sy !== this.lastScrollY) {
++      this.lastScrollY = sy
++      this.lastScrollMoveT = now
++    }
++    this.uS = (ctx.p * this.maxScroll - this.secTop) / this.vh
++    this.uR = (ctx.rawP * this.maxScroll - this.secTop) / this.vh
++    const uS = this.uS
++    this.active = uS > RING_IN[0] - 0.02
++    this.inW = sstep(RING_IN[0], RING_IN[1], uS)
++    this.camW = this.inW
++    this.sinkW = sstep(RING_SINK[0], RING_SINK[1], uS)
++    this.outW = sstep(RING_OUT[0], RING_OUT[1], uS)
++    // portrait: the ring rides up with its section while it scrolls in, so
++    // it never crosses the incoming header (landscape keeps a fixed frame)
++    const follow = this.portrait ? Math.max(0, -uS) * this.vh : 0
++    const k = ((2 * follow) / this.vh) * this.camHalfH
++    this.camPosLive.copy(this.camPos).addScaledVector(this.camUp, k)
++    this.camTgtLive.copy(this.camTgt).addScaledVector(this.camUp, k)
++
++    // hold bookkeeping (programmatic scroll in flight)
++    if (nav.hold >= 0) {
++      // released on arrival, or when the programmatic scroll has stalled
++      // (interrupted / clamped) — never just because it is slow
++      const idle = now - this.lastScrollMoveT
++      const arrived = Math.abs(sy - nav.holdY) < 3 && idle > 120
++      if (arrived || (now - nav.holdT > 2500 && idle > 600)) releaseHold()
++    }
++
++    // ring position: scroll-mapped detents + spring mass
++    const target =
++      nav.hold >= 0 ? nav.hold : Math.min(LINEUP_COUNT - 1 + 0.3, Math.max(-0.3, ringTarget(this.uR) + this.dragOffset))
++    if (!this.motionOK) {
++      this.rho = ringIndex(target)
++      this.rhoV = 0
++    } else {
++      // semi-implicit spring, sub-stepped (k≈110, ζ≈0.86: a precise detent)
++      const k = 110
++      const c = 2 * 0.86 * Math.sqrt(k)
++      let left = Math.min(ctx.dt, 1 / 20)
++      while (left > 1e-6) {
++        const h = Math.min(left, 1 / 120)
++        const a = -k * (this.rho - target) - c * this.rhoV
++        this.rhoV += a * h
++        this.rho += this.rhoV * h
++        left -= h
++      }
++      if (Math.abs(this.rho - target) < 1e-4 && Math.abs(this.rhoV) < 1e-4) {
++        this.rho = target
++        this.rhoV = 0
++      }
++    }
++
++    // presenter latch: whichever variant is selected when the exit starts
++    if (this.outW > 0 && this.presenter < 0) {
++      this.presenter = VARIANT_ORDER.indexOf(this.selected)
++      setFinishState(this.chase, FINISHES[this.selected])
++      this.chaseTarget = FINISHES[this.selected]
++    } else if (this.outW <= 0 && this.presenter >= 0) {
++      this.presenter = -1
++    }
++
++    this.computeSlots(ctx)
++  }
++
++  /** Slot pose of every member around the ring (ring-parent space). */
++  private computeSlots(ctx: FrameCtx): void {
++    const R = this.R
++    const motion = this.motionOK
++    const riseDist = PENCIL_LEN * 1.25
++    const awayX = -Math.sin(AZIMUTH)
++    const awayZ = -Math.cos(AZIMUTH)
++    for (const m of this.members) {
++      const theta = (m.idx - this.rho) * STEP
++      m.theta = theta
++      const c = Math.max(0, Math.cos(theta))
++      m.focus = c * c * c * c
++      if (motion && this.active) m.spin += ctx.dt * 0.32 * m.focus
++      const s = this.sBase * (0.86 + 0.14 * m.focus)
++      m.scale = s
++      // Ry(theta) · Rz(-lean) · Ry(spin)
++      m.quat.setFromAxisAngle(Y_AXIS, theta)
++      tmpQ.setFromAxisAngle(Z_AXIS, -LEAN)
++      m.quat.multiply(tmpQ)
++      tmpQ.setFromAxisAngle(Y_AXIS, m.spin)
++      m.quat.multiply(tmpQ)
++      // slot midpoint on the rim; ring centre sits at (0,0,-R)
++      m.pos.set(Math.sin(theta) * R, 0, Math.cos(theta) * R - R)
++      // entry rise (siblings) / exit sink (everyone but the presenter)
++      let off = 0
++      if (m.idx !== 0) {
++        const d = (Math.abs(Math.atan2(Math.sin(theta), Math.cos(theta))) / Math.PI) * 0.16
++        const rise = sstep(RING_RISE[0] + d, RING_RISE[0] + d + (RING_RISE[1] - RING_RISE[0]) * 0.75, this.uS)
++        off = Math.max(off, 1 - rise)
++      }
++      if (m.idx !== this.presenter || this.presenter < 0) {
++        const d = (m.focus > 0.5 ? 0.12 : 0) + (1 - Math.cos(theta)) * 0.03
++        const sink = sstep(RING_SINK[0] + d, RING_SINK[1] + d, this.uS)
++        off = Math.max(off, sink)
++      }
++      if (off > 0) {
++        const o = off * off
++        m.pos.y -= o * riseDist
++        m.pos.x += awayX * off * R * 2.6
++        m.pos.z += awayZ * off * R * 2.6
++      }
++      // centre the pencil's midpoint on the slot
++      tmpV.set(0, this.pencilMidY * s, 0).applyQuaternion(m.quat)
++      m.pos.sub(tmpV)
++      m.visible = this.active && off < 0.995 && !(m.idx === 0 && this.inW < 0.999)
++    }
++  }
++
++  update(ctx: FrameCtx): void {
++    if (!this.stage || !this.asm) return
++    const stage = this.stage
++    const anyRing = this.active
++    this.root.visible = anyRing
++    this.ringVisible = anyRing && this.uS < LINEUP_PIN + 0.6 && this.inW > 0.6
++    if (!anyRing) {
++      this.parkFog()
++      if (this.hover >= 0) this.setHover(-1)
++      this.writeRingCss(0)
++      return
++    }
++    stage.camera.updateMatrixWorld()
++    if (this.parent) {
++      this.parent.updateMatrixWorld()
++      this.parentInv.copy(this.parent.matrixWorld).invert()
++    }
++
++    // buy slot (live DOM box → world, at the front slot's depth)
++    if (this.outW > 0 && this.presenter >= 0) this.computeBuyPose(ctx)
++
++    // finish chase for the presenter (buy radios)
++    if (this.chaseLive) {
++      const k = this.motionOK ? 1 - Math.exp(-7 * ctx.dt) : 1
++      const t = this.chaseTarget
++      tmpColor.setHex(t.color)
++      this.chase.color.lerp(tmpColor, k)
++      this.chase.roughness += (t.roughness - this.chase.roughness) * k
++      this.chase.metalness += (t.metalness - this.chase.metalness) * k
++      this.chase.env += (t.envIntensity - this.chase.env) * k
++      const dc =
++        Math.abs(this.chase.color.r - tmpColor.r) +
++        Math.abs(this.chase.color.g - tmpColor.g) +
++        Math.abs(this.chase.color.b - tmpColor.b) +
++        Math.abs(this.chase.roughness - t.roughness) +
++        Math.abs(this.chase.metalness - t.metalness)
++      if (dc < 2e-4) {
++        setFinishState(this.chase, t)
++        this.chaseLive = false
++      }
++    }
++
++    // Clones never cast into the key light's shadow map: grounding in the
++    // lineup comes from the LOOK layer's contact shadows, and skipping it
++    // saves a depth pass per pencil (plus a first-swing shader compile).
++    const outE = easeInOutCubic(this.outW)
++    for (const m of this.members) {
++      const isPresenter = m.idx === this.presenter && this.outW > 0
++      let pos = m.pos
++      let quat = m.quat
++      let scale = m.scale
++      if (isPresenter) {
++        this.buySpin += this.motionOK ? ctx.dt * 0.5 : 0
++        tmpV.copy(m.pos).lerp(this.buyPos, outE)
++        tmpQ.copy(m.quat).slerp(this.buyQuat, outE)
++        pos = tmpV
++        quat = tmpQ
++        scale = m.scale + (this.buyScale - m.scale) * outE
++      }
++      m.root.visible = m.visible
++      if (!m.visible) continue
++      m.root.position.copy(pos)
++      m.root.quaternion.copy(quat)
++      m.root.scale.setScalar(scale)
++      // per-pencil light response: side/back pencils go quieter
++      const envK = isPresenter ? 1 : 0.5 + 0.5 * m.focus
++      const barrel = m.barrel
++      if (barrel) {
++        const own = FINISHES[m.name]
++        if (isPresenter) {
++          const w = sstep(0.0, 0.45, this.outW)
++          tmpColor.setHex(own.color).lerp(this.chase.color, w)
++          barrel.color.copy(tmpColor)
++          barrel.roughness = own.roughness + (this.chase.roughness - own.roughness) * w
++          barrel.metalness = own.metalness + (this.chase.metalness - own.metalness) * w
++          barrel.envMapIntensity = own.envIntensity + (this.chase.env - own.envIntensity) * w
++        } else if (barrel.userData.finishDirty !== false) {
++          applyFinish(barrel, own, envK)
++          barrel.userData.finishDirty = false
++        }
++      }
++      if (Math.abs(envK - m.envK) > 0.002 || isPresenter) {
++        m.envK = envK
++        for (let i = 0; i < m.mats.length; i++) {
++          const mat = m.mats[i]
++          if (mat === barrel) {
++            if (!isPresenter) mat.envMapIntensity = FINISHES[m.name].envIntensity * envK
++          } else mat.envMapIntensity = m.baseEnv[i] * envK
++        }
++      }
++      if (isPresenter && barrel) barrel.userData.finishDirty = true
++    }
++
++    this.updatePlate()
++    this.updateFog()
++
++    // front variant → overlay + buy form (only while the ring is the story)
++    const fi = ringIndex(this.rho)
++    this.frontIdx = fi
++    if (this.uS > RING_IN[0] && this.uS < LINEUP_PIN + 0.15 && fi !== this.emittedIdx) {
++      this.emittedIdx = fi
++      this.selected = VARIANT_ORDER[fi]
++      this.chaseTarget = FINISHES[this.selected]
++      this.chaseLive = true
++      // Limited is the crescendo: a light streak across its facets as it
++      // lands (LOOK layer's sweep, if present)
++      if (fi === LINEUP_COUNT - 1 && this.motionOK && this.rhoV > 0) {
++        const sweep = this.opts.lookup?.('lightSweep') as (SceneModule & { streak?: () => void }) | undefined
++        sweep?.streak?.()
++      }
++      bus.emit('variant:active', { name: VARIANT_ORDER[fi] })
++    }
++    this.updateLeader()
++    this.writeRingCss(this.rho)
++    this.writeOutCss(sstep(LINEUP_PIN + 0.02, LINEUP_PIN + 0.38, this.uR))
++
++    // hover pick (pointer moved since the last frame)
++    if (this.needPick && !this.drag?.on && !pointer.coarse) {
++      this.needPick = false
++      this.setHover(this.ringVisible ? this.pick() : -1)
++    } else if (!this.ringVisible && this.hover >= 0) {
++      this.setHover(-1)
++    }
++
++    this.proximitySnap()
++  }
++
++  /** Leader callout: material line → front pencil's barrel (landscape). */
++  private leadT = 0
++  private leadO = -1
++  private leadLine: SVGLineElement | null = null
++  private leadDot: SVGCircleElement | null = null
++  private leadMat: HTMLElement | null = null
++  private leadStart = { x: 0, y: 0 }
++  private leadEnd = { x: -1, y: -1 }
++  private updateLeader(): void {
++    if (!this.stage) return
++    const settled = 1 - Math.min(1, Math.abs(this.rho - Math.round(this.rho)) * 6)
++    const o = this.portrait || !this.ringVisible ? 0 : settled * sstep(0.85, 1, this.inW)
++    const oq = Math.round(o * 100) / 100
++    if (oq !== this.leadO) {
++      this.leadO = oq
++      this.sectionEl?.style.setProperty('--lead-o', String(oq))
++    }
++    if (o <= 0) return
++    if (!this.leadLine?.isConnected) {
++      // remounted per variant by React: restart the draw-on
++      this.leadLine = document.getElementById('luLeadLine') as SVGLineElement | null
++      this.leadDot = document.getElementById('luLeadDot') as SVGCircleElement | null
++      this.leadEnd.x = -1
++      this.leadDrawT = performance.now()
++    }
++    if (!this.leadMat?.isConnected) this.leadMat = document.querySelector<HTMLElement>('.lu-mat .roll-l:last-child')
++    const line = this.leadLine
++    const dot = this.leadDot
++    if (!line || !dot) return
++    const now = performance.now()
++    // the label's width changes per variant: re-measure a few times a second
++    if (now - this.leadT > 250 || this.leadEnd.x < 0) {
++      this.leadT = now
++      const pin = this.pinEl?.getBoundingClientRect()
++      const r = this.leadMat?.getBoundingClientRect()
++      if (r && pin) {
++        this.leadStart.x = r.right + 18
++        this.leadStart.y = r.top + r.height / 2 - pin.top
++      }
++      this.leadMat = document.querySelector<HTMLElement>('.lu-mat .roll-l:last-child')
++    }
++    const m = this.members[ringIndex(this.rho)]
++    if (!m?.visible) return
++    // the point on the barrel axis that sits level with the label, so the
++    // leader runs dead horizontal (clamped to the barrel)
++    const pinTop = this.pinEl ? this.pinEl.getBoundingClientRect().top : 0
++    m.root.updateMatrixWorld()
++    const cam = this.stage.camera
++    tmpV.set(0, this.pencilMidY - this.pencilLen0 * 0.08, 0).applyMatrix4(m.root.matrixWorld).project(cam)
++    tmpV2.set(0, this.pencilMidY + this.pencilLen0 * 0.3, 0).applyMatrix4(m.root.matrixWorld).project(cam)
++    const ax = ((tmpV.x + 1) / 2) * this.vw
++    const ay = ((1 - tmpV.y) / 2) * this.vh - pinTop
++    const bx = ((tmpV2.x + 1) / 2) * this.vw
++    const by = ((1 - tmpV2.y) / 2) * this.vh - pinTop
++    const t = Math.min(1, Math.max(0, (this.leadStart.y - ay) / (by - ay || 1)))
++    const ex = ax + (bx - ax) * t
++    const ey = ay + (by - ay) * t
++    const draw = Math.min(1, Math.max(0, (now - this.leadDrawT - 180) / 900))
++    const drawing = draw < 1
++    if (!drawing && Math.abs(ex - this.leadEnd.x) < 0.4 && Math.abs(ey - this.leadEnd.y) < 0.4) return
++    this.leadEnd.x = ex
++    this.leadEnd.y = ey
++    line.setAttribute('x1', this.leadStart.x.toFixed(1))
++    line.setAttribute('y1', this.leadStart.y.toFixed(1))
++    line.setAttribute('x2', ex.toFixed(1))
++    line.setAttribute('y2', ey.toFixed(1))
++    dot.setAttribute('cx', ex.toFixed(1))
++    dot.setAttribute('cy', ey.toFixed(1))
++    // draw-on from the label toward the pencil (dash offset in px)
++    const len = Math.hypot(ex - this.leadStart.x, ey - this.leadStart.y)
++    const k = this.motionOK ? 1 - Math.pow(1 - draw, 3) : 1
++    line.style.strokeDasharray = `${len.toFixed(1)} ${(len + 2).toFixed(1)}`
++    line.style.strokeDashoffset = (len * (1 - k)).toFixed(1)
++    if (drawing) this.wake()
++  }
++  private leadDrawT = 0
++
++  private computeBuyPose(_ctx: FrameCtx): void {
++    if (!this.stage) return
++    const cam = this.stage.camera
++    let cx = 0.5
++    let cy = 0.5
++    let hPx = this.vh * 0.4
++    const el = this.buyEl && this.buyEl.isConnected ? this.buyEl : document.getElementById('buyStage')
++    this.buyEl = el
++    if (el) {
++      const r = el.getBoundingClientRect()
++      cx = (r.left + r.width / 2) / this.vw
++      cy = (r.top + r.height / 2) / this.vh
++      hPx = Math.min(r.height, r.width * 4)
++    } else {
++      cx = 0.25
++      cy = 0.6
++    }
++    // ray through the box centre, at the front slot's depth
++    tmpV2.set(cx * 2 - 1, -(cy * 2 - 1), 0.5).unproject(cam).sub(cam.position).normalize()
++    const fwd = tmpV.set(0, 0, -1).applyQuaternion(cam.quaternion)
++    const depth = this.frontDist / Math.max(0.2, tmpV2.dot(fwd))
++    this.buyPos.copy(cam.position).addScaledVector(tmpV2, depth)
++    // scale: the pencil spans ~88% of the box height at that depth
++    const visH = 2 * this.frontDist * Math.tan(THREE.MathUtils.degToRad(cam.fov / 2))
++    const worldLen = ((hPx * 0.88) / this.vh) * visH
++    this.buyScale = Math.max(0.02, worldLen / this.pencilLen0)
++    // upright turntable with the ring's lean
++    this.buyQuat.setFromAxisAngle(Z_AXIS, -LEAN * 0.6)
++    tmpQ.setFromAxisAngle(Y_AXIS, this.buySpin + 0.6)
++    this.buyQuat.multiply(tmpQ)
++    // centre the pencil's midpoint on the box centre
++    tmpV.set(0, this.pencilMidY * this.buyScale, 0).applyQuaternion(this.buyQuat)
++    this.buyPos.sub(tmpV)
++    // world → ring-parent space
++    if (this.parent && this.parent !== this.stage.scene) {
++      tmpM.compose(this.buyPos, this.buyQuat, tmpS.set(1, 1, 1)).premultiply(this.parentInv)
++      tmpM.decompose(this.buyPos, this.buyQuat, tmpS)
++    }
++  }
++
++  private updatePlate(): void {
++    // draw on with the handoff, fade with the sink
++    const draw = sstep(RING_IN[0] + 0.25, RING_IN[1] + 0.1, this.uS)
++    const fade = 1 - this.sinkW
++    this.plate.visible = draw > 0.001 && fade > 0.001
++    if (!this.plate.visible) return
++    this.plate.position.set(0, -PENCIL_LEN * 0.5 - 0.28, -this.R)
++    this.plate.scale.setScalar(this.R)
++    this.plateSpin.rotation.y = -this.rho * STEP
++    for (let i = 0; i < this.plateLines.length; i++) {
++      const l = this.plateLines[i]
++      const n = this.plateCounts[i]
++      // circles sweep around from the index mark; ticks follow slightly later
++      const t = i === 2 ? sstep(0.35, 1, draw) : draw
++      const cnt = Math.floor((n / 2) * t) * 2
++      l.geometry.setDrawRange(0, cnt)
++      const m = this.plateMats[i]
++      m.opacity = (m.userData.baseOpacity as number) * fade
++    }
++    if (this.indexMark) {
++      const m = this.indexMark.material as THREE.MeshBasicMaterial
++      m.opacity = (m.userData.baseOpacity as number) * fade * sstep(0.6, 1, draw)
++    }
++  }
++
++  private updateFog(): void {
++    const fog = this.fog
++    if (!fog || !this.stage) return
++    // full strength until the sinkers are gone (the presenter flies at the
++    // front slot's depth, never inside the fog)
++    const w = this.inW * (1 - sstep(RING_SINK[1], RING_OUT[1], this.uS))
++    if (w <= 0.001) {
++      this.parkFog()
++      return
++    }
++    const key = `${this.stage.renderer.toneMapping}:${this.stage.renderer.toneMappingExposure}`
++    if (key !== this.fogKey) {
++      this.fogKey = key
++      inverseToneMap(tmpColor.copy(this.paper), this.stage.renderer, this.fogColor)
++    }
++    fog.color.copy(this.fogColor)
++    const R = this.R
++    const df = this.stage.camera.position.distanceTo(tmpV.set(0, 0, 0))
++    // sides ≈ a third into the paper, the back pencil almost gone
++    const near = df + R * 0.12 + (1 - w) * R * 6
++    fog.near = near
++    fog.far = near + R * 2.25
++  }
++
++  private parkFog(): void {
++    if (!this.fog) return
++    if (this.fog.near !== this.fogNear0 || this.fog.far !== this.fogFar0) {
++      this.fog.near = this.fogNear0
++      this.fog.far = this.fogFar0
++    }
++  }
++
++  /** overlay dissolves as the ring collapses into Buy */
++  private writeOutCss(v: number): void {
++    const r = Math.round(v * 1000) / 1000
++    if (r === this.lastOutCss) return
++    this.lastOutCss = r
++    const sec = this.sectionEl ?? document.getElementById('lineup')
++    sec?.style.setProperty('--lu-out', String(r))
++  }
++
++  private writeRingCss(v: number): void {
++    const r = Math.round(Math.min(LINEUP_COUNT - 1, Math.max(0, v)) * 1000) / 1000
++    if (r === this.lastRingCss) return
++    this.lastRingCss = r
++    const sec = this.sectionEl ?? document.getElementById('lineup')
++    sec?.style.setProperty('--ring', String(r))
++  }
++
++  /**
++   * Proximity snap (lineup only): if scrolling stops mid-swing, finish the
++   * swing to the nearest detent edge. Never while a finger/mouse is down,
++   * dragging, or in a programmatic scroll.
++   */
++  private proximitySnap(): void {
++    if (!this.motionOK || this.drag || nav.hold >= 0 || pointer.down || NO_SNAP) return
++    const now = performance.now()
++    if (now - this.lastScrollMoveT < 280) return
++    const u = this.uR
++    if (u <= 0 || u >= LINEUP_PIN) return
++    const i = ringMoving(u)
++    if (i < 0) return
++    if (Math.abs(u - this.snapGuardU) < 0.002) return
++    this.snapGuardU = u
++    const [a, b] = RING_MOVES[i]
++    const f = (u - a) / (b - a)
++    const top = lineupTop()
++    if (top === null) return
++    const dest = f < 0.5 ? a - 0.04 : b + 0.04
++    scrollToY(Math.round(top + dest * this.vh), true)
++  }
++
++  wantsFrame(): boolean {
++    if (!this.active) return false
++    if (this.wakeFlag) {
++      this.wakeFlag = false
++      return true
++    }
++    if (this.rhoV !== 0 || this.chaseLive || nav.hold >= 0 || this.drag) return true
++    // turntables (front pencil, buy presenter) + snap watch while on screen
++    return this.motionOK && this.uS < LINEUP_PIN + 3
++  }
++
++  onResize(): void {
++    this.refreshLayout()
++  }
++
++  onMotionChange(ok: boolean): void {
++    this.motionOK = ok
++    this.wake()
++  }
++
++  /** Variant held in front during a programmatic scroll (QA). */
++  get holdIdx(): number {
++    return nav.hold
++  }
++
++  /** Document scrollY of a detent (exposed for debugging / QA). */
++  detentY(i: number): number {
++    return detentY(i)
++  }
++
++  dispose(): void {
++    this.offBus.forEach((f) => f())
++    this.listeners.forEach((f) => f())
++    this.root.removeFromParent()
++    for (const m of this.members) {
++      m.mats.forEach((x) => x.dispose())
++      m.proxy.geometry.dispose()
++      ;(m.proxy.material as THREE.Material).dispose()
++    }
++    this.plateMats.forEach((m) => m.dispose())
++    ;(this.indexMark?.material as THREE.Material | undefined)?.dispose()
++    this.ownGeoms.forEach((g) => g.dispose())
++    if (this.fog && this.stage?.scene.fog === this.fog && this.fogNear0 >= 1e5) this.stage.scene.fog = null
++  }
++}
++
++const tmpColor = new THREE.Color()

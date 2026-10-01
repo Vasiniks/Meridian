@@ -1,17 +1,52 @@
-/* ---------- nav ---------- */
-header#nav{position:fixed;top:0;left:0;right:0;z-index:50;height:64px;
-  display:flex;align-items:center;border-bottom:1px solid transparent;
-  transition:background .3s ease,border-color .3s ease}
-header#nav.scrolled{background:rgba(245,243,238,.86);backdrop-filter:blur(12px);border-color:var(--hairline)}
-.nav-inner{width:100%;max-width:var(--max);margin:0 auto;padding:0 24px;display:flex;align-items:center;gap:28px}
+/* ---------- nav: a drawing title block ---------- */
+header#nav{position:fixed;top:0;left:0;right:0;z-index:50;height:var(--nav-h);
+  display:flex;align-items:center;
+  transition:background-color .4s var(--ease-standard),backdrop-filter .4s var(--ease-standard)}
+/* at the top of the hero a soft paper fade keeps links legible over the pencil */
+header#nav::before{content:"";position:absolute;left:0;right:0;top:0;bottom:-28px;z-index:-1;pointer-events:none;
+  background:linear-gradient(to bottom,rgba(245,243,238,.94) 0%,rgba(245,243,238,.78) 55%,rgba(245,243,238,0) 100%);
+  transition:opacity .4s ease}
+header#nav.scrolled::before{opacity:0}
+header#nav.scrolled{background:rgba(245,243,238,.86);backdrop-filter:blur(12px) saturate(1.05);-webkit-backdrop-filter:blur(12px)}
+.nav-inner{width:100%;max-width:var(--max);margin:0 auto;padding:0 24px;display:flex;align-items:center;gap:22px}
 .brand{font-weight:700;letter-spacing:-0.02em;font-size:17px;text-decoration:none;white-space:nowrap}
 .brand small{font-family:var(--mono);font-weight:400;font-size:11px;color:var(--muted);margin-left:8px;letter-spacing:.1em}
-nav.links{display:flex;gap:22px;margin-left:auto}
-nav.links a{font-size:14px;text-decoration:none;color:var(--muted);transition:color .18s var(--ease-out);white-space:nowrap}
-nav.links a:hover{color:var(--ink)}
-.nav-cta{font-size:14px;font-weight:600;text-decoration:none;border-bottom:2px solid var(--accent);padding-bottom:1px}
-.motion-toggle{margin-left:4px;border:1px solid var(--hairline);background:var(--card);border-radius:var(--radius);
-  font-family:var(--mono);font-size:11px;letter-spacing:.08em;padding:7px 10px;cursor:pointer;color:var(--muted);
-  transition:color .18s ease,border-color .18s ease,transform .18s var(--ease-out)}
+
+/* SHEET 0X/09 — NAME */
+.sheet{display:flex;align-items:center;gap:7px;height:22px;padding-left:20px;border-left:1px solid var(--hairline);
+  font:500 11px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+.sheet-num{color:var(--ink);font-variant-numeric:tabular-nums}
+.sheet-of{margin-left:-6px}
+.sheet-dash{opacity:.6}
+.sheet-name{display:inline-grid;overflow:clip;height:1.4em;line-height:1.4em;color:var(--ink)}
+.sheet-name .sn{grid-area:1/1;transition:transform 700ms var(--ease-out)}
+.sheet-name .sn.in{transform:translate3d(0,108%,0)}
+.sheet-name .sn.out{transform:translate3d(0,-108%,0)}
+
+nav.links{display:flex;gap:6px;margin-left:auto}
+nav.links a{position:relative;font-size:14px;text-decoration:none;color:var(--muted);white-space:nowrap;padding:8px 9px;
+  transition:color var(--t-hover) var(--ease-standard)}
+nav.links a .mag{display:inline-block;will-change:transform}
+nav.links a:hover,nav.links a[aria-current="true"]{color:var(--ink)}
+/* active chapter: a short ink rule under the link (the "current sheet") */
+nav.links a::after{content:"";position:absolute;left:9px;right:9px;bottom:3px;height:1px;background:var(--ink);
+  transform:scaleX(0);transform-origin:0 50%;transition:transform var(--t-ui) var(--ease-standard)}
+nav.links a[aria-current="true"]::after{transform:scaleX(1)}
+.nav-cta{font-size:14px;font-weight:600;text-decoration:none;white-space:nowrap;padding:8px 2px}
+.nav-cta .mag{display:inline-block;border-bottom:2px solid var(--accent);padding-bottom:1px;will-change:transform}
+.motion-toggle{display:inline-flex;align-items:center;gap:8px;margin-left:2px;border:1px solid var(--hairline);background:transparent;
+  border-radius:var(--radius);font-family:var(--mono);font-size:11px;letter-spacing:.08em;padding:7px 10px;color:var(--muted);
+  transition:color var(--t-hover) ease,border-color var(--t-hover) ease,background-color var(--t-hover) ease}
+.motion-toggle i{width:6px;height:6px;border-radius:50%;background:var(--ink);transition:background-color var(--t-hover) ease,box-shadow var(--t-hover) ease}
+.motion-toggle[data-paused="true"] i{background:transparent;box-shadow:inset 0 0 0 1px var(--ink)}
 .motion-toggle:hover{color:var(--ink);border-color:var(--ink)}
-.motion-toggle:active{transform:scale(.98)}
+
+/* progress rule with chapter ticks (driven by src/fx/chrome) */
+.nav-rule{position:absolute;left:0;right:0;bottom:0;height:1px;pointer-events:none;
+  background:transparent;transition:background-color .4s ease}
+header#nav.scrolled .nav-rule{background:var(--hairline)}
+#ruleFill{position:absolute;inset:0;background:var(--ink);transform-origin:0 50%;transform:scaleX(0)}
+#ruleTicks i{position:absolute;bottom:0;width:1px;height:5px;background:var(--hairline);transition:background-color .4s ease,height .4s var(--ease-standard)}
+header#nav.scrolled #ruleTicks i{background:rgba(20,20,18,.28)}
+#ruleTicks i.on{background:var(--ink) !important;height:7px}
+#ruleTicks i:first-child{display:none}

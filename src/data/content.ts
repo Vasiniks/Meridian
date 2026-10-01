@@ -22,7 +22,7 @@ export const hero: HeroContent = {
     "Lead — 0.5 mm · Clutch feed",
     "Tolerance — ±0.02 mm",
   ],
-  scrollCue: "Scroll — the camera moves",
+  scrollCue: "Scroll",
 };
 
 export interface DetailSpec {
@@ -67,15 +67,17 @@ export const explodedLabels: ExplodedLabel[] = [
 ];
 
 export interface XrayContent {
+  eyebrow: string;
   title: string;
   lede: string;
   anno: string;
 }
 
 export const xray: XrayContent = {
+  eyebrow: "Sheet 04 — X-ray",
   title: "The shell goes quiet.",
-  lede: "The outer body turns to glass. What remains is the working core: reservoir, spring, clutch and lead path, held on the same axis they run on.",
-  anno: "02 / SECTION — shell opacity 15%. Nothing is hidden, nothing is faked.",
+  lede: "A scan passes down the body and the hull turns to glass. What remains is the working core: reservoir, spring, clutch and lead path, held on the same axis they run on.",
+  anno: "02 / SECTION A–A — read straight through 6061. Nothing is hidden, nothing is faked.",
 };
 
 export interface MechStep {

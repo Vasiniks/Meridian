@@ -19,3 +19,15 @@ legend{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform
 .fine{font-size:13px;color:var(--muted);margin-top:12px;text-align:center}
 #toast{margin-top:12px;font-size:14px;color:var(--accent-ink);min-height:22px;text-align:center}
 .buy-copy{display:flex;flex-direction:column;min-width:0}
+/* product slot: the lineup ring's selected pencil lands here (ring.ts
+   projects into this box every frame); static mode shows the render */
+.buy-stage{position:relative;flex:1 1 auto;min-height:max(300px,44dvh);margin-top:28px}
+.buy-stage img{display:none}
+.buy-stage-cap{position:absolute;left:0;bottom:0;display:flex;align-items:center;gap:10px;color:var(--muted);font-size:11px}
+.buy-stage-cap::before{content:"";width:22px;height:1px;background:var(--accent)}
+.is-static .buy-stage img{display:block;position:absolute;left:0;right:0;top:50%;width:100%;height:auto;
+  transform:translateY(-50%);opacity:0;transition:opacity .5s var(--ease-standard);mix-blend-mode:multiply}
+.is-static .buy-stage img[data-on="true"]{opacity:1}
+@media (max-width:900px){
+  .buy-stage{min-height:46dvh;margin-top:20px;margin-bottom:8px}
+}

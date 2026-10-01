@@ -1,28 +1,35 @@
+import { useEffect } from "react";
+import { startFx } from "../fx";
+
 export interface ChromeProps {
   motionPaused?: boolean;
   onToggleMotion?: () => void;
 }
 
+const links: [string, string][] = [
+  ["#detail", "Detail"],
+  ["#exploded", "Exploded"],
+  ["#mechanism", "Mechanism"],
+  ["#lineup", "Lineup"],
+];
+
+/**
+ * Fixed chrome: skip link, WebGL canvas + paper layers, and the nav as a
+ * drawing title block ("SHEET 0X/09 — NAME" + hairline progress rule with
+ * chapter ticks). The preloader lives in index.html so it paints before
+ * the bundle; src/fx drives it. Boots the DOM effects layer once.
+ */
 export default function Chrome({ motionPaused = false, onToggleMotion }: ChromeProps) {
+  useEffect(() => startFx(), []);
+
   return (
     <>
       <a className="skip" href="#main">
         Skip to content
       </a>
-      <div id="loader" role="status" aria-label="Loading product viewer">
-        <div className="mono">Meridian 0.5</div>
-        <div className="bar">
-          <i id="loadFill"></i>
-        </div>
-      </div>
-      <div id="progress" aria-hidden="true">
-        <i id="progressFill"></i>
-      </div>
-      <div id="sceneLabel" aria-hidden="true">
-        01 — Reveal
-      </div>
       <canvas id="gl" aria-hidden="true"></canvas>
-      <div className="scrim" aria-hidden="true"></div>
+      <div id="vignette" aria-hidden="true"></div>
+      <div id="grain" aria-hidden="true"></div>
       <div id="fallback" role="img" aria-label="Mechanical pencil illustration">
         <svg viewBox="0 0 200 600" fill="none" aria-hidden="true">
           <rect x="85" y="20" width="30" height="560" rx="14" fill="#141412" />
@@ -35,25 +42,42 @@ export default function Chrome({ motionPaused = false, onToggleMotion }: ChromeP
           <a className="brand" href="#hero">
             Meridian<small>0.5&nbsp;MM</small>
           </a>
+          <div className="sheet" aria-hidden="true">
+            <span className="sheet-k">Sheet</span>
+            <span className="sheet-num" id="sheetNum">
+              01
+            </span>
+            <span className="sheet-of">/09</span>
+            <span className="sheet-dash">—</span>
+            <span className="sheet-name" id="sheetName">
+              <span className="sn">Reveal</span>
+            </span>
+          </div>
           <nav className="links" aria-label="Sections">
-            <a href="#detail">Detail</a>
-            <a href="#exploded">Exploded</a>
-            <a href="#mechanism">Mechanism</a>
-            <a href="#lineup">Lineup</a>
+            {links.map(([href, label]) => (
+              <a key={href} href={href} data-magnetic="0.35">
+                <span className="mag">{label}</span>
+              </a>
+            ))}
           </nav>
-          <a className="nav-cta" href="#buy">
-            Buy — $48+
+          <a className="nav-cta" href="#buy" data-magnetic="0.3">
+            <span className="mag">Buy — $48+</span>
           </a>
+          {/* accessible name = visible text (label-in-name); state is in the words */}
           <button
             className="motion-toggle"
             id="motionBtn"
-            aria-pressed={motionPaused ? "true" : "false"}
-            aria-label="Pause motion"
+            data-paused={motionPaused ? "true" : "false"}
             type="button"
             onClick={onToggleMotion}
           >
+            <i aria-hidden="true"></i>
             {motionPaused ? "Resume motion" : "Pause motion"}
           </button>
+        </div>
+        <div className="nav-rule" aria-hidden="true">
+          <i id="ruleFill"></i>
+          <span id="ruleTicks"></span>
         </div>
       </header>
     </>

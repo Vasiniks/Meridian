@@ -1,0 +1,7 @@
+  9f43b1a Metric-matched font fallbacks (CLS 0.025 -> 0.0001); reveal on-screen content at intro
+  bc42f49 Section moments, editorial type, layout fixes; trail and reveal polish
+  9953025 Preloader drafts the pencil from real load progress; grain, vignette, title-block nav
+  d22bf81 Attribute-driven reveals: line masks, body fades, mono type-on, odometers
+  f3ee7ab Graphite cursor: velocity-width pencil trail, nib, context ring, magnets
+  5aecbba Lenis smooth scroll, real load progress, 3D smoothing to lambda 9
+  58d755c Motion system: tokens, damp/spring helpers, motion flag, DOM ticker; Instrument Serif

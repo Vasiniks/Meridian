@@ -1,0 +1,171 @@
+/* =====================================================================
+   Technical-drawing layer (DRAWING agent)
+   Stack: #dr-num (outlined "9") < #dr-ink (x-ray ink sheet) < #gl canvas
+          < .scrim < #drawing (SVG callouts) < main copy
+   ===================================================================== */
+#dr-num,
+#dr-ink {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100dvh;
+  z-index: 0;
+  pointer-events: none;
+}
+#dr-num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font);
+  font-weight: 500;
+  font-size: max(38vw, 280px);
+  line-height: 1;
+  letter-spacing: -0.06em;
+  color: transparent;
+  -webkit-text-stroke: 1px rgba(20, 20, 18, 0.25);
+  opacity: 0;
+  visibility: hidden;
+  user-select: none;
+  will-change: transform, opacity;
+  font-variant-numeric: tabular-nums;
+}
+#dr-ink {
+  background: #141412;
+  visibility: hidden;
+  clip-path: inset(0 0 100% 0);
+}
+
+#drawing {
+  --dr-ink: rgba(20, 20, 18, 0.55);
+  --dr-ink-strong: rgba(20, 20, 18, 0.82);
+  --dr-muted: rgba(20, 20, 18, 0.5);
+  --dr-paper: rgba(245, 243, 238, 0.72);
+  --dr-paper-strong: rgba(245, 243, 238, 0.94);
+  --dr-acc: var(--accent, #a63d22);
+  --dr-acc-neg: #e0714f;
+  --dr-ease: var(--ease-draw, cubic-bezier(0.65, 0, 0.35, 1));
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100dvh;
+  z-index: 1;
+  pointer-events: none;
+  overflow: visible;
+  /* own compositor layer: when Chromium squashes this fixed SVG into an
+     overlapping layer (the lineup stage on small screens) it stops
+     invalidating moved/hidden children and leaves stale scan lines */
+  will-change: transform;
+  transform: translateZ(0);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+  color: var(--dr-ink);
+}
+#drawing path,
+#drawing circle {
+  vector-effect: non-scaling-stroke;
+  fill: none;
+  stroke: var(--dr-ink);
+  stroke-width: 1;
+  stroke-linecap: butt;
+}
+#drawing text {
+  fill: var(--dr-ink-strong);
+  stroke: none;
+}
+#drawing .halo {
+  paint-order: stroke;
+  stroke: var(--paper, #f5f3ee);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
+#drawing .strong { stroke: var(--dr-ink-strong); }
+#drawing .thick { stroke-width: 2; stroke: var(--dr-ink-strong); }
+#drawing .fill { fill: var(--dr-ink-strong); stroke: none; }
+#drawing .cl { stroke-dasharray: 14 3 2 3; stroke: rgba(20, 20, 18, 0.38); }
+#drawing .dr-dot { fill: var(--dr-ink-strong); stroke: none; }
+#drawing .dr-hatchline { stroke: rgba(20, 20, 18, 0.42); stroke-width: 1; }
+#drawing .dr-hatch { fill: url(#dr-hatch); fill-rule: evenodd; stroke: none; }
+#drawing .dr-val { font-size: 11px; font-weight: 500; fill: var(--dr-ink-strong); }
+#drawing .dr-big { font-size: 12px; letter-spacing: 0.1em; }
+#drawing .dr-title { font-size: 10.5px; font-weight: 500; fill: var(--dr-ink-strong); }
+#drawing .dr-sub { font-size: 9.5px; fill: var(--dr-muted); }
+#drawing .dr-letter { font-size: 11px; font-weight: 500; }
+#drawing .dr-count { font-size: 18px; letter-spacing: 0.02em; fill: var(--dr-acc); }
+
+/* ---- draw-on (pathLength=1) ---------------------------------------- */
+#drawing .dl {
+  stroke-dasharray: 1 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset 0.9s var(--dr-ease) var(--d, 0ms);
+}
+#drawing .on .dl { stroke-dashoffset: 0; }
+#drawing .df {
+  opacity: 0;
+  transition: opacity 0.32s ease calc(var(--d, 0ms) + 0.55s);
+}
+#drawing .on .df { opacity: 1; }
+#drawing .dr-c:not(.on) .dl { transition: stroke-dashoffset 0.42s var(--dr-ease) 0ms; }
+#drawing .dr-c:not(.on) .df { transition: opacity 0.18s ease 0ms; }
+#drawing .dr-c.off { visibility: hidden; }
+/* drawn once: later visits fade instead of re-drawing */
+#drawing .dr-c.drawn .dl { stroke-dashoffset: 0; transition: none; }
+#drawing .dr-c.drawn { opacity: 0; transition: opacity 0.3s ease; }
+#drawing .dr-c.drawn.on { opacity: 1; }
+
+/* ---- balloons -------------------------------------------------------- */
+#drawing .dr-ring { stroke: var(--dr-ink-strong); }
+#drawing .dr-num { font-size: 10px; font-weight: 500; letter-spacing: 0; }
+#drawing .dr-name {
+  opacity: 0;
+  font-size: 10.5px;
+  font-weight: 500;
+  fill: var(--dr-acc);
+  transition: opacity 0.22s ease;
+}
+#drawing .dr-name.dr-sub { font-size: 9.5px; font-weight: 400; fill: var(--dr-muted); }
+#drawing .dr-balloon.act .dr-name { opacity: 1; }
+#drawing .dr-balloon.act .dl,
+#drawing .dr-balloon.act .dr-ring { stroke: var(--dr-acc); }
+#drawing .dr-balloon.act .dr-dot,
+#drawing .dr-balloon.act .dr-num { fill: var(--dr-acc); }
+#drawing .dr-balloon.hid .dl:not(.dr-ring) { stroke-opacity: 0.5; }
+#drawing .dr-balloon.hid .dr-dot { fill: var(--paper, #f5f3ee); stroke: var(--dr-ink-strong); stroke-width: 1; }
+#drawing .dr-bracket path { stroke: var(--dr-acc); opacity: 0; transition: opacity 0.22s ease; }
+#drawing .dr-bracket.on path { opacity: 1; }
+
+/* ---- x-ray: paper on ink --------------------------------------------- */
+#drawing .dr-inkzone path { stroke: var(--dr-paper); }
+#drawing .dr-inkzone .dr-dot { fill: var(--dr-paper-strong); stroke: none; }
+#drawing .dr-inkzone text { fill: var(--dr-paper-strong); }
+#drawing .dr-inkzone .dr-sub { fill: rgba(245, 243, 238, 0.55); }
+#drawing .dr-xname { font-size: 10.5px; font-weight: 500; }
+
+/* scan hairline: the accent belongs to the active line */
+#drawing .dr-scanline.off { visibility: hidden; }
+#drawing .scan { stroke: var(--dr-acc); stroke-width: 1; }
+#drawing .scan-dot { fill: none; stroke: var(--dr-acc); stroke-width: 1; }
+#drawing .scan-dot.off { visibility: hidden; }
+#drawing .scan-label { font-size: 10px; fill: var(--dr-ink-strong); }
+#drawing .dr-scanline.neg .scan { stroke: var(--dr-acc-neg); }
+#drawing .dr-scanline.neg .scan-dot { stroke: var(--dr-acc-neg); }
+#drawing .dr-scanline.neg .scan-label { fill: var(--dr-paper-strong); }
+#drawing .dr-scanline.quiet .scan-label { visibility: hidden; }
+
+/* small screens: lighter type, hairlines stay 1px */
+#drawing.is-small .dr-count { font-size: 15px; }
+#drawing.is-small .dr-title { font-size: 9.5px; }
+
+/* reduced motion: everything appears without draw-on */
+body.reduced #drawing *,
+body.reduced #drawing { transition: none !important; animation: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  #drawing *, #drawing { transition: none !important; animation: none !important; }
+}
+
+/* chrome legibility while the ink sheet covers the top bar (minimal, flagged) */
+body.dr-neg-top #sceneLabel { color: rgba(245, 243, 238, 0.66); }
+body.dr-neg .scrim { opacity: 0; }

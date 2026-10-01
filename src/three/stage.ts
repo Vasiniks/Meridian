@@ -4,6 +4,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
 import { HDRLoader } from 'three/addons/loaders/HDRLoader.js'
 import type { QualityConfig } from './config'
+import { asset } from '../assetUrl'
 
 export interface Stage {
   renderer: THREE.WebGLRenderer
@@ -11,6 +12,12 @@ export interface Stage {
   camera: THREE.PerspectiveCamera
   composer: EffectComposer
   key: THREE.DirectionalLight
+  /**
+   * All directional lights live in this group so the LOOK light sweep can
+   * rotate them together with `scene.environmentRotation` (coherent
+   * highlights). Identity at rest.
+   */
+  lightRig: THREE.Group
   setSize: (w: number, h: number) => void
   dispose: () => void
 }
@@ -29,8 +36,8 @@ export async function createStage(
   renderer.setSize(window.innerWidth, window.innerHeight, false)
   renderer.shadowMap.enabled = cfg.quality === 'high'
   renderer.shadowMap.type = THREE.PCFShadowMap
-  renderer.toneMapping = THREE.ACESFilmicToneMapping
-  renderer.toneMappingExposure = 1.12
+  renderer.toneMapping = THREE.NeutralToneMapping
+  renderer.toneMappingExposure = 1.0
   renderer.outputColorSpace = THREE.SRGBColorSpace
   renderer.setClearColor(0x000000, 0)
 
@@ -48,7 +55,7 @@ export async function createStage(
   // Falls back to the procedural card room if the file can't load.
   try {
     const hdr = await new HDRLoader().loadAsync(
-      '/environments/studio_small_09_1k.hdr',
+      asset('environments/studio_small_09_1k.hdr'),
     )
     scene.environment = pmrem.fromEquirectangular(hdr).texture
     hdr.dispose()
@@ -67,7 +74,10 @@ export async function createStage(
   // gives the anodized chamfers their sheen.
   const key = new THREE.DirectionalLight(0xfff1e2, 3.2)
   key.position.set(4.5, 6, 3.5)
-  key.castShadow = cfg.quality === 'high'
+  // No mesh receives directional shadows (contact shadows replace the old
+  // ShadowMaterial ground), so the key's shadow map would be pure cost. The
+  // LOOK shadow module re-enables it if any part opts into receiveShadow.
+  key.castShadow = false
   const s = cfg.quality === 'high' ? 2048 : 1024
   key.shadow.mapSize.set(s, s)
   key.shadow.bias = -0.00015
@@ -87,16 +97,10 @@ export async function createStage(
   top.position.set(0.5, 7.5, -0.5)
   const strip = new THREE.DirectionalLight(0xe8f0ff, 1.0)
   strip.position.set(6.5, 1.2, -2.5)
-  scene.add(key, rim, fill, top, strip)
-
-  const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(40, 40),
-    new THREE.ShadowMaterial({ opacity: 0.16 }),
-  )
-  ground.rotation.x = -Math.PI / 2
-  ground.position.y = -4.8
-  ground.receiveShadow = true
-  scene.add(ground)
+  const lightRig = new THREE.Group()
+  lightRig.name = 'LightRig'
+  lightRig.add(key, rim, fill, top, strip)
+  scene.add(lightRig)
 
   const composer =
     cfg.msaaSamples > 0
@@ -120,6 +124,7 @@ export async function createStage(
     camera,
     composer,
     key,
+    lightRig,
     setSize: (w: number, h: number) => {
       camera.aspect = w / h
       camera.updateProjectionMatrix()
