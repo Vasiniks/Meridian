@@ -30,7 +30,7 @@ The site is about 6/10 and should be Awwwards level.
 | `99a76b7` | **Pages bug fix.** `src/assetUrl.ts` `asset()` prefixes `import.meta.env.BASE_URL`. The live bundle requested `/models/*.glb` and `/environments/*.hdr` from the domain root, which 404s under `/Meridian/`, so the **live site never loaded the 3D pencil** and showed the SVG fallback. Verified the fix by serving `vite preview --base /Meridian/`: no 404s, and the 3D renders. **Every public URL must use `asset('…')`.** |
 | `1886160` | `scripts/frames/render-frames.cjs` regenerates the zero-GPU fallback frames (`public/frames/{desktop,mobile}`, 80 + 60 JPEGs, canvas only) from the live WebGL scene. Run it LAST, after everything is merged. |
 
-## 3. Paused workstreams (each in `handoff/wip/<name>.patch` + `.log`)
+## 3. Paused workstreams (each in `handoff/wip/<name>.patch` + `<name>.commits.txt`)
 
 Every patch was made with `git diff --binary 99a76b7 <agent HEAD>`, and each one applies cleanly by itself
 (`git apply --check` passes). Together they **will conflict in shared files** (see §4).
