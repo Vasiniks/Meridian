@@ -37,6 +37,8 @@ export interface BusEvents {
   motion: { ok: boolean }
   /** Active page chapter changed (nav title block). index is 0-based, 9 sheets. */
   chapter: { index: number; id: string; label: string }
+  /** LOOK: sweep a fast studio-light streak across the pencil(s). */
+  'look:streak': { strength?: number; duration?: number }
 }
 
 type Handler<K extends keyof BusEvents> = (payload: BusEvents[K]) => void
