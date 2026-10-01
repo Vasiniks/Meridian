@@ -1,3 +1,5 @@
+import { FINISHES } from './finishes'
+
 export type Quality = 'high' | 'low'
 
 export interface QualityConfig {
@@ -29,9 +31,7 @@ export function detectConfig(): QualityConfig {
   }
 }
 
-export const ANODIZED: Record<string, number> = {
-  Core: 0x2b2f36,
-  Studio: 0x1e2f4f,
-  Pro: 0x6b5a3e,
-  Limited: 0x4a4e55,
-}
+/** Barrel tint per variant (derived from FINISHES — edit colors there). */
+export const ANODIZED: Record<string, number> = Object.fromEntries(
+  Object.entries(FINISHES).map(([k, f]) => [k, f.color]),
+)

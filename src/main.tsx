@@ -1,5 +1,13 @@
 import ReactDOM from 'react-dom/client'
 import App from './App'
+// Self-hosted fonts (no third-party font CDN round-trip on first paint)
+import '@fontsource/inter-tight/latin-400.css'
+import '@fontsource/inter-tight/latin-500.css'
+import '@fontsource/inter-tight/latin-600.css'
+import '@fontsource/inter-tight/latin-700.css'
+import '@fontsource/inter-tight/latin-500-italic.css'
+import '@fontsource/ibm-plex-mono/latin-400.css'
+import '@fontsource/ibm-plex-mono/latin-500.css'
 import './styles/tokens.css'
 import './styles/base.css'
 import './styles/stage.css'

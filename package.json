@@ -10,6 +10,8 @@
     "build:assets": "python3 scripts/asset-processing/build_pencil_glb.py"
   },
   "dependencies": {
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "@fontsource/inter-tight": "^5.3.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "three": "0.184.0"
