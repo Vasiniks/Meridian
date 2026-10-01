@@ -53,6 +53,11 @@
   z-index: 1;
   pointer-events: none;
   overflow: visible;
+  /* own compositor layer: when Chromium squashes this fixed SVG into an
+     overlapping layer (the lineup stage on small screens) it stops
+     invalidating moved/hidden children and leaves stale scan lines */
+  will-change: transform;
+  transform: translateZ(0);
   font-family: var(--mono);
   font-size: 10px;
   letter-spacing: 0.08em;
