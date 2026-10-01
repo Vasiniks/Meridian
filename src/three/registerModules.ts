@@ -5,8 +5,11 @@ import type { PencilExperience } from './experience'
  * Each feature area owns its own block — keep them separate.
  */
 export function registerModules(exp: PencilExperience): void {
-  // ---- scene: pointer / post-processing / callouts -------------------
   void exp
+
+  // ---- look: pointer rig / light sweep / post FX / contact shadows ----
+
+  // ---- drawing: technical-drawing overlay / x-ray scan / mechanism ----
 
   // ---- lineup: 3D variant ring ---------------------------------------
 }
