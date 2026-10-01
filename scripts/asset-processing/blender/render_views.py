@@ -30,13 +30,24 @@ ROOT = build_pencil.ROOT
 HDRI = os.path.join(ROOT, "public", "environments", "studio_small_09_1k.hdr")
 PAPER = (0xF5, 0xF3, 0xEE)
 
-# Variant finishes (keep in sync with src/three/finishes.ts)
-FINISHES = {
-    "core": (0x2B2F36, 0.46),
-    "pro": (0xC59B55, 0.38),
-    "studio": (0x1E2F4F, 0.44),
-    "limited": (0x8E8F8C, 0.50),
-}
+FINISHES_TS = os.path.join(ROOT, "src", "three", "finishes.ts")
+
+
+def load_finishes():
+    """Variant finishes straight from src/three/finishes.ts (the runtime's
+    single source of truth): {variant: (sRGB hex, roughness)}."""
+    import re
+    src = open(FINISHES_TS).read()
+    out = {}
+    for name, body in re.findall(r"^\s*(Core|Pro|Studio|Limited)\s*:\s*\{([^}]*)\}", src, re.M):
+        col = int(re.search(r"color:\s*0x([0-9a-fA-F]{6})", body).group(1), 16)
+        rough = float(re.search(r"roughness:\s*([0-9.]+)", body).group(1))
+        out[name.lower()] = (col, rough)
+    assert set(out) == {"core", "pro", "studio", "limited"}, out
+    return out
+
+
+FINISHES = load_finishes()
 
 
 def paper_lin():
@@ -302,9 +313,48 @@ def xrayfull(a):
     render(os.path.join(a.out, "xray.png"))
 
 
+def _write_png_rgb(path, rgb8):
+    """Minimal RGB PNG writer (numpy uint8 HxWx3, row 0 = top)."""
+    import struct
+    import zlib
+    h, w, _ = rgb8.shape
+    raw = b"".join(b"\x00" + rgb8[y].tobytes() for y in range(h))
+
+    def chunk(t, d):
+        c = struct.pack(">I", len(d)) + t + d
+        return c + struct.pack(">I", zlib.crc32(t + d) & 0xFFFFFFFF)
+    with open(path, "wb") as f:
+        f.write(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)) +
+                chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b""))
+
+
+def composite_paper(src_rgba, dst_rgb):
+    """Alpha-over the transparent-film render onto the exact card paper
+    colour (display space), so the PNG background is #F5F3EE to the byte and
+    melts into the lineup card."""
+    import numpy as np
+    img = bpy.data.images.load(src_rgba)
+    w, h = img.size
+    px = np.empty(w * h * 4, np.float32)
+    img.pixels.foreach_get(px)
+    bpy.data.images.remove(img)
+    px = px.reshape(h, w, 4)[::-1]  # bpy rows are bottom-up
+    a = px[..., 3:4]
+    paper = np.array(PAPER, np.float32) / 255.0
+    rgb = px[..., :3] * a + paper * (1.0 - a)
+    _write_png_rgb(dst_rgb, np.clip(np.round(rgb * 255.0), 0, 255).astype(np.uint8))
+
+
 def cards(a):
-    """Lineup card renders: 800x320, pencil horizontal (tip right), paper."""
-    setup_render(800, 320, a.samples)
+    """Lineup card renders: 800x320, pencil horizontal (tip right), on the
+    card paper. Barrel finish = src/three/finishes.ts (colour + roughness).
+    A wide softbox above/in front of the camera puts a soft gradient on the
+    upper hex faces so the tint reads (the HDRI behind an orthographic
+    camera is mostly dark, which turned every finish near-black)."""
+    setup_render(800, 320, a.samples, transparent=True)
+    add_area("CardSoftbox", (0.0, -16.0, 12.0), (0, 0, 0), 26.0, 5200, (1.0, 0.985, 0.96), size_y=6.0)
+    add_area("CardFloor", (0.0, -10.0, -9.0), (0, 0, 0), 26.0, 900, (1.0, 0.97, 0.94), size_y=4.0)
+    tmp = tempfile.mkdtemp(prefix="meridian_cards_")
     for v in ("core", "pro", "studio", "limited"):
         set_finish(v)
         pose()
@@ -312,7 +362,10 @@ def cards(a):
         for o in [o for o in bpy.data.objects if o.type == 'CAMERA']:
             bpy.data.objects.remove(o)
         add_camera((-0.45, -40, 0.0), (-0.45, 0, 0.0), ortho=17.4)
-        render(os.path.join(a.cards_out, f"{v}.png"))
+        raw = os.path.join(tmp, f"{v}_rgba.png")
+        render(raw)
+        composite_paper(raw, os.path.join(a.cards_out, f"{v}.png"))
+        print("card", v, FINISHES[v])
 
 
 def main():
