@@ -1,0 +1,3683 @@
+diff --git a/index.html b/index.html
+index 37cca74..5039061 100644
+--- a/index.html
++++ b/index.html
+@@ -7,8 +7,92 @@
+ <meta name="description" content="Meridian Hex. A hexagonal precision mechanical pencil. Fewer parts. Tighter tolerances.">
+ <meta name="theme-color" content="#F5F3EE">
+ <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpolygon points='16,2 26,8 26,24 16,30 6,24 6,8' fill='%23141412'/%3E%3Cpath d='M13 28 L16 31 L19 28Z' fill='%23A63D22'/%3E%3C/svg%3E">
++<script>
++  // FX bootstrap (runs before first paint): reveal pre-hiding, repeat-visit
++  // short preloader, scroll lock, and a failsafe if the bundle never runs.
++  (function () {
++    var d = document.documentElement
++    d.classList.add('js', 'pl-on', 'scroll-locked')
++    try { if (sessionStorage.getItem('mh:seen')) d.classList.add('pl-short') } catch (e) {}
++    setTimeout(function () { if (!window.__fx) d.classList.add('no-fx') }, 9000)
++  })()
++</script>
++<style>
++  /* Critical preloader styles (inline so the sheet paints before the bundle). */
++  html,body{background:#F5F3EE;margin:0}
++  #loader{position:fixed;inset:0;z-index:100;background:#F5F3EE;color:#141412;overflow:hidden;
++    font:500 11px/1.4 "IBM Plex Mono","IBM Plex Mono Fallback",SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.1em;text-transform:uppercase;
++    clip-path:inset(0 0 0 0);transition:clip-path 1000ms cubic-bezier(0.76,0,0.24,1),opacity .45s ease}
++  #loader .pl-m{color:#6E6C66}
++  .pl-frame{position:absolute;inset:clamp(10px,1.6vw,22px);pointer-events:none}
++  .pl-frame i{position:absolute;background:#141412;opacity:.85}
++  .pl-frame .t,.pl-frame .b{left:0;right:0;height:1px;transform:scaleX(0);transform-origin:0 0;animation:plx .9s cubic-bezier(0.65,0,0.35,1) .05s forwards}
++  .pl-frame .t{top:0}.pl-frame .b{bottom:0;transform-origin:100% 0}
++  .pl-frame .l,.pl-frame .r{top:0;bottom:0;width:1px;transform:scaleY(0);transform-origin:0 100%;animation:ply .9s cubic-bezier(0.65,0,0.35,1) .05s forwards}
++  .pl-frame .l{left:0}.pl-frame .r{right:0;transform-origin:0 0}
++  @keyframes plx{to{transform:scaleX(1)}}@keyframes ply{to{transform:scaleY(1)}}
++  .pl-zx{position:absolute;left:0;right:0;top:0;height:9px;display:flex}
++  .pl-zx span{flex:1;border-left:1px solid rgba(20,20,18,.35);font-size:8px;line-height:9px;padding-left:4px;color:#6E6C66;opacity:0;animation:plf .6s ease .7s forwards}
++  .pl-zx span:first-child{border-left:0}
++  .pl-zy{position:absolute;top:9px;bottom:0;left:0;width:9px;display:flex;flex-direction:column}
++  .pl-zy span{flex:1;border-top:1px solid rgba(20,20,18,.35);font-size:8px;line-height:1;padding-top:4px;text-align:center;color:#6E6C66;opacity:0;animation:plf .6s ease .7s forwards}
++  .pl-zy span:first-child{border-top:0}
++  @keyframes plf{to{opacity:1}}
++  .pl-hd{position:absolute;top:clamp(26px,3vw,40px);left:clamp(26px,3vw,46px);right:clamp(26px,3vw,46px);display:flex;justify-content:space-between;gap:16px;opacity:0;animation:plf .6s ease .5s forwards}
++  .pl-proj{display:inline-flex;align-items:center;gap:8px}
++  .pl-proj svg{width:30px;height:13px;stroke:#141412;fill:none}
++  .pl-draw{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:clamp(56px,9vh,110px) clamp(28px,7vw,120px)}
++  .pl-svg{width:100%;height:100%;overflow:visible}
++  .pl-ft{position:absolute;left:clamp(26px,3vw,46px);right:clamp(26px,3vw,46px);bottom:clamp(24px,3vw,40px);display:flex;justify-content:space-between;align-items:flex-end;gap:16px}
++  .pl-count{display:flex;align-items:baseline;gap:12px}
++  .pl-num{font-variant-numeric:tabular-nums;font-size:13px;letter-spacing:.06em;color:#141412}
++  .pl-tb{display:grid;grid-template-columns:auto auto auto auto;border:1px solid rgba(20,20,18,.8);opacity:0;animation:plf .6s ease .4s forwards}
++  .pl-tb span{padding:7px 12px;border-left:1px solid rgba(20,20,18,.8);white-space:nowrap}
++  .pl-tb span:first-child{border-left:0;font-weight:500}
++  .pl-rule{position:absolute;left:0;right:0;bottom:0;height:1px;background:#141412;opacity:0;
++    transition:transform 1000ms cubic-bezier(0.76,0,0.24,1),opacity .2s ease}
++  .pl-rule::before{content:"";position:absolute;left:0;right:0;bottom:1px;height:18px;
++    background:linear-gradient(to top,rgba(20,20,18,.07),rgba(20,20,18,0))}
++  #loader.pl-exit{clip-path:inset(0 0 100% 0)}
++  #loader.pl-exit .pl-rule{opacity:1;transform:translateY(calc(-100vh + 1px))}
++  #loader.pl-fade{opacity:0;transition:opacity .45s ease}
++  #loader.pl-gone{display:none}
++  .pl-short .pl-frame i{animation-duration:.35s;animation-delay:0s}
++  .pl-short .pl-hd,.pl-short .pl-tb,.pl-short .pl-zx span,.pl-short .pl-zy span{animation-delay:0s;animation-duration:.25s}
++  .no-fx #loader{display:none}
++  @media (max-width:640px){
++    .pl-tb{grid-template-columns:auto auto}
++    .pl-tb span:nth-child(3){border-left:0}
++    .pl-tb span:nth-child(n+3){border-top:1px solid rgba(20,20,18,.8)}
++    .pl-hd .pl-proj{display:none}
++    .pl-draw{padding:84px 40px 120px}
++  }
++  @media (prefers-reduced-motion:reduce){
++    .pl-frame i{animation:none;transform:none}
++    .pl-hd,.pl-tb,.pl-zx span,.pl-zy span{animation:none;opacity:1}
++  }
++</style>
+ </head>
+ <body>
++<div id="loader" role="status" aria-label="Loading product viewer">
++  <div class="pl-frame" aria-hidden="true">
++    <i class="t"></i><i class="r"></i><i class="b"></i><i class="l"></i>
++    <div class="pl-zx"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span></div>
++    <div class="pl-zy"><span>A</span><span>B</span><span>C</span><span>D</span></div>
++  </div>
++  <div class="pl-hd" aria-hidden="true">
++    <span>Drg Nº MH-05-001 <span class="pl-m">— General arrangement</span></span>
++    <span class="pl-proj pl-m">Dimensions in mm
++      <svg viewBox="0 0 30 13"><path d="M1 3.5 L11 1 L11 12 L1 9.5 Z"/><circle cx="22" cy="6.5" r="5.5"/><circle cx="22" cy="6.5" r="2.4"/></svg>
++    </span>
++  </div>
++  <div class="pl-draw" aria-hidden="true"><svg id="plSvg" class="pl-svg" xmlns="http://www.w3.org/2000/svg"></svg></div>
++  <div class="pl-ft" aria-hidden="true">
++    <div class="pl-count"><span class="pl-m">Loading</span><span class="pl-num" id="plNum">000</span></div>
++    <div class="pl-tb"><span>Meridian Hex</span><span>Sheet 01/09</span><span>Scale 1:1</span><span>Rev C</span></div>
++  </div>
++  <div class="pl-rule" aria-hidden="true"></div>
++</div>
+ <div id="root"></div>
+ <script type="module" src="/src/main.tsx"></script>
+ </body>
+diff --git a/package-lock.json b/package-lock.json
+index 2835ce5..d351173 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -9,7 +9,9 @@
+       "version": "2.0.0",
+       "dependencies": {
+         "@fontsource/ibm-plex-mono": "^5.3.0",
++        "@fontsource/instrument-serif": "^5.3.0",
+         "@fontsource/inter-tight": "^5.3.0",
++        "lenis": "^1.3.26",
+         "react": "^19.1.0",
+         "react-dom": "^19.1.0",
+         "three": "0.184.0"
+@@ -763,6 +765,15 @@
+         "url": "https://github.com/sponsors/ayuhito"
+       }
+     },
++    "node_modules/@fontsource/instrument-serif": {
++      "version": "5.3.0",
++      "resolved": "https://registry.npmjs.org/@fontsource/instrument-serif/-/instrument-serif-5.3.0.tgz",
++      "integrity": "sha512-mDiaIg0u67sYV59fie92Wz4sM8UiVlbL7fLxnFPCKkX15DMASEnQTREbaP5S5/3DCcsoAOcQ0sV9E4AeY4QqYQ==",
++      "license": "OFL-1.1",
++      "funding": {
++        "url": "https://github.com/sponsors/ayuhito"
++      }
++    },
+     "node_modules/@fontsource/inter-tight": {
+       "version": "5.3.0",
+       "resolved": "https://registry.npmjs.org/@fontsource/inter-tight/-/inter-tight-5.3.0.tgz",
+@@ -1567,6 +1578,37 @@
+         "node": ">=6"
+       }
+     },
++    "node_modules/lenis": {
++      "version": "1.3.26",
++      "resolved": "https://registry.npmjs.org/lenis/-/lenis-1.3.26.tgz",
++      "integrity": "sha512-s/xTCZCxTFvHbAN1OzuhNaN5YPJH2ail0XAkctKW1b+RUAG4nUL5UHLXwNko1h8aEeT2jspBXegMgPJd8zcuag==",
++      "license": "MIT",
++      "workspaces": [
++        "packages/*",
++        "playground",
++        "playground/*"
++      ],
++      "funding": {
++        "type": "github",
++        "url": "https://github.com/sponsors/darkroomengineering"
++      },
++      "peerDependencies": {
++        "@nuxt/kit": ">=3.0.0",
++        "react": ">=17.0.0",
++        "vue": ">=3.0.0"
++      },
++      "peerDependenciesMeta": {
++        "@nuxt/kit": {
++          "optional": true
++        },
++        "react": {
++          "optional": true
++        },
++        "vue": {
++          "optional": true
++        }
++      }
++    },
+     "node_modules/lru-cache": {
+       "version": "5.1.1",
+       "resolved": "https://registry.npmjs.org/lru-cache/-/lru-cache-5.1.1.tgz",
+diff --git a/package.json b/package.json
+index 46fe9b6..ace0bb0 100644
+--- a/package.json
++++ b/package.json
+@@ -11,7 +11,9 @@
+   },
+   "dependencies": {
+     "@fontsource/ibm-plex-mono": "^5.3.0",
++    "@fontsource/instrument-serif": "^5.3.0",
+     "@fontsource/inter-tight": "^5.3.0",
++    "lenis": "^1.3.26",
+     "react": "^19.1.0",
+     "react-dom": "^19.1.0",
+     "three": "0.184.0"
+diff --git a/src/components/Chrome.tsx b/src/components/Chrome.tsx
+index 7fe805f..c11131f 100644
+--- a/src/components/Chrome.tsx
++++ b/src/components/Chrome.tsx
+@@ -1,28 +1,35 @@
++import { useEffect } from "react";
++import { startFx } from "../fx";
++
+ export interface ChromeProps {
+   motionPaused?: boolean;
+   onToggleMotion?: () => void;
+ }
+ 
++const links: [string, string][] = [
++  ["#detail", "Detail"],
++  ["#exploded", "Exploded"],
++  ["#mechanism", "Mechanism"],
++  ["#lineup", "Lineup"],
++];
++
++/**
++ * Fixed chrome: skip link, WebGL canvas + paper layers, and the nav as a
++ * drawing title block ("SHEET 0X/09 — NAME" + hairline progress rule with
++ * chapter ticks). The preloader lives in index.html so it paints before
++ * the bundle; src/fx drives it. Boots the DOM effects layer once.
++ */
+ export default function Chrome({ motionPaused = false, onToggleMotion }: ChromeProps) {
++  useEffect(() => startFx(), []);
++
+   return (
+     <>
+       <a className="skip" href="#main">
+         Skip to content
+       </a>
+-      <div id="loader" role="status" aria-label="Loading product viewer">
+-        <div className="mono">Meridian 0.5</div>
+-        <div className="bar">
+-          <i id="loadFill"></i>
+-        </div>
+-      </div>
+-      <div id="progress" aria-hidden="true">
+-        <i id="progressFill"></i>
+-      </div>
+-      <div id="sceneLabel" aria-hidden="true">
+-        01 — Reveal
+-      </div>
+       <canvas id="gl" aria-hidden="true"></canvas>
+-      <div className="scrim" aria-hidden="true"></div>
++      <div id="vignette" aria-hidden="true"></div>
++      <div id="grain" aria-hidden="true"></div>
+       <div id="fallback" role="img" aria-label="Mechanical pencil illustration">
+         <svg viewBox="0 0 200 600" fill="none" aria-hidden="true">
+           <rect x="85" y="20" width="30" height="560" rx="14" fill="#141412" />
+@@ -35,26 +42,43 @@ export default function Chrome({ motionPaused = false, onToggleMotion }: ChromeP
+           <a className="brand" href="#hero">
+             Meridian<small>0.5&nbsp;MM</small>
+           </a>
++          <div className="sheet" aria-hidden="true">
++            <span className="sheet-k">Sheet</span>
++            <span className="sheet-num" id="sheetNum">
++              01
++            </span>
++            <span className="sheet-of">/09</span>
++            <span className="sheet-dash">—</span>
++            <span className="sheet-name" id="sheetName">
++              <span className="sn">Reveal</span>
++            </span>
++          </div>
+           <nav className="links" aria-label="Sections">
+-            <a href="#detail">Detail</a>
+-            <a href="#exploded">Exploded</a>
+-            <a href="#mechanism">Mechanism</a>
+-            <a href="#lineup">Lineup</a>
++            {links.map(([href, label]) => (
++              <a key={href} href={href} data-magnetic="0.35">
++                <span className="mag">{label}</span>
++              </a>
++            ))}
+           </nav>
+-          <a className="nav-cta" href="#buy">
+-            Buy — $48+
++          <a className="nav-cta" href="#buy" data-magnetic="0.3">
++            <span className="mag">Buy — $48+</span>
+           </a>
++          {/* accessible name = visible text (label-in-name); state is in the words */}
+           <button
+             className="motion-toggle"
+             id="motionBtn"
+-            aria-pressed={motionPaused ? "true" : "false"}
+-            aria-label="Pause motion"
++            data-paused={motionPaused ? "true" : "false"}
+             type="button"
+             onClick={onToggleMotion}
+           >
++            <i aria-hidden="true"></i>
+             {motionPaused ? "Resume motion" : "Pause motion"}
+           </button>
+         </div>
++        <div className="nav-rule" aria-hidden="true">
++          <i id="ruleFill"></i>
++          <span id="ruleTicks"></span>
++        </div>
+       </header>
+     </>
+   );
+diff --git a/src/components/Detail.tsx b/src/components/Detail.tsx
+index df1949a..c0c4cb6 100644
+--- a/src/components/Detail.tsx
++++ b/src/components/Detail.tsx
+@@ -1,21 +1,31 @@
+ import { detailAnno, detailLede, detailSpecs, detailTitle } from "../data/content";
++import Em from "./Em";
+ 
+ export default function Detail() {
+   return (
+     <section id="detail" className="tall" aria-labelledby="h-detail">
+       <div className="wrap panel">
+-        <div className="card rv">
+-          <h2 id="h-detail">{detailTitle}</h2>
+-          <p className="lede">{detailLede}</p>
+-          <ul className="spec-list">
++        <div className="card">
++          <div className="eyebrow" data-reveal="type">
++            Sheet 02 — Grip detail
++          </div>
++          <h2 id="h-detail" data-reveal="lines">
++            <Em text={detailTitle} />
++          </h2>
++          <p className="lede" data-reveal="fade" data-reveal-delay="240">
++            {detailLede}
++          </p>
++          <ul className="spec-list draw-rows" data-reveal="fade" data-reveal-delay="360">
+             {detailSpecs.map((s) => (
+               <li key={s.b}>
+                 <b>{s.b}</b>
+-                <span>{s.span}</span>
++                <span data-odometer>{s.span}</span>
+               </li>
+             ))}
+           </ul>
+-          <p className="anno">{detailAnno}</p>
++          <p className="anno" data-reveal="fade" data-reveal-delay="480">
++            {detailAnno}
++          </p>
+         </div>
+       </div>
+     </section>
+diff --git a/src/components/Em.tsx b/src/components/Em.tsx
+new file mode 100644
+index 0000000..03a2fc9
+--- /dev/null
++++ b/src/components/Em.tsx
+@@ -0,0 +1,16 @@
++/**
++ * Renders a headline with its last `n` words as the editorial emphasis
++ * (Instrument Serif italic via `h1 em, h2 em`). Keeps content.ts plain text.
++ */
++export default function Em({ text, n = 1 }: { text: string; n?: number }) {
++  const words = text.trim().split(/\s+/)
++  const head = words.slice(0, Math.max(0, words.length - n)).join(' ')
++  const tail = words.slice(-n).join(' ')
++  return (
++    <>
++      {head}
++      {head ? ' ' : ''}
++      <em>{tail}</em>
++    </>
++  )
++}
+diff --git a/src/components/Exploded.tsx b/src/components/Exploded.tsx
+index c04e686..8013a59 100644
+--- a/src/components/Exploded.tsx
++++ b/src/components/Exploded.tsx
+@@ -1,17 +1,33 @@
++import type { CSSProperties } from "react";
+ import { explodedEyebrow, explodedLabels, explodedLede, explodedTitle } from "../data/content";
++import Em from "./Em";
+ 
+ export default function Exploded() {
+   return (
+     <section id="exploded" aria-labelledby="h-exploded">
+       <div className="wrap panel">
+-        <div className="card rv" style={{ maxWidth: "420px" }}>
+-          <div className="eyebrow">{explodedEyebrow}</div>
+-          <h2 id="h-exploded">{explodedTitle}</h2>
+-          <p className="lede">{explodedLede}</p>
+-          <div className="exp-labels" aria-label="Component list">
+-            {explodedLabels.map((l) => (
+-              <div key={l.t}>
+-                <span>{l.t}</span>
++        <div className="card exp-card">
++          <div className="eyebrow" data-reveal="type">
++            {explodedEyebrow}
++          </div>
++          <h2 id="h-exploded" data-reveal="lines">
++            <Em text={explodedTitle} n={2} />
++          </h2>
++          <p className="lede" data-reveal="fade" data-reveal-delay="240">
++            {explodedLede}
++          </p>
++          <div
++            className="exp-labels draw-rows"
++            aria-label="Component list"
++            data-reveal="fade"
++            data-reveal-delay="360"
++          >
++            {explodedLabels.map((l, i) => (
++              <div key={l.t} style={{ "--k": i } as CSSProperties}>
++                <span>
++                  <i className="exp-n">{String(i + 1).padStart(2, "0")}</i>
++                  {l.t}
++                </span>
+                 <span>{l.d}</span>
+               </div>
+             ))}
+diff --git a/src/components/Footer.tsx b/src/components/Footer.tsx
+index 3a3bdef..85a4815 100644
+--- a/src/components/Footer.tsx
++++ b/src/components/Footer.tsx
+@@ -1,12 +1,17 @@
+ import { footer } from "../data/content";
+ 
++/** Closing title block: the last sheet of the drawing set. */
+ export default function Footer() {
+   return (
+     <footer>
+-      <div className="wrap foot">
+-        <span className="brand">{footer.brand}</span>
+-        <span className="mono">{footer.tagline}</span>
+-        <span className="mono">{footer.copyright}</span>
++      <div className="wrap">
++        <div className="foot-tb">
++          <span className="brand">{footer.brand}</span>
++          <span className="mono">{footer.tagline}</span>
++          <span className="mono">Drawn · Checked · Scale 1:1</span>
++          <span className="mono">Sheet 09/09 · Rev C</span>
++          <span className="mono">{footer.copyright}</span>
++        </div>
+       </div>
+     </footer>
+   );
+diff --git a/src/components/Hero.tsx b/src/components/Hero.tsx
+index 12828b5..db1c23b 100644
+--- a/src/components/Hero.tsx
++++ b/src/components/Hero.tsx
+@@ -1,36 +1,63 @@
++import type { CSSProperties } from "react";
+ import { hero } from "../data/content";
+ 
++/** "Body — Hex 6061 · 18 g" → ["Body", "Hex 6061 · 18 g"] */
++function splitSpec(s: string): [string, string] {
++  const i = s.indexOf(" — ");
++  return i < 0 ? ["", s] : [s.slice(0, i), s.slice(i + 3)];
++}
++
+ export default function Hero() {
++  const [head, ...rows] = hero.specs;
+   return (
+     <section id="hero" aria-labelledby="h-hero">
+       <div className="wrap hero-grid panel">
+-        <div className="rv">
+-          <div className="eyebrow">{hero.eyebrow}</div>
+-          <h1 id="h-hero">
++        <div className="hero-copy">
++          <div className="eyebrow" data-reveal="type" data-reveal-delay="40">
++            {hero.eyebrow}
++          </div>
++          <h1 id="h-hero" data-reveal="lines" data-reveal-delay="120">
+             {hero.titleA}
+             <br />
+             <em>{hero.titleEm}</em>
+           </h1>
+-          <p className="hero-sub">{hero.sub}</p>
+-          <div className="hero-actions">
+-            <a className="btn-solid" href="#buy">
+-              {hero.ctaSolid}
++          <p className="hero-sub" data-reveal="fade" data-reveal-delay="560">
++            {hero.sub}
++          </p>
++          <div className="hero-actions" data-reveal="fade" data-reveal-delay="680">
++            <a className="btn-solid" href="#buy" data-magnetic="0.28">
++              <span className="mag">
++                <span className="mag-label">{hero.ctaSolid}</span>
++              </span>
+             </a>
+-            <a className="btn-line" href="#exploded">
+-              {hero.ctaLine}
++            <a className="btn-line" href="#exploded" data-magnetic="0.22">
++              <span className="mag">
++                <span className="mag-label">{hero.ctaLine}</span>
++              </span>
+             </a>
+           </div>
+-          <div className="scroll-cue" aria-hidden="true">
+-            <span className="tick"></span>
++          <div className="scroll-cue" aria-hidden="true" data-reveal="fade" data-reveal-delay="900">
++            <span className="cue-line">
++              <i></i>
++            </span>
+             <span className="mono">{hero.scrollCue}</span>
+           </div>
+         </div>
+-        <div className="hero-spec rv">
+-          {hero.specs.map((s) => (
+-            <div className="mono" key={s}>
+-              {s}
+-            </div>
+-          ))}
++        <div className="hero-spec" data-reveal="fade" data-reveal-delay="780">
++          <div className="hs-head mono">{head}</div>
++          <dl>
++            {rows.map((r, i) => {
++              const [k, v] = splitSpec(r);
++              return (
++                <div key={r} style={{ "--k": i } as CSSProperties}>
++                  <dt className="mono">{k}</dt>
++                  <dd className="mono" data-odometer>
++                    {v}
++                  </dd>
++                </div>
++              );
++            })}
++          </dl>
+         </div>
+       </div>
+     </section>
+diff --git a/src/components/Mechanism.tsx b/src/components/Mechanism.tsx
+index c1847d3..392fede 100644
+--- a/src/components/Mechanism.tsx
++++ b/src/components/Mechanism.tsx
+@@ -1,14 +1,25 @@
++import type { CSSProperties } from "react";
+ import { mechanismTitle, mechSteps } from "../data/content";
++import Em from "./Em";
+ 
+ export default function Mechanism() {
+   return (
+     <section id="mechanism" className="tall" aria-labelledby="h-mech">
+       <div className="wrap panel">
+-        <div className="card rv">
+-          <h2 id="h-mech">{mechanismTitle}</h2>
+-          <div className="steps" id="steps">
++        <div className="card">
++          <div className="eyebrow mech-eyebrow" aria-hidden="true">
++            <span>Sequence</span>
++            <span className="mech-count">
++              <span id="mechCount">01</span>
++              <span className="mech-of">&nbsp;/&nbsp;05</span>
++            </span>
++          </div>
++          <h2 id="h-mech" data-reveal="lines">
++            <Em text={mechanismTitle} n={2} />
++          </h2>
++          <div className="steps draw-rows" id="steps" data-reveal="fade" data-reveal-delay="260">
+             {mechSteps.map((s, i) => (
+-              <div className="step" data-i={String(i)} key={s.n}>
++              <div className="step" data-i={String(i)} key={s.n} style={{ "--k": i } as CSSProperties}>
+                 <span className="n">{s.n}</span>
+                 <div>
+                   <h3>{s.h}</h3>
+diff --git a/src/components/Philosophy.tsx b/src/components/Philosophy.tsx
+index 03e1f45..14ba305 100644
+--- a/src/components/Philosophy.tsx
++++ b/src/components/Philosophy.tsx
+@@ -1,24 +1,51 @@
++import type { CSSProperties } from "react";
+ import { philosophy, philosophyTitleA, philosophyTitleB } from "../data/content";
+ 
++const SPECS = ["0.5 mm lead", "Hex A/F 8.0", "18 g", "6061 Al", "C360 brass", "Grade 5 Ti"];
++
+ export default function Philosophy() {
+   return (
+     <section id="philosophy" aria-labelledby="h-phil">
+       <div className="wrap panel">
+-        <div className="rv">
+-          <h2 id="h-phil">
+-            {philosophyTitleA}
+-            <br />
+-            {philosophyTitleB}
+-          </h2>
+-          <div className="phil-rows">
+-            {philosophy.map((r) => (
+-              <div key={r.idx}>
+-                <span className="idx">{r.idx}</span>
+-                <p>{r.p}</p>
+-                <span className="val">{r.val}</span>
+-              </div>
+-            ))}
+-          </div>
++        <div className="eyebrow" data-reveal="type">
++          Sheet 07 — Principles
++        </div>
++        {/* letter-spacing tightens with scroll (--sp, driven by src/fx/chrome) */}
++        <h2 id="h-phil" className="phil-h" data-reveal="lines">
++          {philosophyTitleA}
++          <br />
++          {philosophyTitleB}
++        </h2>
++        <div className="phil-rows draw-rows" data-reveal="fade" data-reveal-delay="200">
++          {philosophy.map((r, i) => (
++            <div key={r.idx} style={{ "--k": i } as CSSProperties}>
++              <span className="idx">{r.idx}</span>
++              <p>{r.p}</p>
++              <span className="val" data-odometer>
++                {r.val}
++              </span>
++            </div>
++          ))}
++        </div>
++      </div>
++      {/* velocity-coupled spec ticker (decorative; static list for AT) */}
++      <ul className="sr-only">
++        {SPECS.map((s) => (
++          <li key={s}>{s}</li>
++        ))}
++      </ul>
++      <div className="marquee" data-marquee aria-hidden="true">
++        <div className="mq-track">
++          {[0, 1, 2, 3].map((c) => (
++            <span className="mq-copy" key={c}>
++              {SPECS.map((s) => (
++                <span key={s}>
++                  {s}
++                  <i>·</i>
++                </span>
++              ))}
++            </span>
++          ))}
+         </div>
+       </div>
+     </section>
+diff --git a/src/components/Reassembly.tsx b/src/components/Reassembly.tsx
+index aaa7cf9..d70f6dd 100644
+--- a/src/components/Reassembly.tsx
++++ b/src/components/Reassembly.tsx
+@@ -1,12 +1,15 @@
+ import { reassembly } from "../data/content";
++import Em from "./Em";
+ 
+ export default function Reassembly() {
+   return (
+     <section id="reassembly" className="tall" aria-labelledby="h-re">
+       <div className="wrap panel">
+-        <div className="card rv" style={{ textAlign: "center", margin: "0 auto" }}>
+-          <h2 id="h-re">{reassembly.title}</h2>
+-          <p className="lede" style={{ margin: "14px auto 0" }}>
++        <div className="card re-card">
++          <h2 id="h-re" data-reveal="lines">
++            <Em text={reassembly.title} />
++          </h2>
++          <p className="lede" data-reveal="fade" data-reveal-delay="240">
+             {reassembly.lede}
+           </p>
+         </div>
+diff --git a/src/data/content.ts b/src/data/content.ts
+index 6c0c5b9..51e420f 100644
+--- a/src/data/content.ts
++++ b/src/data/content.ts
+@@ -22,7 +22,7 @@ export const hero: HeroContent = {
+     "Lead — 0.5 mm · Clutch feed",
+     "Tolerance — ±0.02 mm",
+   ],
+-  scrollCue: "Scroll — the camera moves",
++  scrollCue: "Scroll",
+ };
+ 
+ export interface DetailSpec {
+diff --git a/src/fx/bus.ts b/src/fx/bus.ts
+index fe50c95..15f6028 100644
+--- a/src/fx/bus.ts
++++ b/src/fx/bus.ts
+@@ -5,7 +5,20 @@ import type { VariantName } from '../three/finishes'
+  * experience (src/three). Keeps the two sides decoupled: e.g. the 3D ring
+  * announces the variant in front, the DOM overlay and buy form listen.
+  */
+-export type CursorMode = 'default' | 'hover' | 'drag' | 'view' | 'text' | 'hidden'
++/**
++ * Cursor states. `link` (alias `hover`): hairline ring; `drag`/`view`/`part`:
++ * ink pill or disc with a mono label; `text`: caret; `hidden`: custom cursor
++ * off, native cursor back. `default` clears a state you set.
++ */
++export type CursorMode =
++  | 'default'
++  | 'hover'
++  | 'link'
++  | 'drag'
++  | 'view'
++  | 'part'
++  | 'text'
++  | 'hidden'
+ 
+ export interface BusEvents {
+   /** Request a cursor state (label shown inside the cursor ring). */
+@@ -16,6 +29,14 @@ export interface BusEvents {
+   'variant:select': { name: VariantName; source: 'ring' | 'buy' | 'other' }
+   /** The user clicked the pencil — play a button click / lead advance. */
+   'pencil:click': Record<string, never>
++  /** Real asset load progress 0..1 (GLB / HDR bytes), emitted during experience.init. */
++  'load:progress': { p: number }
++  /** Preloader curtain starts lifting — first reveals may begin. */
++  intro: Record<string, never>
++  /** Motion allowed (false = reduced-motion preference or the motion toggle). */
++  motion: { ok: boolean }
++  /** Active page chapter changed (nav title block). index is 0-based, 9 sheets. */
++  chapter: { index: number; id: string; label: string }
+ }
+ 
+ type Handler<K extends keyof BusEvents> = (payload: BusEvents[K]) => void
+diff --git a/src/fx/chrome.ts b/src/fx/chrome.ts
+new file mode 100644
+index 0000000..016612e
+--- /dev/null
++++ b/src/fx/chrome.ts
+@@ -0,0 +1,174 @@
++import { addTask, wake } from './ticker'
++import { bus } from './bus'
++import { motion } from '../motion/flag'
++import { clamp, smoothstep } from '../motion/math'
++import { scroll, onGeometry } from './scroll'
++import { setOdometer } from './odometer'
++
++/**
++ * Scroll-linked chrome, all from cached geometry (no layout reads per frame):
++ * - nav title block "SHEET 0X/09 — NAME" (odometer number + masked name roll)
++ * - hairline progress rule with ticks at each chapter start
++ * - aria-current on the nav link of the active chapter
++ * - hero scroll-cue fade, Philosophy tracking ("tighter tolerances"),
++ *   Mechanism step counter.
++ */
++export const SHEETS: readonly { id: string; name: string }[] = [
++  { id: 'hero', name: 'Reveal' },
++  { id: 'detail', name: 'Detail' },
++  { id: 'exploded', name: 'Exploded' },
++  { id: 'xray', name: 'X-Ray' },
++  { id: 'mechanism', name: 'Mechanism' },
++  { id: 'reassembly', name: 'Reassembly' },
++  { id: 'philosophy', name: 'Principles' },
++  { id: 'lineup', name: 'Lineup' },
++  { id: 'buy', name: 'Order' },
++]
++
++const pad2 = (n: number): string => (n < 10 ? '0' : '') + n
++
++export function startChrome(): () => void {
++  const nav = document.getElementById('nav')
++  const num = document.getElementById('sheetNum')
++  const nameBox = document.getElementById('sheetName')
++  const fill = document.getElementById('ruleFill')
++  const ticksBox = document.getElementById('ruleTicks')
++  const cue = document.querySelector<HTMLElement>('#hero .scroll-cue')
++  const philH2 = document.querySelector<HTMLElement>('#philosophy h2')
++  const mechCount = document.getElementById('mechCount')
++  const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('#nav nav.links a'))
++
++  const tops = new Float64Array(SHEETS.length)
++  const ticks: HTMLElement[] = []
++  let philTop = 0
++  let mechTop = 0
++  let mechH = 1
++  let active = -1
++  let lastFill = -1
++  let lastCue = -1
++  let lastTrack = -1
++  let lastMech = -1
++  let scrolled: boolean | null = null
++  let seq = -1
++
++  const docTop = (el: Element): number => el.getBoundingClientRect().top + window.scrollY
++  const measure = (): void => {
++    SHEETS.forEach((s, i) => {
++      const el = document.getElementById(s.id)
++      tops[i] = el ? docTop(el) : i > 0 ? tops[i - 1] : 0
++    })
++    if (philH2) philTop = docTop(philH2)
++    const mech = document.getElementById('mechanism')
++    if (mech) {
++      mechTop = docTop(mech)
++      mechH = Math.max(1, mech.offsetHeight)
++    }
++    if (ticksBox) {
++      if (ticks.length === 0) {
++        SHEETS.forEach(() => {
++          const t = document.createElement('i')
++          ticksBox.append(t)
++          ticks.push(t)
++        })
++      }
++      SHEETS.forEach((_, i) => {
++        const p = clamp(tops[i] / scroll.max, 0, 1)
++        ticks[i].style.left = `${(p * 100).toFixed(3)}%`
++      })
++    }
++    seq = -1
++    wake()
++  }
++
++  const setSheet = (i: number): void => {
++    if (i === active) return
++    const first = active === -1
++    active = i
++    const s = SHEETS[i]
++    if (num) setOdometer(num, pad2(i + 1))
++    if (nameBox) {
++      const next = document.createElement('span')
++      next.className = 'sn'
++      next.textContent = s.name
++      const prev = nameBox.querySelector('.sn:not(.out)')
++      if (first || !motion.ok || !prev) {
++        nameBox.replaceChildren(next)
++      } else {
++        next.classList.add('in')
++        prev.classList.add('out')
++        nameBox.append(next)
++        // next frame: let both transition (old up, new from below)
++        requestAnimationFrame(() => next.classList.remove('in'))
++        window.setTimeout(() => prev.remove(), 800)
++      }
++    }
++    ticks.forEach((t, k) => t.classList.toggle('on', k <= i))
++    for (const a of links) {
++      if (a.hash === `#${s.id}`) a.setAttribute('aria-current', 'true')
++      else a.removeAttribute('aria-current')
++    }
++    bus.emit('chapter', { index: i, id: s.id, label: s.name })
++  }
++
++  const tick = (): boolean => {
++    if (seq === scroll.seq) return false
++    seq = scroll.seq
++    const y = scroll.y
++    const vh = scroll.vh
++    // active chapter: last section whose top passed the viewport middle
++    const probe = y + vh * 0.5
++    let i = 0
++    while (i < SHEETS.length - 1 && tops[i + 1] <= probe) i++
++    if (y >= scroll.max - 2) i = SHEETS.length - 1
++    setSheet(i)
++    const p = scroll.p
++    if (fill && Math.abs(p - lastFill) > 0.0005) {
++      lastFill = p
++      fill.style.transform = `scaleX(${p.toFixed(4)})`
++    }
++    const sc = y > 40
++    if (nav && sc !== scrolled) {
++      scrolled = sc
++      nav.classList.toggle('scrolled', sc)
++    }
++    if (cue) {
++      const o = 1 - smoothstep(0, vh * 0.22, y)
++      if (Math.abs(o - lastCue) > 0.004) {
++        lastCue = o
++        // a var, not inline opacity: the host's own reveal owns `opacity`
++        cue.style.setProperty('--cue', o.toFixed(3))
++      }
++    }
++    if (philH2) {
++      // tracking tightens from +0.06em to −0.035em as the headline rises
++      const sp = motion.ok ? smoothstep(philTop - vh * 0.92, philTop - vh * 0.28, y) : 1
++      if (Math.abs(sp - lastTrack) > 0.002) {
++        lastTrack = sp
++        philH2.style.setProperty('--sp', sp.toFixed(3))
++      }
++    }
++    if (mechCount) {
++      const mp = clamp((vh * 0.6 - (mechTop - y)) / mechH, 0, 1)
++      const si = Math.min(4, Math.floor(mp * 5))
++      if (si !== lastMech) {
++        lastMech = si
++        setOdometer(mechCount, pad2(si + 1))
++      }
++    }
++    return false
++  }
++
++  measure()
++  const offGeo = onGeometry(measure)
++  const offTask = addTask(tick)
++  const offMotion = bus.on('motion', () => {
++    lastTrack = -1
++    seq = -1
++    wake()
++  })
++  return () => {
++    offGeo()
++    offTask()
++    offMotion()
++  }
++}
+diff --git a/src/fx/cursor.ts b/src/fx/cursor.ts
+new file mode 100644
+index 0000000..ea1c9fd
+--- /dev/null
++++ b/src/fx/cursor.ts
+@@ -0,0 +1,428 @@
++import { bus, type CursorMode } from './bus'
++import { addTask, wake } from './ticker'
++import { motion } from '../motion/flag'
++import { spring, type Spring1 } from '../motion/math'
++import { GraphiteTrail } from './graphite'
++import { onGeometry, scroll } from './scroll'
++
++/**
++ * Custom cursor for fine pointers: a zero-lag graphite nib that draws the
++ * trail, plus a spring-follow ring that changes with context.
++ *
++ * DOM API (pointerover delegation, no per-element listeners):
++ *   data-cursor="link|drag|view|part|text|hidden"  [data-cursor-label="…"]
++ *   data-no-trail          lift the pencil without changing the cursor
++ *   data-magnetic[="0.3"]  magnetic CTA; moves its `.mag` child (face) and
++ *                          `.mag-label` grandchild, never the hit area.
++ * 3D API: bus.emit('cursor', { mode: 'view', label: 'Select' }) on hover,
++ *         bus.emit('cursor', { mode: 'default' }) on leave. DOM states win.
++ *
++ * Off on touch / coarse pointers, reduced motion and the motion toggle
++ * (native cursor restored). Native cursor always shows over text inputs.
++ */
++const LIFT_SEL =
++  'a,button,input,select,textarea,label,summary,[role="button"],[data-cursor],[data-no-trail],[data-magnetic]'
++const NATIVE_SEL =
++  'input:not([type="radio"]):not([type="checkbox"]):not([type="range"]):not([type="submit"]):not([type="button"]),textarea,select,[contenteditable="true"]'
++const LINK_SEL = 'a,button,label,summary,[role="button"],input[type="radio"],input[type="checkbox"],input[type="submit"]'
++
++type Mode = Exclude<CursorMode, 'hover'>
++
++interface Magnet {
++  el: HTMLElement
++  face: HTMLElement | null
++  label: HTMLElement | null
++  s: number
++  pad: number
++  x: Spring1
++  y: Spring1
++  tx: number
++  ty: number
++  lastX: number
++  lastY: number
++  // cached viewport rect (refreshed when scroll or geometry changes)
++  l: number
++  t: number
++  w: number
++  h: number
++}
++
++export function startCursor(): () => void {
++  const root = document.createElement('div')
++  root.id = 'cursor'
++  root.setAttribute('aria-hidden', 'true')
++  root.innerHTML =
++    '<div class="cur-ring"><div class="cur-shape"><span class="cur-label"></span></div></div>' +
++    '<div class="cur-nib"><div class="cur-dot"></div></div>'
++  const ring = root.querySelector<HTMLElement>('.cur-ring')!
++  const shape = root.querySelector<HTMLElement>('.cur-shape')!
++  const labelEl = root.querySelector<HTMLElement>('.cur-label')!
++  const nib = root.querySelector<HTMLElement>('.cur-nib')!
++  document.body.append(root)
++  // the full-viewport trail canvas is only created once a mouse shows up
++  let trailObj: GraphiteTrail | null = null
++  const trail = {
++    get active(): boolean {
++      return !!trailObj && trailObj.active
++    },
++    frame: (now: number): boolean => (trailObj ? trailObj.frame(now) : false),
++    add: (x: number, y: number, t: number, p: boolean): void => trailObj?.add(x, y, t, p),
++    lift: (): void => trailObj?.lift(),
++    clear: (): void => trailObj?.clear(),
++    resize: (): void => trailObj?.resize(),
++    ensure: (): void => {
++      if (trailObj) return
++      trailObj = new GraphiteTrail()
++      document.body.insertBefore(trailObj.canvas, root)
++    },
++  }
++  const html = document.documentElement
++
++  // ---- state
++  let enabled = false // custom cursor in charge (fine pointer + motion ok + mouse seen)
++  let inside = false
++  let px = -100
++  let py = -100
++  let moved = false
++  let down = false
++  let domMode: Mode | null = null
++  let domLabel = ''
++  let busMode: Mode | null = null
++  let busLabel = ''
++  let mode: Mode = 'default'
++  let modeLabel = ''
++  let lifted = false
++  const rx: Spring1 = { x: -100, v: 0 }
++  const ry: Spring1 = { x: -100, v: 0 }
++  let ringOn = false
++  let stuck: Magnet | null = null
++  let lastRingX = NaN
++  let lastRingY = NaN
++  let lastNibX = NaN
++  let lastNibY = NaN
++  let lastShapeW = -1
++  let lastShapeH = -1
++  let domLift = false
++
++  // ---- magnets
++  let magnets: Magnet[] = []
++  const collectMagnets = (): void => {
++    const els = Array.from(document.querySelectorAll<HTMLElement>('[data-magnetic]'))
++    magnets = els.map((el) => {
++      const prev = magnets.find((m) => m.el === el)
++      if (prev) return prev
++      const face = el.querySelector<HTMLElement>(':scope > .mag') ?? (el.firstElementChild as HTMLElement | null)
++      const v = parseFloat(el.dataset.magnetic || '')
++      const r = el.getBoundingClientRect()
++      return {
++        el,
++        face,
++        label: face?.querySelector<HTMLElement>('.mag-label') ?? null,
++        s: Number.isFinite(v) && v > 0 ? v : r.width > 180 ? 0.15 : 0.3,
++        pad: r.width > 180 ? 24 : 16,
++        x: { x: 0, v: 0 },
++        y: { x: 0, v: 0 },
++        tx: 0,
++        ty: 0,
++        lastX: NaN,
++        lastY: NaN,
++        l: r.left,
++        t: r.top,
++        w: r.width,
++        h: r.height,
++      }
++    })
++    rectSeq = -1
++  }
++  let rectSeq = -1
++  const refreshRects = (): void => {
++    if (rectSeq === scroll.seq) return
++    rectSeq = scroll.seq
++    for (const m of magnets) {
++      const r = m.el.getBoundingClientRect()
++      m.l = r.left
++      m.t = r.top
++      m.w = r.width
++      m.h = r.height
++    }
++  }
++
++  // ---- mode resolution
++  const applyMode = (): void => {
++    let m: Mode = domMode ?? busMode ?? 'default'
++    const lbl = domMode ? domLabel : busMode ? busLabel : ''
++    if (m === 'link' && lbl) m = 'part' // labelled links read as a pill
++    const lift = m !== 'default' || domLift
++    if (lift && !lifted) trail.lift()
++    lifted = lift
++    if (m === mode && lbl === modeLabel) return
++    mode = m
++    modeLabel = lbl
++    root.dataset.mode = m
++    if (lbl) labelEl.textContent = lbl
++    else if (m === 'drag') labelEl.textContent = 'Drag ⟷'
++    else if (m === 'view') labelEl.textContent = 'View'
++    else labelEl.textContent = ''
++    // pill width follows the label (measured once per change); a stuck
++    // ring re-applies the magnet's box on the next frame
++    if (m === 'part' || m === 'drag') {
++      shape.style.width = `${Math.ceil(labelEl.scrollWidth) + 30}px`
++    } else shape.style.removeProperty('width')
++    lastShapeW = lastShapeH = -1
++    wake()
++  }
++
++  const onOver = (e: PointerEvent): void => {
++    if (e.pointerType !== 'mouse') return
++    const t = e.target as Element | null
++    if (!t || !t.closest) return
++    const native = t.closest(NATIVE_SEL)
++    const tagged = t.closest<HTMLElement>('[data-cursor]')
++    domLift = !!t.closest(LIFT_SEL)
++    if (native) {
++      domMode = 'hidden'
++      domLabel = ''
++    } else if (tagged) {
++      const m = (tagged.dataset.cursor || 'link') as CursorMode
++      domMode = m === 'hover' ? 'link' : (m as Mode)
++      domLabel = tagged.dataset.cursorLabel || ''
++    } else if (t.closest(LINK_SEL)) {
++      domMode = 'link'
++      domLabel = ''
++    } else {
++      domMode = null
++      domLabel = ''
++    }
++    applyMode()
++  }
++
++  const offBus = bus.on('cursor', ({ mode: m, label }) => {
++    busMode = m === 'default' ? null : m === 'hover' ? 'link' : m
++    busLabel = label ?? ''
++    applyMode()
++  })
++
++  // ---- enable / disable
++  const setEnabled = (on: boolean): void => {
++    if (on === enabled) return
++    enabled = on
++    html.classList.toggle('has-cursor', on)
++    if (!on) {
++      trail.clear()
++      root.classList.remove('is-on')
++      for (const m of magnets) {
++        m.x.x = m.x.v = m.y.x = m.y.v = 0
++        if (m.face) m.face.style.removeProperty('transform')
++        if (m.label) m.label.style.removeProperty('transform')
++        m.lastX = m.lastY = NaN
++      }
++      stuck = null
++    }
++    wake()
++  }
++  const allowed = (): boolean => motion.ok && motion.fine
++
++  const onMove = (e: PointerEvent): void => {
++    if (e.pointerType !== 'mouse') {
++      setEnabled(false)
++      return
++    }
++    if (!allowed()) return
++    px = e.clientX
++    py = e.clientY
++    if (!enabled) {
++      trail.ensure()
++      setEnabled(true)
++      rx.x = px
++      ry.x = py
++    }
++    if (!inside) {
++      inside = true
++      root.classList.add('is-on')
++    }
++    moved = true
++    if (!lifted) {
++      const evs = e.getCoalescedEvents?.()
++      if (evs && evs.length > 1) {
++        for (let i = 0; i < evs.length; i++) trail.add(evs[i].clientX, evs[i].clientY, evs[i].timeStamp, down)
++      } else trail.add(px, py, e.timeStamp, down)
++    }
++    wake()
++  }
++  const onDown = (e: PointerEvent): void => {
++    if (e.pointerType !== 'mouse') return
++    down = true
++    root.classList.add('is-down')
++  }
++  const onUp = (): void => {
++    down = false
++    root.classList.remove('is-down')
++  }
++  const onLeave = (e: PointerEvent): void => {
++    if (e.relatedTarget) return
++    inside = false
++    root.classList.remove('is-on')
++    trail.lift()
++    stuck = null
++    wake()
++  }
++  const onMotion = (): void => {
++    if (!allowed()) setEnabled(false)
++  }
++  const offMotion = bus.on('motion', onMotion)
++  const onResize = (): void => {
++    trail.resize()
++    wake()
++  }
++
++  // ---- frame
++  const tick = (dt: number, now: number): boolean => {
++    let awake = false
++    if (trail.active) awake = trail.frame(now) || awake
++    if (!enabled) return awake
++
++    // magnets: find the engaged one (pointer within rect + pad)
++    let engaged: Magnet | null = null
++    let ecx = 0
++    let ecy = 0
++    let ew = 0
++    let eh = 0
++    if (inside && magnets.length) {
++      refreshRects()
++      let best = 1e9
++      for (const m of magnets) {
++        if (m.w === 0) continue
++        const pad = m.pad
++        if (px < m.l - pad || px > m.l + m.w + pad || py < m.t - pad || py > m.t + m.h + pad) continue
++        const cx = m.l + m.w / 2
++        const cy = m.t + m.h / 2
++        const d = Math.abs(px - cx) + Math.abs(py - cy)
++        if (d < best) {
++          best = d
++          engaged = m
++          ecx = cx
++          ecy = cy
++          ew = m.w
++          eh = m.h
++        }
++      }
++    }
++    for (const m of magnets) {
++      if (m === engaged) {
++        m.tx = (px - ecx) * m.s
++        m.ty = (py - ecy) * m.s
++      } else {
++        m.tx = 0
++        m.ty = 0
++      }
++      const x = spring(m.x, m.tx, 180, 18, dt)
++      const y = spring(m.y, m.ty, 180, 18, dt)
++      const live = Math.abs(x - m.tx) > 0.05 || Math.abs(y - m.ty) > 0.05 || Math.abs(m.x.v) > 0.05 || Math.abs(m.y.v) > 0.05
++      if (live) awake = true
++      else {
++        m.x.x = m.tx
++        m.y.x = m.ty
++        m.x.v = m.y.v = 0
++      }
++      if (m.face && (Math.abs(m.x.x - m.lastX) > 0.01 || Math.abs(m.y.x - m.lastY) > 0.01 || Number.isNaN(m.lastX))) {
++        m.lastX = m.x.x
++        m.lastY = m.y.x
++        m.face.style.transform = `translate3d(${m.x.x.toFixed(2)}px,${m.y.x.toFixed(2)}px,0)`
++        if (m.label) m.label.style.transform = `translate3d(${(m.x.x * 0.6).toFixed(2)}px,${(m.y.x * 0.6).toFixed(2)}px,0)`
++      }
++    }
++    if (engaged !== stuck) {
++      stuck = engaged
++      root.classList.toggle('is-stuck', !!stuck)
++      if (!stuck) {
++        lastShapeW = lastShapeH = -1
++        shape.style.removeProperty('height')
++        if (mode !== 'part' && mode !== 'drag') shape.style.removeProperty('width')
++      }
++    }
++    if (stuck) {
++      const sw = Math.round(ew + 14)
++      const sh = Math.round(eh + 14)
++      if (sw !== lastShapeW || sh !== lastShapeH) {
++        lastShapeW = sw
++        lastShapeH = sh
++        shape.style.width = `${sw}px`
++        shape.style.height = `${sh}px`
++      }
++    }
++
++    // nib: exactly at the pointer
++    if (px !== lastNibX || py !== lastNibY) {
++      lastNibX = px
++      lastNibY = py
++      nib.style.transform = `translate3d(${px}px,${py}px,0)`
++    }
++    // ring: spring-follow (to the magnet's face when stuck)
++    const tx = stuck ? ecx + stuck.x.x : px
++    const ty = stuck ? ecy + stuck.y.x : py
++    const wantRing = mode !== 'default' && mode !== 'hidden'
++    if (wantRing !== ringOn) {
++      ringOn = wantRing
++      if (wantRing) {
++        // appear from the nib, not from wherever it was left
++        if (!stuck) {
++          rx.x = px
++          ry.x = py
++          rx.v = ry.v = 0
++        }
++      }
++    }
++    spring(rx, tx, 320, 30, dt)
++    spring(ry, ty, 320, 30, dt)
++    if (Math.abs(rx.x - tx) > 0.05 || Math.abs(ry.x - ty) > 0.05 || Math.abs(rx.v) > 0.5 || Math.abs(ry.v) > 0.5) {
++      awake = true
++    } else {
++      rx.x = tx
++      ry.x = ty
++      rx.v = ry.v = 0
++    }
++    if (rx.x !== lastRingX || ry.x !== lastRingY) {
++      lastRingX = rx.x
++      lastRingY = ry.x
++      ring.style.transform = `translate3d(${rx.x.toFixed(2)}px,${ry.x.toFixed(2)}px,0)`
++    }
++    if (moved) {
++      moved = false
++      awake = true
++    }
++    return awake
++  }
++
++  // reveal fades move CTAs a few px: re-read magnet rects when they settle
++  const onTransitionEnd = (e: TransitionEvent): void => {
++    if ((e.target as Element).matches?.('[data-reveal]')) rectSeq = -1
++  }
++  document.addEventListener('transitionend', onTransitionEnd, { passive: true })
++  collectMagnets()
++  const offGeo = onGeometry(collectMagnets)
++  const offIntro = bus.on('intro', collectMagnets)
++  const offTask = addTask(tick)
++  document.addEventListener('pointerover', onOver, { passive: true })
++  window.addEventListener('pointermove', onMove, { passive: true })
++  window.addEventListener('pointerdown', onDown, { passive: true })
++  window.addEventListener('pointerup', onUp, { passive: true })
++  document.addEventListener('pointerout', onLeave, { passive: true })
++  window.addEventListener('resize', onResize)
++  return () => {
++    offBus()
++    offMotion()
++    offGeo()
++    offIntro()
++    offTask()
++    setEnabled(false)
++    document.removeEventListener('transitionend', onTransitionEnd)
++    document.removeEventListener('pointerover', onOver)
++    window.removeEventListener('pointermove', onMove)
++    window.removeEventListener('pointerdown', onDown)
++    window.removeEventListener('pointerup', onUp)
++    document.removeEventListener('pointerout', onLeave)
++    window.removeEventListener('resize', onResize)
++    root.remove()
++    trailObj?.canvas.remove()
++  }
++}
+diff --git a/src/fx/grain.ts b/src/fx/grain.ts
+new file mode 100644
+index 0000000..eec4174
+--- /dev/null
++++ b/src/fx/grain.ts
+@@ -0,0 +1,57 @@
++/**
++ * Film grain + warm vignette — CSS layers over the whole page so DOM type
++ * and the transparent WebGL canvas read as one printed surface.
++ *
++ * Perf: no mix-blend-mode. The tile is premultiplied black-alpha noise
++ * (visually the same as multiplying near-white noise on paper) so the
++ * compositor does plain alpha blending; the layer is only one tile larger
++ * than the viewport and steps through tile offsets at ~8 fps (pure CSS,
++ * paused when motion is off, still on touch devices).
++ */
++const TILE = 160
++
++function noiseTile(size = TILE): Promise<string> {
++  const c = document.createElement('canvas')
++  c.width = c.height = size
++  const g = c.getContext('2d')!
++  const img = g.createImageData(size, size)
++  const d = img.data
++  for (let i = 0; i < d.length; i += 4) {
++    // skewed toward clear, a few darker specks (warm black)
++    const a = Math.pow(Math.random(), 2.2)
++    d[i] = 38
++    d[i + 1] = 32
++    d[i + 2] = 24
++    d[i + 3] = Math.round(a * 255)
++  }
++  g.putImageData(img, 0, 0)
++  return new Promise((resolve) => {
++    if (c.toBlob) c.toBlob((b) => resolve(b ? URL.createObjectURL(b) : c.toDataURL()), 'image/png')
++    else resolve(c.toDataURL())
++  })
++}
++
++export function startGrain(): () => void {
++  // layers are rendered by Chrome.tsx; create them if absent (e.g. tests)
++  const ensure = (id: string): HTMLElement => {
++    let el = document.getElementById(id)
++    if (!el) {
++      el = document.createElement('div')
++      el.id = id
++      el.setAttribute('aria-hidden', 'true')
++      document.body.append(el)
++    }
++    return el
++  }
++  ensure('vignette')
++  const grain = ensure('grain')
++  let url = ''
++  void noiseTile().then((u) => {
++    url = u
++    grain.style.backgroundImage = `url("${u}")`
++    grain.classList.add('is-ready')
++  })
++  return () => {
++    if (url.startsWith('blob:')) URL.revokeObjectURL(url)
++  }
++}
+diff --git a/src/fx/graphite.ts b/src/fx/graphite.ts
+new file mode 100644
+index 0000000..43f8801
+--- /dev/null
++++ b/src/fx/graphite.ts
+@@ -0,0 +1,318 @@
++/**
++ * Graphite cursor trail — a 0.5 mm lead line that follows the pointer.
++ *
++ * - Width from velocity (perfect-freehand style pressure simulation, but
++ *   time-based so it doesn't depend on the mouse's event rate): slow strokes
++ *   lay down more graphite, fast flicks draw thin.
++ * - Fades by *thinning*, not alpha: r_i = w_i · (1 − age/life)^1.3, so the
++ *   tail retracts into the nib and nothing remains ~0.9 s after you stop.
++ * - One filled outline per frame with a pre-generated graphite-grain
++ *   pattern (anchored to the canvas, so the paper tooth stays still while
++ *   the line moves) and `mix-blend-mode: multiply` on the canvas.
++ * - Ring buffers + scratch Float32Arrays: zero allocations per frame. Only
++ *   the previous frame's bounding box is cleared.
++ */
++const CAP = 192
++
++export interface TrailOptions {
++  life: number
++  size: number
++  thin: number
++  alpha: number
++}
++
++function graphiteTile(): HTMLCanvasElement {
++  const S = 128
++  const c = document.createElement('canvas')
++  c.width = c.height = S
++  const g = c.getContext('2d')!
++  const img = g.createImageData(S, S)
++  // two octaves of tileable value noise
++  const grid = (n: number): Float32Array => {
++    const a = new Float32Array(n * n)
++    for (let i = 0; i < a.length; i++) a[i] = Math.random()
++    return a
++  }
++  const g1 = grid(16)
++  const g2 = grid(64)
++  const sample = (a: Float32Array, n: number, x: number, y: number): number => {
++    const fx = (x / S) * n
++    const fy = (y / S) * n
++    const x0 = Math.floor(fx) % n
++    const y0 = Math.floor(fy) % n
++    const x1 = (x0 + 1) % n
++    const y1 = (y0 + 1) % n
++    const tx = fx - Math.floor(fx)
++    const ty = fy - Math.floor(fy)
++    const sx = tx * tx * (3 - 2 * tx)
++    const sy = ty * ty * (3 - 2 * ty)
++    const top = a[y0 * n + x0] + (a[y0 * n + x1] - a[y0 * n + x0]) * sx
++    const bot = a[y1 * n + x0] + (a[y1 * n + x1] - a[y1 * n + x0]) * sx
++    return top + (bot - top) * sy
++  }
++  // faint 15° fibre streaks
++  const ang = (15 * Math.PI) / 180
++  const ca = Math.cos(ang)
++  const sa = Math.sin(ang)
++  for (let y = 0; y < S; y++) {
++    for (let x = 0; x < S; x++) {
++      const n = 0.62 * sample(g1, 16, x, y) + 0.38 * sample(g2, 64, x, y)
++      const u = x * ca + y * sa
++      const fibre = 0.5 + 0.5 * Math.sin(u * 1.9 + Math.sin(y * 0.21) * 2.2)
++      const grain = Math.random()
++      let a = 0.55 + 0.45 * n - 0.1 * fibre * fibre + (grain - 0.5) * 0.22
++      a = a < 0.3 ? 0.3 : a > 1 ? 1 : a
++      const i = (y * S + x) * 4
++      img.data[i] = 0x2e
++      img.data[i + 1] = 0x2d
++      img.data[i + 2] = 0x2b
++      img.data[i + 3] = Math.round(a * 255)
++    }
++  }
++  g.putImageData(img, 0, 0)
++  return c
++}
++
++export class GraphiteTrail {
++  readonly canvas: HTMLCanvasElement
++  private ctx: CanvasRenderingContext2D
++  private o: TrailOptions
++  private dpr = 1
++  private tile: HTMLCanvasElement
++  // ring buffer of samples
++  private xs = new Float32Array(CAP)
++  private ys = new Float32Array(CAP)
++  private ts = new Float64Array(CAP)
++  private ws = new Float32Array(CAP)
++  private brk = new Uint8Array(CAP)
++  private tail = 0
++  private count = 0
++  // scratch outline
++  private lx = new Float32Array(CAP)
++  private ly = new Float32Array(CAP)
++  private rx = new Float32Array(CAP)
++  private ry = new Float32Array(CAP)
++  private rr = new Float32Array(CAP)
++  // input state
++  private hasLast = false
++  private sx = 0
++  private sy = 0
++  private lastT = 0
++  private rawX = 0
++  private rawY = 0
++  private pressed = false
++  private pressure = 0.4
++  private strokeLen = 0
++  // previous dirty rect (CSS px)
++  private bx0 = 0
++  private by0 = 0
++  private bx1 = 0
++  private by1 = 0
++  private dirty = false
++  // the multiply-blended canvas is display:none while empty (no blend cost)
++  private idle = true
++
++  private setIdle(v: boolean): void {
++    if (v === this.idle) return
++    this.idle = v
++    this.canvas.classList.toggle('is-idle', v)
++  }
++
++  constructor(o: Partial<TrailOptions> = {}) {
++    this.o = { life: 900, size: 1.8, thin: 0.6, alpha: 0.72, ...o }
++    this.canvas = document.createElement('canvas')
++    this.canvas.id = 'graphite'
++    this.canvas.setAttribute('aria-hidden', 'true')
++    this.canvas.className = 'is-idle'
++    this.ctx = this.canvas.getContext('2d')!
++    this.tile = graphiteTile()
++    this.resize()
++  }
++
++  resize(): void {
++    this.dpr = Math.min(window.devicePixelRatio || 1, 2)
++    const w = window.innerWidth
++    const h = window.innerHeight
++    this.canvas.width = Math.round(w * this.dpr)
++    this.canvas.height = Math.round(h * this.dpr)
++    this.canvas.style.width = `${w}px`
++    this.canvas.style.height = `${h}px`
++    const ctx = this.ctx
++    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0)
++    const pat = ctx.createPattern(this.tile, 'repeat')
++    if (pat) {
++      // one tile texel per device pixel: finer, paper-scale tooth
++      pat.setTransform(new DOMMatrix([1 / this.dpr, 0, 0, 1 / this.dpr, 0, 0]))
++      ctx.fillStyle = pat
++    } else ctx.fillStyle = '#2E2D2B'
++    ctx.globalAlpha = this.o.alpha
++    this.dirty = false
++  }
++
++  /** Pencil leaves the paper: the next sample starts a new stroke. */
++  lift(): void {
++    this.hasLast = false
++  }
++
++  get active(): boolean {
++    return this.count > 0 || this.dirty
++  }
++
++  /** Feed a pointer sample (client px, event timeStamp ms). */
++  add(x: number, y: number, t: number, pressed: boolean): void {
++    this.rawX = x
++    this.rawY = y
++    this.pressed = pressed
++    if (!this.hasLast) {
++      this.hasLast = true
++      this.sx = x
++      this.sy = y
++      this.lastT = t
++      this.pressure = 0.45
++      this.strokeLen = 0
++      this.push(x, y, t, this.width(0), 1)
++      return
++    }
++    this.step(t)
++  }
++
++  /** Streamline toward the raw pointer and lay down a sample. */
++  private step(t: number): void {
++    // streamline (perfect-freehand): trail the raw input a little
++    const nx = this.sx + (this.rawX - this.sx) * 0.42
++    const ny = this.sy + (this.rawY - this.sy) * 0.42
++    const dx = nx - this.sx
++    const dy = ny - this.sy
++    const d = Math.sqrt(dx * dx + dy * dy)
++    if (d < 0.6) return
++    const dtm = Math.max(1, t - this.lastT)
++    const speed = d / dtm // px per ms
++    // pressure sim: slow → heavier line; pressing the button bears down
++    const target = this.pressed ? 1 : 1 - Math.min(1, speed / 2.4)
++    this.pressure += (target - this.pressure) * (1 - Math.exp(-dtm / 70))
++    this.sx = nx
++    this.sy = ny
++    this.lastT = t
++    this.strokeLen++
++    // taper-in over the first samples of each stroke
++    const taper = Math.min(1, (this.strokeLen + 1) / 7)
++    this.push(nx, ny, t, this.width(this.pressure) * taper, 0)
++  }
++
++  private width(p: number): number {
++    const { size, thin } = this.o
++    return size * (0.5 - thin * (0.5 - p))
++  }
++
++  private push(x: number, y: number, t: number, w: number, b: number): void {
++    const i = (this.tail + this.count) % CAP
++    this.xs[i] = x
++    this.ys[i] = y
++    this.ts[i] = t
++    this.ws[i] = w
++    this.brk[i] = b
++    if (this.count < CAP) this.count++
++    else this.tail = (this.tail + 1) % CAP
++    this.setIdle(false)
++  }
++
++  /** Clear everything immediately (motion turned off, resize). */
++  clear(): void {
++    this.count = 0
++    this.hasLast = false
++    if (this.dirty) {
++      this.ctx.clearRect(this.bx0, this.by0, this.bx1 - this.bx0, this.by1 - this.by0)
++      this.dirty = false
++    }
++    this.setIdle(true)
++  }
++
++  /** Draw one frame; returns true while anything is still visible. */
++  frame(now: number): boolean {
++    const { life } = this.o
++    // let the streamlined head catch up with a pointer that has stopped
++    if (this.hasLast && this.count > 0) this.step(now)
++    // expire from the tail
++    while (this.count > 0 && now - this.ts[this.tail] > life) {
++      this.tail = (this.tail + 1) % CAP
++      this.count--
++      if (this.count > 0) this.brk[this.tail] = 1
++    }
++    const ctx = this.ctx
++    if (this.dirty) {
++      ctx.clearRect(this.bx0, this.by0, this.bx1 - this.bx0, this.by1 - this.by0)
++      this.dirty = false
++    }
++    const n = this.count
++    if (n < 2) {
++      if (n === 0) this.setIdle(true)
++      return n > 0
++    }
++
++    const { xs, ys, ts, ws, brk, lx, ly, rx, ry, rr } = this
++    let x0 = 1e9
++    let y0 = 1e9
++    let x1 = -1e9
++    let y1 = -1e9
++    let maxR = 0
++    ctx.beginPath()
++    let start = 0
++    while (start < n) {
++      // a run = samples until the next stroke break
++      let end = start + 1
++      while (end < n && brk[(this.tail + end) % CAP] === 0) end++
++      const len = end - start
++      if (len >= 2) {
++        for (let k = 0; k < len; k++) {
++          const i = (this.tail + start + k) % CAP
++          const ia = (this.tail + start + Math.max(0, k - 1)) % CAP
++          const ib = (this.tail + start + Math.min(len - 1, k + 1)) % CAP
++          let nx = -(ys[ib] - ys[ia])
++          let ny = xs[ib] - xs[ia]
++          const m = Math.sqrt(nx * nx + ny * ny) || 1
++          nx /= m
++          ny /= m
++          const age = (now - ts[i]) / life
++          const f = age >= 1 ? 0 : Math.pow(1 - age, 1.3)
++          const r = ws[i] * f
++          rr[k] = r
++          lx[k] = xs[i] + nx * r
++          ly[k] = ys[i] + ny * r
++          rx[k] = xs[i] - nx * r
++          ry[k] = ys[i] - ny * r
++          if (xs[i] < x0) x0 = xs[i]
++          if (xs[i] > x1) x1 = xs[i]
++          if (ys[i] < y0) y0 = ys[i]
++          if (ys[i] > y1) y1 = ys[i]
++          if (r > maxR) maxR = r
++        }
++        // left edge (tail → head) through midpoints for a smooth outline
++        ctx.moveTo(lx[0], ly[0])
++        for (let k = 1; k < len - 1; k++) {
++          ctx.quadraticCurveTo(lx[k], ly[k], (lx[k] + lx[k + 1]) * 0.5, (ly[k] + ly[k + 1]) * 0.5)
++        }
++        ctx.lineTo(lx[len - 1], ly[len - 1])
++        // round cap at the head (the nib)
++        const ih = (this.tail + start + len - 1) % CAP
++        const an = Math.atan2(ly[len - 1] - ys[ih], lx[len - 1] - xs[ih])
++        if (rr[len - 1] > 0.05) ctx.arc(xs[ih], ys[ih], rr[len - 1], an, an - Math.PI, true)
++        ctx.lineTo(rx[len - 1], ry[len - 1])
++        // right edge back (head → tail)
++        for (let k = len - 2; k > 0; k--) {
++          ctx.quadraticCurveTo(rx[k], ry[k], (rx[k] + rx[k - 1]) * 0.5, (ry[k] + ry[k - 1]) * 0.5)
++        }
++        ctx.lineTo(rx[0], ry[0])
++        ctx.closePath()
++      }
++      start = end
++    }
++    ctx.fill()
++    const pad = maxR + 3
++    this.bx0 = Math.max(0, Math.floor(x0 - pad))
++    this.by0 = Math.max(0, Math.floor(y0 - pad))
++    this.bx1 = Math.ceil(x1 + pad)
++    this.by1 = Math.ceil(y1 + pad)
++    this.dirty = true
++    return true
++  }
++}
+diff --git a/src/fx/index.ts b/src/fx/index.ts
+new file mode 100644
+index 0000000..0dc79f5
+--- /dev/null
++++ b/src/fx/index.ts
+@@ -0,0 +1,52 @@
++import { startMotionFlag } from '../motion/flag'
++import { startScroll } from './scroll'
++import { startPreloader } from './preloader'
++import { startGrain } from './grain'
++import { startCursor } from './cursor'
++import { startReveals } from './reveal'
++import { startChrome } from './chrome'
++import { startMarquee } from './marquee'
++import { stopTicker } from './ticker'
++
++export { scanReveals, revealNow } from './reveal'
++export { setOdometer } from './odometer'
++
++declare global {
++  interface Window {
++    __fx?: boolean
++    /** teardown of the running FX instance (survives Vite HMR re-execution) */
++    __fxStop?: (() => void) | null
++  }
++}
++
++let stop: (() => void) | null = null
++
++/**
++ * Boot the DOM effects layer (idempotent). Called once from Chrome.tsx.
++ * Order matters: motion flag → scroll → preloader (locks scroll) → layers.
++ */
++export function startFx(): () => void {
++  if (stop) return stop
++  // a re-executed module (HMR) must not stack a second cursor / Lenis
++  window.__fxStop?.()
++  window.__fx = true
++  const offs = [
++    startMotionFlag(),
++    startScroll(),
++    startPreloader(),
++    startGrain(),
++    startCursor(),
++    startReveals(),
++    startChrome(),
++    startMarquee(),
++  ]
++  const self = (): void => {
++    offs.reverse().forEach((f) => f())
++    stopTicker()
++    if (stop === self) stop = null
++    if (window.__fxStop === self) window.__fxStop = null
++  }
++  stop = self
++  window.__fxStop = self
++  return self
++}
+diff --git a/src/fx/loadProgress.ts b/src/fx/loadProgress.ts
+new file mode 100644
+index 0000000..59f855b
+--- /dev/null
++++ b/src/fx/loadProgress.ts
+@@ -0,0 +1,83 @@
++import * as THREE from 'three'
++import { bus } from './bus'
++
++/**
++ * Real byte-level load progress for the preloader.
++ *
++ * Every three.js file loader (GLTFLoader, HDRLoader, ...) streams through
++ * `THREE.FileLoader`, which reports per-chunk ProgressEvents to the caller's
++ * onProgress. While tracking is on we wrap FileLoader.load to sum those
++ * per-file fractions and emit `bus 'load:progress'` {p: 0..1}. No asset
++ * URLs are hard-coded, so other agents can change models/HDRIs freely.
++ *
++ * Call `beginLoadTracking()` at the start of experience.init and the
++ * returned `end()` once the assets are in (it emits p = 1).
++ */
++interface FileStat {
++  loaded: number
++  total: number
++}
++
++let active = 0
++let original: THREE.FileLoader['load'] | null = null
++const files = new Map<string, FileStat>()
++
++/** experience.init loads the HDRI, then the GLB — expect at least two files. */
++const EXPECTED_FILES = 2
++
++function report(): void {
++  let sum = 0
++  files.forEach((f) => {
++    sum += f.total > 0 ? Math.min(1, f.loaded / f.total) : f.loaded > 0 ? 0.3 : 0
++  })
++  const p = sum / Math.max(files.size, EXPECTED_FILES)
++  bus.emit('load:progress', { p: Math.min(0.99, p) })
++}
++
++export function beginLoadTracking(): () => void {
++  if (active++ === 0) {
++    const proto = THREE.FileLoader.prototype
++    original = proto.load
++    const orig = original
++    proto.load = function patchedLoad(
++      this: THREE.FileLoader,
++      url: string,
++      onLoad?: (data: string | ArrayBuffer) => void,
++      onProgress?: (e: ProgressEvent) => void,
++      onError?: (err: unknown) => void,
++    ) {
++      const key = this.path ? this.path + url : url
++      if (!files.has(key)) files.set(key, { loaded: 0, total: 0 })
++      const stat = files.get(key)!
++      return orig.call(
++        this,
++        url,
++        (data) => {
++          stat.total = Math.max(1, stat.total)
++          stat.loaded = stat.total
++          report()
++          onLoad?.(data)
++        },
++        (e) => {
++          stat.loaded = e.loaded
++          if (e.lengthComputable) stat.total = e.total
++          report()
++          onProgress?.(e)
++        },
++        onError,
++      )
++    } as THREE.FileLoader['load']
++    bus.emit('load:progress', { p: 0 })
++  }
++  let ended = false
++  return () => {
++    if (ended) return
++    ended = true
++    if (--active === 0 && original) {
++      THREE.FileLoader.prototype.load = original
++      original = null
++      files.clear()
++      bus.emit('load:progress', { p: 1 })
++    }
++  }
++}
+diff --git a/src/fx/marquee.ts b/src/fx/marquee.ts
+new file mode 100644
+index 0000000..0e86937
+--- /dev/null
++++ b/src/fx/marquee.ts
+@@ -0,0 +1,72 @@
++import { addTask, wake } from './ticker'
++import { motion } from '../motion/flag'
++import { bus } from './bus'
++import { scroll, onGeometry } from './scroll'
++
++/**
++ * Velocity-coupled spec ticker. Markup:
++ *   <div data-marquee><div class="mq-track"><span class="mq-copy">…</span>×N</div></div>
++ * Base 40 px/s; scroll speed multiplies it (×1 → ×5) and the direction
++ * follows the scroll direction. Runs only while on screen and motion is on.
++ */
++interface Mq {
++  el: HTMLElement
++  track: HTMLElement
++  copyW: number
++  x: number
++  visible: boolean
++  last: number
++}
++
++export function startMarquee(): () => void {
++  const items: Mq[] = []
++  document.querySelectorAll<HTMLElement>('[data-marquee]').forEach((el) => {
++    const track = el.querySelector<HTMLElement>('.mq-track')
++    if (!track) return
++    items.push({ el, track, copyW: 0, x: 0, visible: false, last: NaN })
++  })
++  if (items.length === 0) return () => {}
++  const measure = (): void => {
++    for (const m of items) {
++      const c = m.track.firstElementChild as HTMLElement | null
++      m.copyW = c ? c.getBoundingClientRect().width : 0
++    }
++  }
++  measure()
++  const io = new IntersectionObserver((es) => {
++    for (const e of es) {
++      const m = items.find((i) => i.el === e.target)
++      if (m) m.visible = e.isIntersecting
++    }
++    wake()
++  })
++  items.forEach((m) => io.observe(m.el))
++
++  const tick = (dt: number): boolean => {
++    if (!motion.ok) return false
++    let any = false
++    const speed = 40 * (1 + Math.abs(scroll.vs) * 4) * scroll.dir
++    for (const m of items) {
++      if (!m.visible || m.copyW === 0) continue
++      any = true
++      m.x -= speed * dt
++      if (m.x <= -m.copyW) m.x += m.copyW
++      else if (m.x > 0) m.x -= m.copyW
++      if (Math.abs(m.x - m.last) > 0.01) {
++        m.last = m.x
++        m.track.style.transform = `translate3d(${m.x.toFixed(2)}px,0,0)`
++      }
++    }
++    return any
++  }
++  const offTask = addTask(tick)
++  const offGeo = onGeometry(measure)
++  const offMotion = bus.on('motion', () => wake())
++  void document.fonts.ready.then(measure)
++  return () => {
++    offTask()
++    offGeo()
++    offMotion()
++    io.disconnect()
++  }
++}
+diff --git a/src/fx/odometer.ts b/src/fx/odometer.ts
+new file mode 100644
+index 0000000..b536fe0
+--- /dev/null
++++ b/src/fx/odometer.ts
+@@ -0,0 +1,98 @@
++/**
++ * Odometer digits: every 0-9 becomes a clipped column that rolls to its
++ * value (900 ms expo.out, 40 ms stagger right-to-left, tabular figures).
++ * Updates roll from the previous value, never count up from zero.
++ *
++ * Markup: any element with plain text, e.g. <span data-odometer>18 g</span>.
++ * Screen readers get an sr-only copy; the columns are aria-hidden.
++ */
++type OdHost = HTMLElement & { __od?: { cols: HTMLElement[]; text: string; vis: HTMLElement; sr: HTMLElement } }
++
++const STACK = '0123456789'
++
++function build(host: OdHost, text: string): void {
++  const sr = document.createElement('span')
++  sr.className = 'sr-only'
++  sr.textContent = text
++  const vis = document.createElement('span')
++  vis.className = 'od'
++  vis.setAttribute('aria-hidden', 'true')
++  const cols: HTMLElement[] = []
++  for (const ch of text) {
++    if (ch >= '0' && ch <= '9') {
++      const col = document.createElement('span')
++      col.className = 'odc'
++      const ph = document.createElement('span')
++      ph.className = 'odp'
++      ph.textContent = ch
++      const stack = document.createElement('span')
++      stack.className = 'ods'
++      for (const d of STACK) {
++        const s = document.createElement('span')
++        s.textContent = d
++        stack.append(s)
++      }
++      col.append(ph, stack)
++      col.style.setProperty('--d', '0')
++      col.dataset.v = ch
++      cols.push(col)
++      vis.append(col)
++    } else {
++      vis.append(ch)
++    }
++  }
++  host.replaceChildren(sr, vis)
++  host.__od = { cols, text, vis, sr }
++}
++
++/** Convert the element's digits into (unrolled, showing 0) columns. */
++export function prepareOdometer(host: OdHost): void {
++  if (host.__od) return
++  build(host, (host.textContent ?? '').trim())
++}
++
++/** Roll every column to its digit. */
++export function rollOdometer(host: OdHost, delayMs = 0): void {
++  if (!host.__od) prepareOdometer(host)
++  const { cols } = host.__od!
++  const n = cols.length
++  cols.forEach((c, i) => {
++    c.style.setProperty('--od-delay', `${delayMs + (n - 1 - i) * 40}ms`)
++    c.style.setProperty('--d', c.dataset.v ?? '0')
++  })
++}
++
++/**
++ * Show new text, rolling digits from their previous values. If the shape
++ * changes (digit positions differ) the columns are rebuilt, then rolled.
++ */
++export function setOdometer(host: OdHost, text: string): void {
++  const od = host.__od
++  if (od && od.text === text) return
++  const shape = (t: string): string => t.replace(/[0-9]/g, '#')
++  if (!od || shape(od.text) !== shape(text)) {
++    const prev = od?.text
++    build(host, text)
++    const cols = host.__od!.cols
++    // start from the previous digits where possible, then roll next frame
++    if (prev) {
++      const pd = prev.replace(/[^0-9]/g, '')
++      cols.forEach((c, i) => c.style.setProperty('--d', pd[i] ?? '0'))
++    }
++    cols.forEach((c, i) => (c.dataset.v = text.replace(/[^0-9]/g, '')[i] ?? '0'))
++    requestAnimationFrame(() => rollOdometer(host))
++    return
++  }
++  od.text = text
++  od.sr.textContent = text
++  let di = 0
++  const digits = text.replace(/[^0-9]/g, '')
++  for (const c of od.cols) c.dataset.v = digits[di++] ?? '0'
++  // non-digit characters may change too (same shape): one text node per char
++  const nodes = od.vis.childNodes
++  for (let i = 0; i < text.length && i < nodes.length; i++) {
++    const node = nodes[i]
++    if (node.nodeType === Node.TEXT_NODE) (node as Text).data = text[i]
++  }
++  rollOdometer(host)
++}
+diff --git a/src/fx/preloader.ts b/src/fx/preloader.ts
+new file mode 100644
+index 0000000..d2e1377
+--- /dev/null
++++ b/src/fx/preloader.ts
+@@ -0,0 +1,342 @@
++import { bus } from './bus'
++import { addTask } from './ticker'
++import { motion } from '../motion/flag'
++import { lockScroll, refreshScroll } from './scroll'
++import { clamp, damp, easeInOutCubic, easeOutCubic } from '../motion/math'
++
++/**
++ * Preloader — "the drawing becomes the object".
++ *
++ * An ink elevation of the pencil (dimensioned from the GLB's part table,
++ * 1 model unit = 10 mm) drafts itself with stroke-dashoffset, driven by REAL
++ * load progress (bus 'load:progress' from experience.init) plus the first
++ * rendered frame (`#loader.done`, set by the 3D code / fallbacks). The
++ * counter never stalls, the drawing never runs faster than ~1.3 s, then a
++ * paper curtain lifts with a drafting straightedge riding its edge and the
++ * hero lines reveal (bus 'intro').
++ *
++ * Repeat visits (sessionStorage) get a short version; reduced motion gets a
++ * static drawing and a crossfade.
++ */
++
++// ---------------------------------------------------------------- drawing
++const NS = 'http://www.w3.org/2000/svg'
++
++interface Stroke {
++  el: SVGGeometryElement | SVGElement
++  a: number
++  b: number
++  kind: 'line' | 'fade' | 'clip'
++  last: number
++}
++
++/** mm → svg units (y up = negative) */
++const X = (mm: number): number => mm
++const Y = (mm: number): number => -mm
++
++function el<K extends keyof SVGElementTagNameMap>(
++  tag: K,
++  attrs: Record<string, string | number>,
++  parent: Element,
++): SVGElementTagNameMap[K] {
++  const e = document.createElementNS(NS, tag)
++  for (const k in attrs) e.setAttribute(k, String(attrs[k]))
++  parent.appendChild(e)
++  return e
++}
++
++function buildDrawing(svg: SVGSVGElement): { strokes: Stroke[]; g: SVGGElement } {
++  svg.replaceChildren()
++  const strokes: Stroke[] = []
++  const g = el('g', { class: 'pl-g' }, svg)
++  const line = (d: string, a: number, b: number, cls = 'ln'): void => {
++    const p = el('path', { d, class: cls, pathLength: 1 }, g)
++    strokes.push({ el: p, a, b, kind: 'line', last: -1 })
++  }
++  const rect = (x0: number, x1: number, r0: number, r1 = r0): string =>
++    `M${X(x0)} ${Y(r0)} L${X(x1)} ${Y(r1)} L${X(x1)} ${Y(-r1)} L${X(x0)} ${Y(-r0)} Z`
++  const text = (x: number, y: number, s: string, a: number, anchor = 'middle', cls = 'tx'): SVGTextElement => {
++    const t = el('text', { x, y, 'text-anchor': anchor, class: cls }, g)
++    t.textContent = s
++    strokes.push({ el: t, a, b: Math.min(1, a + 0.08), kind: 'fade', last: -1 })
++    return t
++  }
++
++  // centre-line (dash-dot), revealed by a growing clip rect
++  const clip = el('clipPath', { id: 'plCl' }, el('defs', {}, svg))
++  const clipRect = el('rect', { x: -14, y: -30, width: 0, height: 60 }, clip)
++  el('path', { d: `M-14 0 L${X(156)} 0`, class: 'cl', 'clip-path': 'url(#plCl)' }, g)
++  strokes.push({ el: clipRect, a: 0.0, b: 0.32, kind: 'clip', last: -1 })
++
++  // parts, tip → button: [x0, x1, r0, r1?, hex?]
++  type Part = [number, number, number, number?, boolean?]
++  const parts: Part[] = [
++    [-4, 0, 0.25], // 0.5 lead
++    [0, 10, 0.5], // lead sleeve
++    [9, 12.4, 0.8], // nose tip
++    [12.4, 26.6, 1.15, 4.2], // faceted nose (taper)
++    [26.6, 28.6, 4.65], // grip ring
++    [28.6, 54.8, 4.5, 4.5, true], // grip (hex, lattice)
++    [54.8, 57, 4.65], // grip ring
++    [57, 118.6, 4.5, 4.5, true], // barrel (hex)
++    [119, 125, 4.4], // top collar
++    [125, 130.8, 2.2], // eraser sleeve
++    [130.8, 142, 3.3, 3.3, true], // button (hex)
++  ]
++  const n = parts.length
++  parts.forEach((pt, i) => {
++    const [x0, x1, r0, r1 = r0] = pt
++    const a = 0.06 + (i / n) * 0.5
++    line(rect(x0, x1, r0, r1), a, a + 0.16)
++  })
++  // hex facet edges (front flat at ±R/2)
++  parts.forEach((pt, i) => {
++    if (!pt[4]) return
++    const [x0, x1, r0] = pt
++    const a = 0.3 + (i / n) * 0.3
++    line(`M${X(x0)} ${Y(r0 / 2)} L${X(x1)} ${Y(r0 / 2)}`, a, a + 0.14, 'ln thin')
++    line(`M${X(x0)} ${Y(-r0 / 2)} L${X(x1)} ${Y(-r0 / 2)}`, a + 0.02, a + 0.16, 'ln thin')
++  })
++  // barrel grooves + button chamfer
++  line(`M${X(109)} ${Y(4.5)} L${X(109)} ${Y(-4.5)}`, 0.52, 0.6, 'ln thin')
++  line(`M${X(111.5)} ${Y(4.5)} L${X(111.5)} ${Y(-4.5)}`, 0.53, 0.61, 'ln thin')
++  line(`M${X(141.2)} ${Y(3.3)} L${X(142)} ${Y(2.6)} L${X(142)} ${Y(-2.6)} L${X(141.2)} ${Y(-3.3)}`, 0.6, 0.68, 'ln thin')
++  // grip lattice: ±60° crisscross hatch, clipped to the grip
++  {
++    const gx0 = 29.4
++    const gx1 = 54
++    const r = 4.5 * 0.94
++    const step = 2.3
++    const k = 1 / Math.tan((60 * Math.PI) / 180) // dx per unit dy
++    const clipX = (x0: number, y0: number, x1: number, y1: number): number[] | null => {
++      const dx = x1 - x0
++      let t0 = 0
++      let t1 = 1
++      for (const [pp, q] of [
++        [-dx, x0 - gx0],
++        [dx, gx1 - x0],
++      ]) {
++        if (pp === 0) {
++          if (q < 0) return null
++          continue
++        }
++        const t = q / pp
++        if (pp < 0) t0 = Math.max(t0, t)
++        else t1 = Math.min(t1, t)
++      }
++      if (t1 - t0 <= 0) return null
++      return [x0 + t0 * dx, y0 + t0 * (y1 - y0), x0 + t1 * dx, y0 + t1 * (y1 - y0)]
++    }
++    let j = 0
++    for (let sx = gx0 - 2 * r * k; sx < gx1 + 2 * r * k; sx += step) {
++      for (const dir of [1, -1]) {
++        const seg =
++          dir > 0 ? clipX(sx, -r, sx + 2 * r * k, r) : clipX(sx + 2 * r * k, -r, sx, r)
++        if (!seg) continue
++        const [xa, ya, xb, yb] = seg
++        if (Math.hypot(xb - xa, yb - ya) < 1.2) continue
++        const a = 0.4 + ((j * 7) % 24) * 0.011
++        line(`M${xa.toFixed(2)} ${Y(ya).toFixed(2)} L${xb.toFixed(2)} ${Y(yb).toFixed(2)}`, a, a + 0.09, 'ln hatch')
++        j++
++      }
++    }
++  }
++  // pocket clip
++  line(
++    `M${X(92.5)} ${Y(4.5)} C${X(93.4)} ${Y(5.5)} ${X(94)} ${Y(5.6)} ${X(95.5)} ${Y(5.6)} L${X(117.4)} ${Y(5.6)} L${X(119.6)} ${Y(5.2)} L${X(119.6)} ${Y(4.4)}`,
++    0.56,
++    0.7,
++  )
++
++  // VIEW A — end view at 2:1: hexagon (pointy top), A/F 8.0
++  const cx = 172
++  const R = 9
++  const hex = Array.from({ length: 6 }, (_, i) => {
++    const t = (Math.PI / 3) * i + Math.PI / 2
++    return `${(cx + R * Math.cos(t)).toFixed(2)} ${(-R * Math.sin(t)).toFixed(2)}`
++  })
++  line(`M${hex.join(' L')} Z`, 0.58, 0.76)
++  line(
++    `M${hex[0]} L${hex[3]}`,
++    0.66,
++    0.74,
++    'ln thin',
++  )
++  el('path', { d: `M${cx - 13} 0 L${cx + 13} 0 M${cx} ${-13} L${cx} 13`, class: 'cl' }, g)
++  strokes.push({ el: g.lastElementChild as SVGElement, a: 0.56, b: 0.66, kind: 'fade', last: -1 })
++  // bore Ø0.5 at 2:1
++  el('circle', { cx, cy: 0, r: 1.0, class: 'ln thin', pathLength: 1 }, g)
++  strokes.push({ el: g.lastElementChild as SVGElement, a: 0.7, b: 0.78, kind: 'line', last: -1 })
++
++  // dimensions
++  const af = (R * Math.sqrt(3)) / 2
++  line(`M${cx - af} ${-1} L${cx - af} ${16.5} M${cx + af} ${-1} L${cx + af} ${16.5}`, 0.74, 0.82, 'ln thin')
++  line(`M${cx - af} 14 L${cx + af} 14`, 0.8, 0.9, 'ln thin')
++  const arrow = (x: number, y: number, dir: 1 | -1): string =>
++    `M${x} ${y} L${x + dir * 2.2} ${y - 0.65} L${x + dir * 2.2} ${y + 0.65} Z`
++  el('path', { d: arrow(cx - af, 14, 1) + arrow(cx + af, 14, -1), class: 'ar' }, g)
++  strokes.push({ el: g.lastElementChild as SVGElement, a: 0.88, b: 0.94, kind: 'fade', last: -1 })
++  text(cx, 20.4, 'A/F 8.0', 0.9)
++  text(cx, -14.5, 'View A  2:1', 0.86, 'middle', 'tx m')
++
++  // overall length L 142.0
++  line(`M0 ${0.8} L0 ${17} M142 ${3.9} L142 ${17}`, 0.72, 0.82, 'ln thin')
++  line(`M0 14.5 L60 14.5 M82 14.5 L142 14.5`, 0.8, 0.92, 'ln thin')
++  el('path', { d: arrow(0, 14.5, 1) + arrow(142, 14.5, -1), class: 'ar' }, g)
++  strokes.push({ el: g.lastElementChild as SVGElement, a: 0.9, b: 0.96, kind: 'fade', last: -1 })
++  text(71, 15.6, 'L 142.0', 0.92)
++  // lead callout with leader + dot terminal
++  line(`M-3 0.4 L-8 -8 L-17 -8`, 0.82, 0.9, 'ln thin')
++  el('circle', { cx: -3, cy: 0.4, r: 0.45, class: 'dt' }, g)
++  strokes.push({ el: g.lastElementChild as SVGElement, a: 0.82, b: 0.86, kind: 'fade', last: -1 })
++  text(-17, -9.4, 'Ø 0.5 lead', 0.88, 'start', 'tx m')
++  // balloon on the grip
++  line(`M41.5 -3.2 L45 -11 L49 -11`, 0.84, 0.92, 'ln thin')
++  el('circle', { cx: 51.6, cy: -11, r: 2.6, class: 'ln thin', pathLength: 1 }, g)
++  strokes.push({ el: g.lastElementChild as SVGElement, a: 0.88, b: 0.95, kind: 'line', last: -1 })
++  text(51.6, -10.1, '7', 0.94, 'middle', 'tx b')
++  return { strokes, g }
++}
++
++// ---------------------------------------------------------------- controller
++export function startPreloader(): () => void {
++  const loader = document.getElementById('loader')
++  const svg = document.getElementById('plSvg') as SVGSVGElement | null
++  const numEl = document.getElementById('plNum')
++  const html = document.documentElement
++  if (!loader || !svg || loader.classList.contains('pl-gone')) {
++    html.classList.remove('pl-on', 'scroll-locked')
++    queueMicrotask(() => bus.emit('intro', {}))
++    return () => {}
++  }
++  const short = html.classList.contains('pl-short')
++  const reduced = !motion.ok
++  const { strokes, g } = buildDrawing(svg)
++
++  // fit the viewBox to the drawing; portrait screens get a vertical sheet
++  let portrait = false
++  const fit = (): void => {
++    portrait = window.innerWidth / window.innerHeight < 0.9
++    g.setAttribute('transform', portrait ? 'rotate(-90)' : '')
++    const b = g.getBBox()
++    const m = 4
++    svg.setAttribute('viewBox', `${b.x - m} ${b.y - m} ${b.width + 2 * m} ${b.height + 2 * m}`)
++    const r = svg.getBoundingClientRect()
++    // user units per CSS px (svg is 'meet' fitted) → 1px hairlines, 10.5px type
++    const vbW = b.width + 2 * m
++    const vbH = b.height + 2 * m
++    const u = Math.max(vbW / Math.max(1, r.width), vbH / Math.max(1, r.height))
++    svg.style.setProperty('--u', u.toFixed(4))
++  }
++  fit()
++  window.addEventListener('resize', fit)
++
++  let real = 0
++  let ready = loader.classList.contains('done')
++  let shown = 0
++  let lastNum = -1
++  const t0 = performance.now()
++  let doneAt = 0
++  let phase: 'load' | 'hold' | 'exit' | 'gone' = 'load'
++  const MIN_DRAW = reduced ? 0 : short ? 0.5 : 1.35
++  const HOLD = short ? 120 : 260
++
++  const offProg = bus.on('load:progress', ({ p }) => {
++    real = Math.max(real, p)
++  })
++  const mo = new MutationObserver(() => {
++    if (loader.classList.contains('done')) ready = true
++  })
++  mo.observe(loader, { attributes: true, attributeFilter: ['class'] })
++  const failsafe = window.setTimeout(() => (ready = true), 14000)
++
++  const paint = (k: number, count = k): void => {
++    for (const s of strokes) {
++      const t = s.b > s.a ? clamp((k - s.a) / (s.b - s.a), 0, 1) : 1
++      if (Math.abs(t - s.last) < 0.001) continue
++      s.last = t
++      if (s.kind === 'line') {
++        ;(s.el as SVGElement).style.strokeDashoffset = (1 - easeInOutCubic(t)).toFixed(4)
++      } else if (s.kind === 'fade') {
++        ;(s.el as SVGElement).style.opacity = easeOutCubic(t).toFixed(3)
++      } else {
++        s.el.setAttribute('width', (170 * easeInOutCubic(t)).toFixed(2))
++      }
++    }
++    const nnum = Math.round(count * 100)
++    if (numEl && nnum !== lastNum) {
++      lastNum = nnum
++      numEl.textContent = (nnum < 10 ? '00' : nnum < 100 ? '0' : '') + nnum
++    }
++  }
++
++  const exit = (): void => {
++    phase = 'exit'
++    lockScroll(false)
++    html.classList.remove('scroll-locked')
++    refreshScroll()
++    loader.setAttribute('aria-hidden', 'true')
++    try {
++      sessionStorage.setItem('mh:seen', '1')
++    } catch {
++      /* private mode */
++    }
++    if (reduced || !motion.ok) {
++      loader.classList.add('pl-fade')
++      bus.emit('intro', {})
++    } else {
++      loader.classList.add('pl-exit')
++      window.setTimeout(() => bus.emit('intro', {}), short ? 60 : 150)
++    }
++    window.setTimeout(
++      () => {
++        phase = 'gone'
++        loader.classList.add('pl-gone')
++        html.classList.remove('pl-on')
++      },
++      reduced ? 480 : 1060,
++    )
++  }
++
++  let lastNow = t0
++  const tick = (_dt: number, now: number): boolean => {
++    if (phase === 'gone') return false
++    if (phase === 'exit') return true
++    // real elapsed time (not the ticker's 1/30 s clamp): on slow frames the
++    // counter must still keep pace with the clock
++    const dt = Math.min(0.25, Math.max(0, (now - lastNow) / 1000))
++    lastNow = now
++    const t = (now - t0) / 1000
++    if (reduced) {
++      shown = ready ? 1 : Math.max(shown, Math.min(0.99, real))
++      paint(1, shown)
++    } else {
++      // never stalls: a slow floor creeps toward 98 while real progress lags
++      const floor =
++        0.86 * easeOutCubic(Math.min(1, t / 2.2)) + (t > 2.2 ? 0.12 * (1 - Math.exp(-(t - 2.2) / 4)) : 0)
++      const target = ready ? 1 : Math.max(real * 0.9, floor)
++      const cap = MIN_DRAW > 0 ? easeInOutCubic(Math.min(1, t / MIN_DRAW)) : 1
++      const desired = Math.min(cap, target)
++      shown = Math.max(shown, damp(shown, desired, ready ? 9 : 5, dt))
++      if (ready && cap >= 1 && desired - shown < 0.004) shown = 1
++      paint(shown)
++    }
++    if (phase === 'load' && ready && shown >= 1) {
++      phase = 'hold'
++      doneAt = now
++    }
++    if (phase === 'hold' && now - doneAt >= (reduced ? 120 : HOLD)) exit()
++    return true
++  }
++
++  lockScroll(true)
++  paint(reduced ? 1 : 0, 0)
++  const offTask = addTask(tick)
++  return () => {
++    offTask()
++    offProg()
++    mo.disconnect()
++    clearTimeout(failsafe)
++    window.removeEventListener('resize', fit)
++  }
++}
+diff --git a/src/fx/reveal.ts b/src/fx/reveal.ts
+new file mode 100644
+index 0000000..bd0544d
+--- /dev/null
++++ b/src/fx/reveal.ts
+@@ -0,0 +1,354 @@
++import { bus } from './bus'
++import { addTask, wake } from './ticker'
++import { motion } from '../motion/flag'
++import { clamp, easeOutCubic } from '../motion/math'
++import { prepareOdometer, rollOdometer } from './odometer'
++
++/**
++ * Attribute-driven reveals. Opt in from any component:
++ *
++ *   data-reveal="lines"  headline rises line by line out of hairline masks
++ *                        (1.1 s expo.out, 80 ms stagger). Static text only:
++ *                        the host's children are replaced by line spans; the
++ *                        host gets aria-label, the splits are aria-hidden.
++ *   data-reveal="fade"   body copy: opacity + 12 px lift, 0.9 s.
++ *   data-reveal="type"   mono eyebrow types on with a short scramble edge
++ *                        (use at most once per section).
++ *   data-reveal-delay="ms"   extra delay before the element starts.
++ *   data-odometer        digits inside roll into place (odometer columns)
++ *                        when revealed; combine with any data-reveal.
++ *
++ * Nothing reveals before the preloader curtain lifts (`bus 'intro'`).
++ * Reduced motion: no splitting, just crossfades.
++ */
++type Host = HTMLElement & { __rvOrig?: Node[]; __rvW?: number; __rvLabelSet?: boolean }
++
++const SEL = '[data-reveal],[data-odometer]'
++let io: IntersectionObserver | null = null
++let ro: ResizeObserver | null = null
++let introDone = false
++let fontsDone = false
++const pending = new Set<HTMLElement>()
++
++// ---------------------------------------------------------------- split lines
++function wrapWords(
++  node: Node,
++  chain: Element[],
++  out: { el: HTMLElement | null; chain: Element[]; space: boolean }[],
++): void {
++  const kids = Array.from(node.childNodes)
++  for (const child of kids) {
++    if (child.nodeType === Node.TEXT_NODE) {
++      const text = (child as Text).data
++      const parts = text.split(/(\s+)/)
++      const frag = document.createDocumentFragment()
++      let space = false
++      for (const part of parts) {
++        if (!part) continue
++        if (/^\s+$/.test(part)) {
++          frag.append(' ')
++          space = true
++          continue
++        }
++        const s = document.createElement('span')
++        s.className = 'rw'
++        s.textContent = part
++        frag.append(s)
++        out.push({ el: s, chain, space })
++        space = false
++      }
++      // a trailing space belongs before the next word (possibly in a sibling element)
++      if (space) out.push({ el: null, chain, space: true })
++      child.replaceWith(frag)
++    } else if (child.nodeType === Node.ELEMENT_NODE) {
++      const el = child as Element
++      if (el.tagName === 'BR') {
++        out.push({ el: null, chain: [el], space: false })
++        continue
++      }
++      wrapWords(el, chain.concat(el), out)
++    }
++  }
++}
++
++function splitLines(host: Host): void {
++  const orig = host.__rvOrig ?? (host.__rvOrig = Array.from(host.childNodes))
++  if (!host.hasAttribute('aria-label')) {
++    const label = orig
++      .map((n) => n.textContent ?? '')
++      .join(' ')
++      .replace(/\s+/g, ' ')
++      .trim()
++    host.setAttribute('aria-label', label)
++    host.__rvLabelSet = true
++  }
++  // measure on a fresh deep clone; the original (React-owned) nodes stay intact
++  host.replaceChildren(...orig.map((n) => n.cloneNode(true)))
++  const words: { el: HTMLElement | null; chain: Element[]; space: boolean }[] = []
++  wrapWords(host, [], words)
++
++  const fs = parseFloat(getComputedStyle(host).fontSize) || 16
++  type Line = { items: { el: HTMLElement; chain: Element[]; space: boolean }[] }
++  const lines: Line[] = []
++  let cur: Line | null = null
++  let lastMid = -1e9
++  let pendingSpace = false
++  for (const w of words) {
++    if (!w.el) {
++      if (w.chain[0]?.tagName === 'BR') {
++        cur = null
++        lastMid = -1e9
++        pendingSpace = false
++      } else if (w.space) pendingSpace = true
++      continue
++    }
++    const r = w.el.getBoundingClientRect()
++    const mid = r.top + r.height / 2
++    if (!cur || mid - lastMid > fs * 0.55) {
++      cur = { items: [] }
++      lines.push(cur)
++      lastMid = mid
++      pendingSpace = false
++    }
++    cur.items.push({ el: w.el, chain: w.chain, space: (w.space || pendingSpace) && cur.items.length > 0 })
++    pendingSpace = false
++  }
++
++  const out: HTMLElement[] = []
++  lines.forEach((line, i) => {
++    const rl = document.createElement('span')
++    rl.className = 'rl'
++    rl.setAttribute('aria-hidden', 'true')
++    const rli = document.createElement('span')
++    rli.className = 'rli'
++    rli.style.setProperty('--i', String(i))
++    rl.append(rli)
++    const open: Element[] = []
++    const openSrc: Element[] = []
++    for (const it of line.items) {
++      let k = 0
++      while (k < openSrc.length && k < it.chain.length && openSrc[k] === it.chain[k]) k++
++      open.length = k
++      openSrc.length = k
++      const container = (): Element => (open.length ? open[open.length - 1] : rli)
++      if (it.space) container().append(' ')
++      for (let j = k; j < it.chain.length; j++) {
++        const c = it.chain[j].cloneNode(false) as Element
++        container().append(c)
++        open.push(c)
++        openSrc.push(it.chain[j])
++      }
++      container().append(it.el.textContent ?? '')
++    }
++    out.push(rl)
++  })
++  host.replaceChildren(...out)
++  host.style.setProperty('--n', String(lines.length))
++  host.classList.add('rv-split')
++  host.__rvW = host.clientWidth
++}
++
++function unsplit(host: Host): void {
++  if (!host.__rvOrig) return
++  host.replaceChildren(...host.__rvOrig)
++  host.classList.remove('rv-split')
++  if (host.__rvLabelSet) host.removeAttribute('aria-label')
++  host.__rvOrig = undefined
++}
++
++// ---------------------------------------------------------------- type-on
++const GLYPHS = 'ABCDEFGHJKLMNPRSTUVXYZ0123456789/+-·'
++interface TypeAnim {
++  a: HTMLElement
++  b: HTMLElement
++  c: HTMLElement
++  text: string
++  t0: number
++  dur: number
++}
++const typing: TypeAnim[] = []
++
++function prepareType(host: HTMLElement): void {
++  if (host.dataset.rvType) return
++  const text = (host.textContent ?? '').replace(/\s+/g, ' ').trim()
++  host.dataset.rvType = '1'
++  const sr = document.createElement('span')
++  sr.className = 'sr-only'
++  sr.textContent = text
++  const vis = document.createElement('span')
++  vis.className = 'ty'
++  vis.setAttribute('aria-hidden', 'true')
++  const a = document.createElement('span')
++  const b = document.createElement('span')
++  b.className = 'ty-edge'
++  const c = document.createElement('span')
++  c.className = 'ty-rest'
++  c.textContent = text
++  vis.append(a, b, c)
++  host.replaceChildren(sr, vis)
++}
++
++function startType(host: HTMLElement): void {
++  const vis = host.querySelector('.ty')
++  if (!vis) return
++  const [a, b, c] = Array.from(vis.children) as HTMLElement[]
++  const text = host.querySelector('.sr-only')?.textContent ?? ''
++  if (!motion.ok) {
++    a.textContent = text
++    b.textContent = ''
++    c.textContent = ''
++    return
++  }
++  const delay = Number(host.dataset.revealDelay || 0)
++  typing.push({ a, b, c, text, t0: performance.now() + delay, dur: clamp(text.length * 26, 420, 980) })
++  wake()
++}
++
++function tickType(_dt: number, now: number): boolean {
++  if (typing.length === 0) return false
++  for (let i = typing.length - 1; i >= 0; i--) {
++    const t = typing[i]
++    const k = (now - t.t0) / t.dur
++    if (k < 0) continue
++    const n = t.text.length
++    if (k >= 1) {
++      t.a.textContent = t.text
++      t.b.textContent = ''
++      t.c.textContent = ''
++      typing.splice(i, 1)
++      continue
++    }
++    const head = Math.floor(easeOutCubic(k) * n)
++    const edge = Math.min(n, head + 3)
++    let scr = ''
++    for (let j = head; j < edge; j++) {
++      const ch = t.text[j]
++      scr += ch === ' ' ? ' ' : GLYPHS[(Math.random() * GLYPHS.length) | 0]
++    }
++    t.a.textContent = t.text.slice(0, head)
++    t.b.textContent = scr
++    t.c.textContent = t.text.slice(edge)
++  }
++  return true
++}
++
++// ---------------------------------------------------------------- reveal
++function reveal(el: HTMLElement): void {
++  if (el.classList.contains('is-in')) return
++  const delay = el.dataset.revealDelay
++  if (delay) el.style.setProperty('--rd', `${delay}ms`)
++  el.classList.add('is-in')
++  if (el.dataset.reveal === 'type') startType(el)
++  if (el.hasAttribute('data-odometer')) rollOdometer(el, Number(delay || 0))
++  el.querySelectorAll<HTMLElement>('[data-odometer]').forEach((o) =>
++    rollOdometer(o, Number(o.dataset.revealDelay || delay || 0)),
++  )
++}
++
++function prepare(el: HTMLElement): void {
++  if (el.dataset.rvPrep) return
++  el.dataset.rvPrep = '1'
++  const kind = el.dataset.reveal
++  if (kind === 'lines' && motion.ok) {
++    splitLines(el as Host)
++    ro?.observe(el)
++  } else if (kind === 'type') prepareType(el)
++  if (el.hasAttribute('data-odometer')) prepareOdometer(el)
++}
++
++/** Scan for (new) reveal hosts; safe to call any time after mount. */
++export function scanReveals(root: ParentNode = document): void {
++  if (!fontsDone) return
++  root.querySelectorAll<HTMLElement>(SEL).forEach((el) => {
++    prepare(el)
++    if (el.classList.contains('is-in')) return
++    // odometers nested in a reveal host roll with their host
++    if (!el.dataset.reveal && el.parentElement?.closest('[data-reveal]')) return
++    if (introDone) schedule(el)
++    else pending.add(el)
++  })
++}
++
++/**
++ * Already on screen → reveal now; otherwise wait for the observer (its -10%
++ * root margin is for content arriving from below while scrolling).
++ */
++function schedule(el: HTMLElement): void {
++  const r = el.getBoundingClientRect()
++  if (r.top < window.innerHeight && r.bottom > 0 && r.width > 0) reveal(el)
++  else io?.observe(el)
++}
++
++/** Reveal an element now (e.g. a component that controls its own timing). */
++export function revealNow(el: HTMLElement): void {
++  prepare(el)
++  io?.unobserve(el)
++  reveal(el)
++}
++
++export function startReveals(): () => void {
++  io = new IntersectionObserver(
++    (entries) => {
++      for (const e of entries) {
++        if (!e.isIntersecting) continue
++        io!.unobserve(e.target)
++        reveal(e.target as HTMLElement)
++      }
++    },
++    { rootMargin: '0px 0px -10% 0px', threshold: 0 },
++  )
++  let roTimer = 0
++  const dirty = new Set<Host>()
++  ro = new ResizeObserver((entries) => {
++    for (const e of entries) {
++      const h = e.target as Host
++      if (h.__rvW !== undefined && Math.abs(h.clientWidth - h.__rvW) > 1) dirty.add(h)
++    }
++    if (dirty.size === 0) return
++    clearTimeout(roTimer)
++    roTimer = window.setTimeout(() => {
++      dirty.forEach((h) => h.__rvOrig && splitLines(h))
++      dirty.clear()
++    }, 150)
++  })
++  const offTask = addTask(tickType)
++
++  const fontsReady = Promise.race([
++    Promise.all([
++      document.fonts.load('500 1em "Inter Tight"'),
++      document.fonts.load('600 1em "Inter Tight"'),
++      document.fonts.load('italic 400 1em "Instrument Serif"'),
++      document.fonts.load('400 1em "IBM Plex Mono"'),
++    ]).then(() => document.fonts.ready),
++    new Promise((r) => setTimeout(r, 2500)),
++  ])
++  void fontsReady.then(() => {
++    fontsDone = true
++    scanReveals()
++  })
++  // a late font swap changes line breaks: re-split what's already split
++  const onFontsDone = (): void => {
++    document.querySelectorAll<Host>('.rv-split').forEach((h) => splitLines(h))
++  }
++  document.fonts.addEventListener('loadingdone', onFontsDone)
++
++  const offIntro = bus.on('intro', () => {
++    if (introDone) return
++    introDone = true
++    scanReveals()
++    pending.forEach(schedule)
++    pending.clear()
++  })
++  return () => {
++    offIntro()
++    offTask()
++    io?.disconnect()
++    ro?.disconnect()
++    document.fonts.removeEventListener('loadingdone', onFontsDone)
++    document.querySelectorAll<Host>('.rv-split').forEach(unsplit)
++    document.querySelectorAll<HTMLElement>('[data-rv-prep]').forEach((el) => delete el.dataset.rvPrep)
++    introDone = false
++    fontsDone = false
++    pending.clear()
++  }
++}
+diff --git a/src/fx/scroll.ts b/src/fx/scroll.ts
+new file mode 100644
+index 0000000..297b014
+--- /dev/null
++++ b/src/fx/scroll.ts
+@@ -0,0 +1,190 @@
++import Lenis from 'lenis'
++import 'lenis/dist/lenis.css'
++import { bus } from './bus'
++import { addTask, wake } from './ticker'
++import { motion } from '../motion/flag'
++import { clamp, damp, easeInOutQuart } from '../motion/math'
++
++/**
++ * Smooth scroll (Lenis 1.3, its own autoRaf: the 3D loop sleeps when idle,
++ * so Lenis keeps ticking on its own) + the shared scroll snapshot that the
++ * DOM effects read every frame. Native scroll events are the single input,
++ * so everything also works with Lenis off (reduced motion / motion toggle).
++ */
++export const scroll = {
++  /** window.scrollY (Lenis-animated when smoothing is on) */
++  y: 0,
++  /** max scrollable distance */
++  max: 1,
++  /** y / max */
++  p: 0,
++  /** viewport height */
++  vh: 1,
++  /** monotonically increasing; bumped on every scroll event */
++  seq: 0,
++  /** smoothed, normalised scroll velocity -1..1 (≈2400 px/s = 1) */
++  vs: 0,
++  /** last scroll direction: 1 down, -1 up */
++  dir: 1,
++}
++
++type GeometryFn = () => void
++const geometryFns = new Set<GeometryFn>()
++
++let lenis: Lenis | null = null
++let locked = false
++let roTimer = 0
++
++declare global {
++  interface Window {
++    __lenis?: Lenis | null
++  }
++}
++
++function measure(): void {
++  scroll.vh = window.innerHeight
++  scroll.max = Math.max(1, document.documentElement.scrollHeight - scroll.vh)
++  scroll.y = window.scrollY
++  scroll.p = clamp(scroll.y / scroll.max, 0, 1)
++}
++
++/** Re-measure document height, resize Lenis, and let listeners re-cache rects. */
++export function refreshScroll(): void {
++  measure()
++  lenis?.resize()
++  geometryFns.forEach((fn) => fn())
++  scroll.seq++
++  wake()
++}
++
++/** Register a geometry re-cache callback (called on resize / height change). */
++export function onGeometry(fn: GeometryFn): () => void {
++  geometryFns.add(fn)
++  return () => geometryFns.delete(fn)
++}
++
++function createLenis(): void {
++  if (lenis) return
++  lenis = new Lenis({
++    lerp: 0.09,
++    wheelMultiplier: 0.9,
++    smoothWheel: true,
++    syncTouch: false,
++    // anchors are handled below (same smooth scroll + focus management)
++    anchors: false,
++    stopInertiaOnNavigate: true,
++    autoRaf: true,
++  })
++  if (locked) lenis.stop()
++  window.__lenis = lenis
++}
++
++function destroyLenis(): void {
++  lenis?.destroy()
++  lenis = null
++  window.__lenis = null
++}
++
++function focusTarget(el: HTMLElement): void {
++  if (!el.matches('a[href],button,input,select,textarea,[tabindex]')) {
++    el.setAttribute('tabindex', '-1')
++  }
++  el.focus({ preventScroll: true })
++}
++
++/** Smoothly scroll to an element (or y), then move focus there. */
++export function scrollToTarget(el: HTMLElement): void {
++  const top = el.getBoundingClientRect().top + window.scrollY
++  const dist = Math.abs(top - window.scrollY) / Math.max(1, scroll.vh)
++  if (lenis && motion.ok) {
++    lenis.scrollTo(el, {
++      duration: clamp(0.9 + dist * 0.1, 0.9, 2.2),
++      easing: easeInOutQuart,
++      onComplete: () => focusTarget(el),
++    })
++  } else {
++    window.scrollTo({ top, behavior: 'auto' })
++    focusTarget(el)
++  }
++}
++
++function onAnchorClick(e: MouseEvent): void {
++  if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
++    return
++  }
++  const a = (e.target as Element | null)?.closest?.('a[href^="#"]') as HTMLAnchorElement | null
++  if (!a) return
++  const id = decodeURIComponent(a.hash.slice(1))
++  const el = id ? document.getElementById(id) : null
++  if (!el) return
++  e.preventDefault()
++  if (location.hash !== a.hash) history.pushState(null, '', a.hash)
++  scrollToTarget(el)
++}
++
++/** Stop / resume user scrolling (preloader). */
++export function lockScroll(on: boolean): void {
++  locked = on
++  document.documentElement.classList.toggle('scroll-locked', on)
++  if (!lenis) return
++  if (on) lenis.stop()
++  else lenis.start()
++}
++
++// velocity: one damped read per frame, shared by marquee / rules
++let velY = 0
++function tickVelocity(dt: number): boolean {
++  const y = scroll.y
++  const v = dt > 0 ? (y - velY) / dt : 0
++  velY = y
++  if (Math.abs(v) > 1) scroll.dir = v > 0 ? 1 : -1
++  scroll.vs = damp(scroll.vs, clamp(v / 2400, -1, 1), 6, dt)
++  if (v === 0 && Math.abs(scroll.vs) < 0.0005) {
++    scroll.vs = 0
++    return false
++  }
++  return true
++}
++
++export function startScroll(): () => void {
++  measure()
++  velY = scroll.y
++  if (motion.ok) createLenis()
++  const offVel = addTask(tickVelocity)
++
++  const onNative = (): void => {
++    scroll.y = window.scrollY
++    scroll.p = clamp(scroll.y / scroll.max, 0, 1)
++    scroll.seq++
++    wake()
++  }
++  let resizeRaf = 0
++  const onResize = (): void => {
++    // run after the experience's own resize handler (it sets #lineup height)
++    cancelAnimationFrame(resizeRaf)
++    resizeRaf = requestAnimationFrame(refreshScroll)
++  }
++  // document height changes (lineup height set in JS, fonts, images)
++  const ro = new ResizeObserver(() => {
++    clearTimeout(roTimer)
++    roTimer = window.setTimeout(refreshScroll, 120)
++  })
++  ro.observe(document.body)
++  const offMotion = bus.on('motion', ({ ok }) => {
++    if (ok) createLenis()
++    else destroyLenis()
++  })
++
++  window.addEventListener('scroll', onNative, { passive: true })
++  window.addEventListener('resize', onResize)
++  document.addEventListener('click', onAnchorClick)
++  return () => {
++    offVel()
++    offMotion()
++    ro.disconnect()
++    window.removeEventListener('scroll', onNative)
++    window.removeEventListener('resize', onResize)
++    document.removeEventListener('click', onAnchorClick)
++    destroyLenis()
++  }
++}
+diff --git a/src/fx/ticker.ts b/src/fx/ticker.ts
+new file mode 100644
+index 0000000..9adf885
+--- /dev/null
++++ b/src/fx/ticker.ts
+@@ -0,0 +1,47 @@
++import { MAX_DT } from '../motion/math'
++
++/**
++ * The DOM effects layer's single rAF owner.
++ *
++ * Tasks return `true` while they still need frames; when every task is idle
++ * the loop stops. Anything that changes state (pointer move, scroll, a
++ * reveal starting) calls `wake()`. dt is clamped to 1/30 s.
++ */
++export type Tick = (dt: number, now: number) => boolean
++
++const tasks: Tick[] = []
++let raf = 0
++let running = false
++let last = 0
++
++function frame(now: number): void {
++  const dt = Math.min(MAX_DT, Math.max(0, (now - last) / 1000))
++  last = now
++  let awake = false
++  for (let i = 0; i < tasks.length; i++) {
++    if (tasks[i](dt, now)) awake = true
++  }
++  if (awake) raf = requestAnimationFrame(frame)
++  else running = false
++}
++
++export function wake(): void {
++  if (running) return
++  running = true
++  last = performance.now()
++  raf = requestAnimationFrame(frame)
++}
++
++export function addTask(t: Tick): () => void {
++  tasks.push(t)
++  wake()
++  return () => {
++    const i = tasks.indexOf(t)
++    if (i >= 0) tasks.splice(i, 1)
++  }
++}
++
++export function stopTicker(): void {
++  cancelAnimationFrame(raf)
++  running = false
++}
+diff --git a/src/main.tsx b/src/main.tsx
+index 8751e13..4a9fd42 100644
+--- a/src/main.tsx
++++ b/src/main.tsx
+@@ -8,6 +8,8 @@ import '@fontsource/inter-tight/latin-700.css'
+ import '@fontsource/inter-tight/latin-500-italic.css'
+ import '@fontsource/ibm-plex-mono/latin-400.css'
+ import '@fontsource/ibm-plex-mono/latin-500.css'
++// Editorial serif — italic emphasis words only (h1/h2 <em>)
++import '@fontsource/instrument-serif/latin-400-italic.css'
+ import './styles/tokens.css'
+ import './styles/base.css'
+ import './styles/stage.css'
+diff --git a/src/motion/flag.ts b/src/motion/flag.ts
+new file mode 100644
+index 0000000..cce111a
+--- /dev/null
++++ b/src/motion/flag.ts
+@@ -0,0 +1,48 @@
++import { bus } from '../fx/bus'
++
++/**
++ * The single `motionOK` flag every DOM effect reads.
++ *
++ * Source of truth is `body.reduced`, which App's motion toggle (and the 3D
++ * experience's setMotionOK) maintain. At boot we mirror the OS
++ * `prefers-reduced-motion` preference into that class so static mode (no
++ * WebGL) behaves the same. Changes are broadcast as `bus 'motion'`.
++ */
++export const motion = {
++  ok: true,
++  /** primary input is a precise hovering pointer (mouse / trackpad) */
++  fine: true,
++}
++
++let started = false
++
++export function startMotionFlag(): () => void {
++  if (started) return () => {}
++  started = true
++  const mqReduce = window.matchMedia('(prefers-reduced-motion: reduce)')
++  const mqFine = window.matchMedia('(hover: hover) and (pointer: fine)')
++  if (mqReduce.matches) document.body.classList.add('reduced')
++  motion.fine = mqFine.matches
++  motion.ok = !document.body.classList.contains('reduced')
++  document.documentElement.classList.toggle('motion-off', !motion.ok)
++
++  const read = (): void => {
++    const ok = !document.body.classList.contains('reduced')
++    if (ok === motion.ok) return
++    motion.ok = ok
++    document.documentElement.classList.toggle('motion-off', !ok)
++    bus.emit('motion', { ok })
++  }
++  const mo = new MutationObserver(read)
++  mo.observe(document.body, { attributes: true, attributeFilter: ['class'] })
++  const onFine = (): void => {
++    motion.fine = mqFine.matches
++    bus.emit('motion', { ok: motion.ok })
++  }
++  mqFine.addEventListener('change', onFine)
++  return () => {
++    started = false
++    mo.disconnect()
++    mqFine.removeEventListener('change', onFine)
++  }
++}
+diff --git a/src/motion/math.ts b/src/motion/math.ts
+new file mode 100644
+index 0000000..870f8b7
+--- /dev/null
++++ b/src/motion/math.ts
+@@ -0,0 +1,58 @@
++/**
++ * Motion maths shared by the DOM effects layer (and free for the 3D side).
++ * Everything is frame-rate independent; clamp dt to MAX_DT before use so a
++ * tab switch never explodes a spring.
++ */
++
++/** Longest frame step any integrator should see (seconds). */
++export const MAX_DT = 1 / 30
++
++export const clamp = (x: number, a: number, b: number): number =>
++  x < a ? a : x > b ? b : x
++
++export const lerp = (a: number, b: number, t: number): number => a + (b - a) * t
++
++/**
++ * Exponential smoothing toward `b` (Lenis uses the same form).
++ * λ guide: 4 heavy object · 8 UI follow · 18 cursor ring · 35 near-instant.
++ */
++export const damp = (a: number, b: number, lambda: number, dt: number): number =>
++  a + (b - a) * (1 - Math.exp(-lambda * dt))
++
++export const smoothstep = (a: number, b: number, x: number): number => {
++  const t = clamp((x - a) / (b - a), 0, 1)
++  return t * t * (3 - 2 * t)
++}
++
++/** Mutable 1D spring state (mass 1). */
++export interface Spring1 {
++  x: number
++  v: number
++}
++
++/**
++ * Semi-implicit Euler spring step; mutates and returns `s.x`.
++ * Critical damping is c = 2√k; ζ≈0.75–0.9 reads "precise" (tiny overshoot).
++ * Presets: cursor ring k=320,c=30 · magnetic k=180,c=18.
++ */
++export function spring(s: Spring1, target: number, k: number, c: number, dt: number): number {
++  const a = -k * (s.x - target) - c * s.v
++  s.v += a * dt
++  s.x += s.v * dt
++  return s.x
++}
++
++/** True when a spring is visually at rest on its target. */
++export const settled = (s: Spring1, target: number, eps = 0.02): boolean =>
++  Math.abs(s.x - target) < eps && Math.abs(s.v) < eps * 4
++
++// ---- easing (mirror the CSS tokens in tokens.css) ------------------------
++/** expo.out — reveals, rolls (--ease-out) */
++export const easeOutExpo = (t: number): number => (t >= 1 ? 1 : 1 - Math.pow(2, -10 * t))
++/** quart.inOut — wipes, curtains (--ease-inout) */
++export const easeInOutQuart = (t: number): number =>
++  t < 0.5 ? 8 * t * t * t * t : 1 - Math.pow(-2 * t + 2, 4) / 2
++/** cubic.inOut — hairline / SVG draw-ons (--ease-draw) */
++export const easeInOutCubic = (t: number): number =>
++  t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
++export const easeOutCubic = (t: number): number => 1 - Math.pow(1 - t, 3)
+diff --git a/src/styles/base.css b/src/styles/base.css
+index e738e26..213bf93 100644
+--- a/src/styles/base.css
++++ b/src/styles/base.css
+@@ -1,16 +1,38 @@
++/* Metric-matched fallbacks (measured against the self-hosted faces) so the
++   web-font swap doesn't move layout: widths via size-adjust, vertical
++   metrics via overrides (both relative to the adjusted size). */
++@font-face{font-family:"Inter Tight Fallback";src:local("Arial"),local("ArialMT"),local("Liberation Sans");
++  font-weight:100 450;size-adjust:96%;ascent-override:101%;descent-override:25%;line-gap-override:0%}
++@font-face{font-family:"Inter Tight Fallback";src:local("Arial"),local("ArialMT"),local("Liberation Sans");
++  font-weight:451 900;size-adjust:98.1%;ascent-override:98.9%;descent-override:24.5%;line-gap-override:0%}
++@font-face{font-family:"Instrument Serif Fallback";font-style:italic;
++  src:local("Times New Roman Italic"),local("TimesNewRomanPS-ItalicMT"),local("Liberation Serif Italic");
++  size-adjust:87.2%;ascent-override:113.5%;descent-override:35.6%;line-gap-override:0%}
++@font-face{font-family:"IBM Plex Mono Fallback";src:local("Courier New"),local("CourierNewPSMT"),local("Liberation Mono");
++  size-adjust:100%;ascent-override:102.5%;descent-override:27.5%;line-gap-override:0%}
+ *{box-sizing:border-box}
+-html{scroll-behavior:smooth}
+-@media (prefers-reduced-motion:reduce){ html{scroll-behavior:auto} }
++/* Lenis owns smooth scrolling; native smooth-behavior would fight it.
++   A stable gutter keeps layout still when the preloader locks scrolling. */
++html{scrollbar-gutter:stable}
++html.scroll-locked{overflow:hidden}
+ body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--font);
+   font-size:17px;line-height:1.6;letter-spacing:-0.005em;-webkit-font-smoothing:antialiased;
+-  overflow-x:hidden}
++  -moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility;overflow-x:hidden}
+ ::selection{background:var(--ink);color:var(--paper)}
+-h1,h2,h3{text-wrap:balance;line-height:1.05;letter-spacing:-0.03em;margin:0}
+-p{margin:0;max-width:58ch}
++h1,h2,h3{text-wrap:balance;line-height:1.05;letter-spacing:-0.03em;margin:0;font-weight:500}
++/* editorial emphasis: Instrument Serif italic, optically matched to Inter Tight */
++h1 em,h2 em{font-family:var(--serif);font-style:italic;font-weight:400;
++  font-size:1.1em;letter-spacing:-0.012em;line-height:0}
++p{margin:0;max-width:58ch;text-wrap:pretty}
+ .mono{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
++.tnum{font-variant-numeric:tabular-nums}
+ a{color:inherit}
+ button{font:inherit}
+ :focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:2px}
++/* programmatic focus targets (anchor jumps) don't need a ring */
++[tabindex="-1"]:focus:not(:focus-visible){outline:none}
++.sr-only{position:absolute !important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
++  clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
+ .skip{position:fixed;top:-60px;left:12px;z-index:200;background:var(--ink);color:var(--paper);
+   padding:10px 16px;border-radius:var(--radius);transition:top .18s var(--ease-out);text-decoration:none}
+ .skip:focus{top:12px}
+diff --git a/src/styles/nav.css b/src/styles/nav.css
+index 142aa39..ad07426 100644
+--- a/src/styles/nav.css
++++ b/src/styles/nav.css
+@@ -1,17 +1,52 @@
+-/* ---------- nav ---------- */
+-header#nav{position:fixed;top:0;left:0;right:0;z-index:50;height:64px;
+-  display:flex;align-items:center;border-bottom:1px solid transparent;
+-  transition:background .3s ease,border-color .3s ease}
+-header#nav.scrolled{background:rgba(245,243,238,.86);backdrop-filter:blur(12px);border-color:var(--hairline)}
+-.nav-inner{width:100%;max-width:var(--max);margin:0 auto;padding:0 24px;display:flex;align-items:center;gap:28px}
++/* ---------- nav: a drawing title block ---------- */
++header#nav{position:fixed;top:0;left:0;right:0;z-index:50;height:var(--nav-h);
++  display:flex;align-items:center;
++  transition:background-color .4s var(--ease-standard),backdrop-filter .4s var(--ease-standard)}
++/* at the top of the hero a soft paper fade keeps links legible over the pencil */
++header#nav::before{content:"";position:absolute;left:0;right:0;top:0;bottom:-28px;z-index:-1;pointer-events:none;
++  background:linear-gradient(to bottom,rgba(245,243,238,.94) 0%,rgba(245,243,238,.78) 55%,rgba(245,243,238,0) 100%);
++  transition:opacity .4s ease}
++header#nav.scrolled::before{opacity:0}
++header#nav.scrolled{background:rgba(245,243,238,.86);backdrop-filter:blur(12px) saturate(1.05);-webkit-backdrop-filter:blur(12px)}
++.nav-inner{width:100%;max-width:var(--max);margin:0 auto;padding:0 24px;display:flex;align-items:center;gap:22px}
+ .brand{font-weight:700;letter-spacing:-0.02em;font-size:17px;text-decoration:none;white-space:nowrap}
+ .brand small{font-family:var(--mono);font-weight:400;font-size:11px;color:var(--muted);margin-left:8px;letter-spacing:.1em}
+-nav.links{display:flex;gap:22px;margin-left:auto}
+-nav.links a{font-size:14px;text-decoration:none;color:var(--muted);transition:color .18s var(--ease-out);white-space:nowrap}
+-nav.links a:hover{color:var(--ink)}
+-.nav-cta{font-size:14px;font-weight:600;text-decoration:none;border-bottom:2px solid var(--accent);padding-bottom:1px}
+-.motion-toggle{margin-left:4px;border:1px solid var(--hairline);background:var(--card);border-radius:var(--radius);
+-  font-family:var(--mono);font-size:11px;letter-spacing:.08em;padding:7px 10px;cursor:pointer;color:var(--muted);
+-  transition:color .18s ease,border-color .18s ease,transform .18s var(--ease-out)}
++
++/* SHEET 0X/09 — NAME */
++.sheet{display:flex;align-items:center;gap:7px;height:22px;padding-left:20px;border-left:1px solid var(--hairline);
++  font:500 11px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
++.sheet-num{color:var(--ink);font-variant-numeric:tabular-nums}
++.sheet-of{margin-left:-6px}
++.sheet-dash{opacity:.6}
++.sheet-name{display:inline-grid;overflow:clip;height:1.4em;line-height:1.4em;color:var(--ink)}
++.sheet-name .sn{grid-area:1/1;transition:transform 700ms var(--ease-out)}
++.sheet-name .sn.in{transform:translate3d(0,108%,0)}
++.sheet-name .sn.out{transform:translate3d(0,-108%,0)}
++
++nav.links{display:flex;gap:6px;margin-left:auto}
++nav.links a{position:relative;font-size:14px;text-decoration:none;color:var(--muted);white-space:nowrap;padding:8px 9px;
++  transition:color var(--t-hover) var(--ease-standard)}
++nav.links a .mag{display:inline-block;will-change:transform}
++nav.links a:hover,nav.links a[aria-current="true"]{color:var(--ink)}
++/* active chapter: a short ink rule under the link (the "current sheet") */
++nav.links a::after{content:"";position:absolute;left:9px;right:9px;bottom:3px;height:1px;background:var(--ink);
++  transform:scaleX(0);transform-origin:0 50%;transition:transform var(--t-ui) var(--ease-standard)}
++nav.links a[aria-current="true"]::after{transform:scaleX(1)}
++.nav-cta{font-size:14px;font-weight:600;text-decoration:none;white-space:nowrap;padding:8px 2px}
++.nav-cta .mag{display:inline-block;border-bottom:2px solid var(--accent);padding-bottom:1px;will-change:transform}
++.motion-toggle{display:inline-flex;align-items:center;gap:8px;margin-left:2px;border:1px solid var(--hairline);background:transparent;
++  border-radius:var(--radius);font-family:var(--mono);font-size:11px;letter-spacing:.08em;padding:7px 10px;color:var(--muted);
++  transition:color var(--t-hover) ease,border-color var(--t-hover) ease,background-color var(--t-hover) ease}
++.motion-toggle i{width:6px;height:6px;border-radius:50%;background:var(--ink);transition:background-color var(--t-hover) ease,box-shadow var(--t-hover) ease}
++.motion-toggle[data-paused="true"] i{background:transparent;box-shadow:inset 0 0 0 1px var(--ink)}
+ .motion-toggle:hover{color:var(--ink);border-color:var(--ink)}
+-.motion-toggle:active{transform:scale(.98)}
++
++/* progress rule with chapter ticks (driven by src/fx/chrome) */
++.nav-rule{position:absolute;left:0;right:0;bottom:0;height:1px;pointer-events:none;
++  background:transparent;transition:background-color .4s ease}
++header#nav.scrolled .nav-rule{background:var(--hairline)}
++#ruleFill{position:absolute;inset:0;background:var(--ink);transform-origin:0 50%;transform:scaleX(0)}
++#ruleTicks i{position:absolute;bottom:0;width:1px;height:5px;background:var(--hairline);transition:background-color .4s ease,height .4s var(--ease-standard)}
++header#nav.scrolled #ruleTicks i{background:rgba(20,20,18,.28)}
++#ruleTicks i.on{background:var(--ink) !important;height:7px}
++#ruleTicks i:first-child{display:none}
+diff --git a/src/styles/responsive.css b/src/styles/responsive.css
+index c790624..90bd4b6 100644
+--- a/src/styles/responsive.css
++++ b/src/styles/responsive.css
+@@ -1,22 +1,43 @@
+ /* responsive */
++@media (max-width:1100px){
++  .sheet-k{display:none}
++}
+ @media (max-width:900px){
+   nav.links{display:none}
+-  .hero-grid{grid-template-columns:1fr}
+-  #sceneLabel{display:none}
++  .nav-cta{margin-left:auto}
++  .hero-grid{grid-template-columns:1fr;gap:28px}
++  .hero-spec{display:none}
++  /* the pencil recedes into the paper under the headline (portrait framing) */
++  #hero::before{content:"";position:absolute;left:0;right:0;bottom:0;height:68%;pointer-events:none;
++    background:linear-gradient(to top,rgba(245,243,238,.94) 0%,rgba(245,243,238,.86) 52%,rgba(245,243,238,0) 100%)}
++  #hero .hero-grid{position:relative}
+   .buy-grid{grid-template-columns:1fr}
+   .right{margin-left:0}
+-  .tall .card{max-width:100%;background:rgba(245,243,238,.82);backdrop-filter:blur(8px);
++  /* copy sits on paper cards over the product on narrow screens */
++  .tall .card,.exp-card{max-width:100%;background:rgba(245,243,238,.86);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+     border:1px solid var(--hairline);border-radius:var(--radius);padding:22px}
+   .variant{flex-basis:86vw}
++  .foot-tb{grid-template-columns:1fr 1fr}
++  .foot-tb>*{border-left:0;border-top:1px solid var(--ink)}
++  .foot-tb>:first-child{grid-column:1 / -1;border-top:0}
++  .foot-tb>:nth-child(3),.foot-tb>:nth-child(5){border-left:1px solid var(--ink)}
+ }
+ @media (max-width:520px){
++  :root{--fs-h1:clamp(40px,11.4vw,52px);--fs-h2:clamp(30px,8.6vw,40px);--fs-h2-xl:clamp(34px,9.6vw,44px)}
+   .nav-inner{gap:12px;padding:0 16px}
+-  .nav-cta{margin-left:auto;white-space:nowrap}
++  .wrap{padding:0 18px}
+   .motion-toggle{display:none}
+   .brand small{display:none}
+-}
+-@media (prefers-reduced-motion:reduce){
+-  .rv{opacity:1;transform:none;transition:none}
+-  .scroll-cue .tick{animation:none}
+-  *{transition-duration:.01ms !important}
++  .sheet{padding-left:12px;gap:5px;font-size:10px}
++  .sheet-dash,.sheet-name{display:none}
++  #hero{padding:96px 0 32px}
++  .hero-sub{font-size:16.5px;margin-top:20px}
++  .hero-actions{gap:22px;margin-top:24px}
++  .btn-solid .mag{padding:14px 22px}
++  .scroll-cue{margin-top:30px}
++  .phil-h{--trk-from:.025em}
++  .phil-rows>div{grid-template-columns:36px 1fr;gap:10px;padding:20px 0}
++  .phil-rows .val{grid-column:2}
++  .phil-rows p{font-size:17px}
++  .marquee{padding:16px 0}
+ }
+diff --git a/src/styles/sections.css b/src/styles/sections.css
+index d1059a9..452755b 100644
+--- a/src/styles/sections.css
++++ b/src/styles/sections.css
+@@ -4,66 +4,166 @@ section{position:relative}
+ .wrap{max-width:var(--max);margin:0 auto;padding:0 24px}
+ .panel{pointer-events:none}
+ .panel a,.panel button,.panel input,.panel label{pointer-events:auto}
+-/* reveal */
+-.rv{opacity:0;transform:translateY(24px);transition:opacity .48s var(--ease-out),transform .48s var(--ease-out)}
++
++/* ---------- reveals (src/fx/reveal.ts) ----------
++   data-reveal="lines" · "fade" · "type"; host gets .is-in once on screen */
++.rv-split{display:flex;flex-direction:column}
++[data-reveal="lines"] .rl{display:block;overflow-x:visible;overflow-y:clip;white-space:nowrap;
++  padding:.1em 0 .18em;margin:-.1em 0 -.18em}
++[data-reveal="lines"] .rli{display:block;transform:translate3d(0,160%,0);
++  transition:transform var(--t-reveal) var(--ease-out);
++  transition-delay:calc(var(--rd,0ms) + var(--i,0) * var(--stagger))}
++[data-reveal="lines"].is-in .rli{transform:none}
++.js [data-reveal="lines"]:not(.rv-split){opacity:0;transition:opacity .6s ease var(--rd,0ms)}
++.js [data-reveal="lines"]:not(.rv-split).is-in{opacity:1}
++.js [data-reveal="fade"]{opacity:0;transform:translate3d(0,12px,0);
++  transition:opacity .9s var(--ease-standard),transform .9s var(--ease-standard);transition-delay:var(--rd,0ms)}
++.js [data-reveal="fade"].is-in{opacity:1;transform:none}
++.js [data-reveal="type"]:not(.is-in){opacity:0}
++.ty-rest{opacity:0}
++.ty-edge{color:var(--ink)}
++/* reduced motion / motion toggle: static choreography, crossfades only */
++.reduced [data-reveal="fade"]{transform:none;transition:opacity .5s ease}
++.reduced [data-reveal="lines"] .rli{transform:none;opacity:0;transition:opacity .5s ease}
++.reduced [data-reveal="lines"].is-in .rli{opacity:1}
++/* failsafe if the bundle never ran */
++.no-fx [data-reveal],.no-fx [data-reveal] .rli,.no-fx .ty-rest{opacity:1 !important;transform:none !important}
++/* legacy .rv (components not yet on data-reveal): same body fade */
++.rv{opacity:0;transform:translate3d(0,12px,0);transition:opacity .9s var(--ease-standard),transform .9s var(--ease-standard)}
+ .rv.is-visible{opacity:1;transform:none}
++
++/* ---------- odometer digits (src/fx/odometer.ts) ---------- */
++.od{white-space:nowrap}
++.odc{display:inline-block;position:relative;line-height:1.2em;vertical-align:baseline;
++  clip-path:inset(0);font-variant-numeric:tabular-nums}
++.odp{visibility:hidden}
++.ods{position:absolute;left:0;top:0;display:flex;flex-direction:column;
++  transform:translate3d(0,calc(var(--d,0) * -1.2em),0);
++  transition:transform 900ms var(--ease-out) var(--od-delay,0ms)}
++.ods>span{display:block;height:1.2em;line-height:1.2em}
++.reduced .ods{transition:none}
++
++/* ---------- hairline rows that draw on (left → right) ---------- */
++.draw-rows{position:relative}
++.draw-rows>*{position:relative}
++.draw-rows::before,.draw-rows>*::after{content:"";position:absolute;left:0;right:0;height:1px;
++  background:var(--hairline);transform-origin:0 50%}
++.draw-rows::before{top:0;background:var(--ink)}
++.draw-rows>*::after{bottom:0}
++.js .draw-rows::before,.js .draw-rows>*::after{transform:scaleX(0);
++  transition:transform var(--t-draw) var(--ease-draw);transition-delay:calc(var(--rd,0ms) + 80ms + var(--k,0) * 70ms)}
++.js .draw-rows::before{transition-delay:var(--rd,0ms)}
++.draw-rows>:nth-child(2){--k:1}.draw-rows>:nth-child(3){--k:2}.draw-rows>:nth-child(4){--k:3}
++.draw-rows>:nth-child(5){--k:4}.draw-rows>:nth-child(6){--k:5}.draw-rows>:nth-child(7){--k:6}
++.draw-rows>:nth-child(8){--k:7}.draw-rows>:nth-child(9){--k:8}
++.js .draw-rows.is-in::before,.js .draw-rows.is-in>*::after,.reduced .draw-rows::before,.reduced .draw-rows>*::after,
++.no-fx .draw-rows::before,.no-fx .draw-rows>*::after{transform:none}
++
++/* ---------- type ---------- */
++.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);
++  margin-bottom:18px;line-height:1.5}
++h2{font-size:var(--fs-h2);font-weight:500;line-height:.98;letter-spacing:-0.036em}
++.lede{margin-top:18px;color:var(--muted)}
++
+ /* ---------- hero ---------- */
+-#hero{min-height:100dvh;display:flex;align-items:flex-end;padding:120px 0 56px}
+-.hero-grid{width:100%;display:grid;grid-template-columns:1.2fr .8fr;gap:32px;align-items:end}
+-#hero h1{font-size:clamp(44px,7vw,84px);font-weight:600;line-height:1.0;letter-spacing:-0.035em}
+-#hero h1 em{font-style:italic;font-weight:500}
+-.hero-sub{margin-top:18px;color:var(--muted);font-size:18px;max-width:34ch}
+-.hero-actions{margin-top:26px;display:flex;gap:18px;align-items:center}
+-.btn-solid{display:inline-block;background:var(--ink);color:var(--paper);text-decoration:none;font-weight:600;
+-  font-size:15px;padding:14px 26px;border-radius:var(--radius);transition:transform .18s var(--ease-out),background .18s ease}
+-.btn-solid:hover{background:#000;transform:translateY(-1px)}
+-.btn-solid:active{transform:scale(.98)}
+-.btn-line{display:inline-block;font-weight:600;font-size:15px;text-decoration:none;border-bottom:2px solid var(--hairline);
+-  padding-bottom:3px;transition:border-color .18s ease}
+-.btn-line:hover{border-color:var(--ink)}
+-.hero-spec{border-top:1px solid var(--hairline);padding-top:18px;display:grid;gap:6px}
+-.scroll-cue{margin-top:34px;display:flex;align-items:center;gap:10px;color:var(--muted)}
+-.scroll-cue .tick{width:1px;height:34px;background:var(--ink);display:block;animation:cue 1.8s var(--ease-out) infinite}
+-@keyframes cue{0%{transform:scaleY(0);transform-origin:top}45%{transform:scaleY(1);transform-origin:top}55%{transform:scaleY(1);transform-origin:bottom}100%{transform:scaleY(0);transform-origin:bottom}}
++#hero{min-height:100dvh;display:flex;align-items:flex-end;padding:120px 0 48px}
++.hero-grid{width:100%;display:grid;grid-template-columns:1.25fr .75fr;gap:40px;align-items:end}
++#hero h1{font-size:var(--fs-h1);font-weight:500;line-height:var(--lh-display);letter-spacing:var(--tr-display);
++  max-width:5.3em}
++#hero h1 em{font-size:1.08em;letter-spacing:-0.018em}
++.hero-sub{margin-top:26px;color:var(--muted);font-size:18px;line-height:1.55;max-width:36ch}
++.hero-actions{margin-top:30px;display:flex;gap:26px;align-items:center}
++/* magnetic CTAs: the <a> is the still hit area; .mag (face) moves */
++.btn-solid,.btn-line{display:inline-block;text-decoration:none;font-weight:600;font-size:15px}
++.btn-solid .mag,.btn-line .mag,.mag-label{display:inline-block;will-change:transform}
++.btn-solid .mag{background:var(--ink);color:var(--paper);padding:15px 28px;border-radius:var(--radius);
++  transition:background-color var(--t-hover) ease}
++.btn-solid:hover .mag{background:#000}
++.btn-solid:active .mag-label{transform:scale(.98)}
++.btn-line .mag{padding:6px 0 4px;border-bottom:1px solid var(--ink);transition:border-color var(--t-hover) ease}
++.btn-line .mag-label::after{content:"↓";display:inline-block;margin-left:10px;font-weight:400;
++  transition:transform var(--t-ui) var(--ease-standard)}
++.btn-line:hover .mag-label::after{transform:translate3d(0,2px,0)}
++.hero-spec{align-self:end}
++.hs-head{color:var(--ink);padding-bottom:12px;border-bottom:1px solid var(--ink)}
++.hero-spec dl{margin:0}
++.hero-spec dl>div{display:flex;justify-content:space-between;gap:16px;padding:10px 0;border-bottom:1px solid var(--hairline)}
++.hero-spec dt{color:var(--muted)}
++.hero-spec dd{margin:0;color:var(--ink);text-align:right}
++.hero-spec .mono{font-size:11.5px}
++/* scroll cue: a graphite dot drafts a vertical hairline */
++.scroll-cue{margin-top:44px;display:flex;align-items:center;gap:14px;color:var(--muted)}
++.scroll-cue>*{opacity:var(--cue,1)}
++.cue-line{position:relative;width:1px;height:48px;background:var(--hairline)}
++.cue-line::before{content:"";position:absolute;inset:0;background:var(--ink);transform-origin:50% 0;
++  animation:cueline 1.8s var(--ease-inout) infinite}
++.cue-line i{position:absolute;left:-2px;top:-2px;width:5px;height:5px;border-radius:50%;background:var(--graphite);
++  animation:cuedot 1.8s var(--ease-inout) infinite}
++@keyframes cueline{0%{transform:scaleY(0);opacity:1}70%{transform:scaleY(1);opacity:1}100%{transform:scaleY(1);opacity:0}}
++@keyframes cuedot{0%{transform:translate3d(0,0,0);opacity:0}12%{opacity:1}70%{transform:translate3d(0,48px,0);opacity:1}100%{transform:translate3d(0,48px,0);opacity:0}}
++.reduced .cue-line::before,.reduced .cue-line i{animation:none}
++.reduced .cue-line i{transform:translate3d(0,48px,0)}
++
+ /* ---------- tall narrative sections ---------- */
+ .tall{display:flex;align-items:center;padding:18dvh 0}
+-.tall .card{max-width:400px}
+-.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:14px}
+-h2{font-size:clamp(30px,4vw,44px);font-weight:600}
+-.lede{margin-top:14px;color:var(--muted)}
+-.spec-list{margin:22px 0 0;padding:18px 0 0;border-top:1px solid var(--hairline);list-style:none;display:grid;gap:12px}
+-.spec-list li{display:flex;justify-content:space-between;gap:16px;font-size:14px}
++/* the wrap must span the row: as a shrink-wrapped flex item with auto
++   margins it centred the copy right on top of the product */
++.tall>.wrap{width:100%}
++.tall .card{max-width:430px}
++.spec-list{margin:26px 0 0;padding:0;list-style:none}
++.spec-list li{display:flex;justify-content:space-between;align-items:baseline;gap:16px;font-size:14px;padding:11px 0}
+ .spec-list li b{font-weight:600}
+ .spec-list li span{font-family:var(--mono);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+ .right{margin-left:auto}
+ .anno{font-family:var(--mono);font-size:11.5px;color:var(--muted);letter-spacing:.06em;border-left:2px solid var(--accent);
+-  padding-left:12px;margin-top:18px;line-height:1.7}
+-/* exploded labels */
++  padding-left:12px;margin-top:22px;line-height:1.7}
++/* exploded */
+ #exploded{min-height:230dvh;display:block;padding:20dvh 0}
+-.exp-labels{margin-top:26px;display:grid;gap:0;border-top:1px solid var(--hairline)}
+-.exp-labels div{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--hairline);font-size:13.5px}
+-.exp-labels div span:last-child{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+-/* mechanism steps */
++.exp-card{max-width:440px}
++.exp-labels{margin-top:28px}
++.exp-labels>div{display:flex;justify-content:space-between;gap:12px;padding:9px 0;font-size:13.5px}
++.exp-labels>div>span:last-child{font-family:var(--mono);font-size:11.5px;color:var(--muted);white-space:nowrap}
++.exp-n{font-style:normal;font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-right:12px;letter-spacing:.06em}
++/* mechanism */
+ #mechanism{min-height:170dvh}
+-.steps{margin-top:26px;display:grid;gap:0;border-top:1px solid var(--hairline)}
+-.step{display:grid;grid-template-columns:52px 1fr;gap:14px;padding:15px 0;border-bottom:1px solid var(--hairline);
+-  opacity:.38;transition:opacity .3s ease}
++.mech-eyebrow{display:flex;justify-content:space-between;align-items:baseline}
++.mech-count{color:var(--ink);font-variant-numeric:tabular-nums}
++.mech-of{color:var(--muted)}
++.steps{margin-top:28px}
++.step{display:grid;grid-template-columns:52px 1fr;gap:14px;padding:15px 0;opacity:.38;transition:opacity .45s var(--ease-standard)}
+ .step[data-on="true"]{opacity:1}
+ .step .n{font-family:var(--mono);font-size:12px;color:var(--accent);padding-top:3px;font-variant-numeric:tabular-nums}
+-.step h3{font-size:17px;letter-spacing:-0.01em}
++.step h3{font-size:17px;letter-spacing:-0.01em;font-weight:600}
+ .step p{font-size:14px;color:var(--muted);margin-top:3px}
+-/* philosophy */
+-#philosophy{padding:22dvh 0;text-align:left}
+-#philosophy h2{font-size:clamp(34px,5vw,58px);max-width:16ch}
+-.phil-rows{margin-top:48px;border-top:1px solid var(--hairline)}
+-.phil-rows div{display:grid;grid-template-columns:64px 1fr auto;gap:18px;align-items:baseline;
+-  padding:26px 0;border-bottom:1px solid var(--hairline)}
++/* reassembly */
++.re-card{text-align:center;margin:0 auto}
++.re-card .lede{margin:18px auto 0}
++/* ---------- philosophy: "tighter tolerances", literally ---------- */
++#philosophy{padding:22dvh 0 0;text-align:left}
++.phil-h{font-size:var(--fs-h2-xl);font-weight:500;line-height:.95;
++  --trk-from:.06em;letter-spacing:calc(var(--trk-from) - (var(--trk-from) + .035em) * var(--sp,1))}
++.phil-rows{margin-top:56px}
++.phil-rows>div{display:grid;grid-template-columns:64px 1fr auto;gap:18px;align-items:baseline;padding:26px 0}
+ .phil-rows .idx{font-family:var(--mono);font-size:12px;color:var(--muted)}
+-.phil-rows p{font-size:19px;max-width:34ch}
++.phil-rows p{font-size:20px;max-width:34ch;letter-spacing:-0.012em}
+ .phil-rows .val{font-family:var(--mono);font-size:12px;color:var(--ink);white-space:nowrap}
+-footer{border-top:1px solid var(--hairline);padding:34px 0 48px;position:relative;z-index:2;background:transparent}
+-.foot{display:flex;gap:20px;align-items:baseline;flex-wrap:wrap}
+-.foot .mono{margin-left:auto}
++/* spec marquee (src/fx/marquee.ts) */
++.marquee{position:relative;margin-top:clamp(80px,14vh,150px);border-top:1px solid var(--ink);border-bottom:1px solid var(--hairline);
++  overflow:hidden;white-space:nowrap;padding:20px 0;pointer-events:none;
++  /* a printed strip: the pencil passes behind it, the specs stay legible */
++  background:rgba(245,243,238,.9)}
++.mq-track{display:inline-flex;will-change:transform}
++.mq-copy{display:inline-flex;align-items:center;flex:none}
++.mq-copy>span{display:inline-flex;align-items:center;font:400 clamp(18px,2.1vw,30px)/1 var(--mono);
++  letter-spacing:.04em;text-transform:uppercase;color:var(--ink)}
++.mq-copy i{font-style:normal;margin:0 1.1em;color:var(--muted)}
++
++/* ---------- footer title block ---------- */
++footer{padding:48px 0 56px;position:relative;z-index:2;background:transparent}
++.foot-tb{display:grid;grid-template-columns:1fr 1.6fr 1.3fr 1fr 1.3fr;border:1px solid var(--ink)}
++.foot-tb>*{padding:14px 16px;border-left:1px solid var(--ink);display:flex;align-items:center}
++.foot-tb>:first-child{border-left:0}
++.foot-tb .mono{font-size:11px}
+ /* fallback poster */
+ #fallback{display:none;position:fixed;inset:0;z-index:0;align-items:center;justify-content:center;background:var(--paper)}
+ #fallback svg{width:min(60vw,420px)}
+diff --git a/src/styles/stage.css b/src/styles/stage.css
+index 7828915..6e413f1 100644
+--- a/src/styles/stage.css
++++ b/src/styles/stage.css
+@@ -1,16 +1,77 @@
+ /* ---------- WebGL stage ---------- */
+ #gl{position:fixed;inset:0;width:100%;height:100dvh;display:block;touch-action:none;z-index:0}
+ #gl[aria-hidden="true"]{pointer-events:none}
+-.scrim{position:fixed;inset:0;z-index:1;pointer-events:none;
+-  background:radial-gradient(120% 90% at 50% 42%, rgba(245,243,238,0) 55%, rgba(245,243,238,.55) 100%)}
+-/* ---------- loader ---------- */
+-#loader{position:fixed;inset:0;z-index:100;background:var(--paper);display:flex;align-items:center;justify-content:center;
+-  flex-direction:column;gap:14px;transition:opacity .5s var(--ease-out)}
+-#loader.done{opacity:0;pointer-events:none;visibility:hidden}
+-#loader .bar{width:148px;height:2px;background:var(--hairline);overflow:hidden;border-radius:2px}
+-#loader .bar i{display:block;height:100%;width:30%;background:var(--ink);transition:width .3s ease}
+-/* ---------- progress ---------- */
+-#progress{position:fixed;top:0;left:0;right:0;z-index:60;height:2px;background:transparent}
+-#progress i{display:block;height:100%;width:100%;background:var(--ink);transform-origin:0 50%;transform:scaleX(0)}
+-#sceneLabel{position:fixed;top:76px;right:20px;z-index:60;font-family:var(--mono);font-size:11px;
+-  letter-spacing:.14em;color:var(--muted);text-transform:uppercase}
++
++/* ---------- paper: warm vignette (never black) + film grain ----------
++   Layer order: #gl 0 · #vignette 1 · main 2 · #graphite 45 · nav 50 ·
++   #loader 100 · #grain 110 · #cursor 120 */
++#vignette{position:fixed;inset:0;z-index:1;pointer-events:none;
++  background:radial-gradient(120% 92% at 50% 44%, rgba(120,100,70,0) 54%, rgba(120,100,70,.08) 100%)}
++/* one 160px tile of slack on each side; keyframes step within one tile */
++#grain{position:fixed;left:-160px;top:-160px;width:calc(100% + 320px);height:calc(100% + 320px);z-index:110;
++  pointer-events:none;opacity:0;background-repeat:repeat;background-size:160px 160px;
++  will-change:transform;transition:opacity .6s ease}
++#grain.is-ready{opacity:.055;animation:grain .75s steps(1,end) infinite}
++@keyframes grain{
++  0%{transform:translate3d(0,0,0)}
++  16.66%{transform:translate3d(-61px,37px,0)}
++  33.33%{transform:translate3d(47px,-83px,0)}
++  50%{transform:translate3d(-109px,-29px,0)}
++  66.66%{transform:translate3d(89px,71px,0)}
++  83.33%{transform:translate3d(-23px,113px,0)}
++}
++.reduced #grain.is-ready,.motion-off #grain.is-ready{animation:none}
++/* touch devices: still grain (no 8 fps recomposite on battery) */
++@media (hover:none){#grain.is-ready{animation:none;opacity:.04}}
++
++/* ---------- graphite trail ---------- */
++#graphite{position:fixed;left:0;top:0;z-index:45;pointer-events:none;mix-blend-mode:multiply}
++/* the multiply surface only exists while there is graphite to show */
++html:not(.has-cursor) #graphite,#graphite.is-idle{display:none}
++
++/* ---------- cursor: nib + context ring ---------- */
++html.has-cursor,html.has-cursor *{cursor:none !important}
++html.has-cursor :is(input:not([type="radio"],[type="checkbox"],[type="range"],[type="submit"],[type="button"]),textarea,select,[contenteditable="true"]){cursor:auto !important}
++#cursor{position:fixed;left:0;top:0;z-index:120;pointer-events:none;opacity:0;transition:opacity .25s ease}
++html:not(.has-cursor) #cursor{display:none}
++#cursor.is-on{opacity:1}
++.cur-nib,.cur-ring{position:absolute;left:0;top:0;will-change:transform}
++.cur-dot{width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:var(--graphite);
++  transition:transform var(--t-hover) var(--ease-standard),opacity var(--t-hover) ease}
++.cur-shape{position:absolute;left:0;top:0;width:10px;height:10px;box-sizing:border-box;
++  border:1px solid var(--ink);border-radius:999px;background:transparent;opacity:0;
++  display:flex;align-items:center;justify-content:center;overflow:hidden;
++  transform:translate(-50%,-50%) scale(.5);
++  transition:width var(--t-ui) var(--ease-standard),height var(--t-ui) var(--ease-standard),
++    border-radius var(--t-ui) var(--ease-standard),background-color var(--t-ui) ease,
++    border-color var(--t-ui) ease,opacity var(--t-hover) ease,transform var(--t-ui) var(--ease-standard)}
++.cur-label{font:500 10px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--paper);
++  white-space:nowrap;opacity:0;transition:opacity var(--t-hover) ease}
++#cursor[data-mode="link"] .cur-shape{width:40px;height:40px;opacity:1;transform:translate(-50%,-50%) scale(1)}
++#cursor[data-mode="link"] .cur-dot{transform:scale(.66)}
++#cursor.is-stuck .cur-shape{border-radius:3px;opacity:1;transform:translate(-50%,-50%) scale(1);border-color:rgba(20,20,18,.7)}
++#cursor[data-mode="drag"] .cur-shape,#cursor[data-mode="part"] .cur-shape{height:30px;width:80px;opacity:1;
++  background:var(--ink);transform:translate(-50%,-50%) scale(1)}
++#cursor[data-mode="view"] .cur-shape{width:68px;height:68px;opacity:1;background:var(--ink);transform:translate(-50%,-50%) scale(1)}
++#cursor[data-mode="text"] .cur-shape{width:2px;height:24px;border-radius:1px;border-width:0;opacity:1;background:var(--ink);transform:translate(-50%,-50%) scale(1)}
++#cursor:is([data-mode="drag"],[data-mode="part"],[data-mode="view"]) .cur-label{opacity:1;transition-delay:.08s}
++#cursor:is([data-mode="drag"],[data-mode="part"],[data-mode="view"],[data-mode="text"],[data-mode="hidden"]) .cur-dot{transform:scale(0);opacity:0}
++#cursor[data-mode="hidden"] .cur-shape{opacity:0}
++#cursor.is-down .cur-dot{transform:scale(.7)}
++#cursor.is-down .cur-shape{transform:translate(-50%,-50%) scale(.92)}
++
++/* ---------- preloader drawing (shell + critical CSS live in index.html) ----------
++   --u = svg user units per CSS px, so strokes are true hairlines at any size */
++.pl-svg .ln{fill:none;stroke:var(--ink);stroke-width:calc(var(--u,.2) * 1.15px);stroke-linejoin:round;stroke-linecap:butt;
++  stroke-dasharray:1 1;stroke-dashoffset:1}
++.pl-svg .ln.thin{stroke-width:calc(var(--u,.2) * .8px);stroke:rgba(20,20,18,.78)}
++.pl-svg .ln.hatch{stroke-width:calc(var(--u,.2) * .7px);stroke:rgba(20,20,18,.42)}
++.pl-svg .cl{fill:none;stroke:rgba(20,20,18,.5);stroke-width:calc(var(--u,.2) * .75px);
++  stroke-dasharray:calc(var(--u,.2) * 14px) calc(var(--u,.2) * 3px) calc(var(--u,.2) * 2px) calc(var(--u,.2) * 3px)}
++.pl-svg .ar,.pl-svg .dt{fill:var(--ink);opacity:0}
++.pl-svg .tx{font-family:var(--mono);font-size:calc(var(--u,.2) * 10.5px);letter-spacing:.08em;fill:var(--ink);opacity:0;
++  text-transform:uppercase}
++.pl-svg .tx.m{fill:var(--muted);font-size:calc(var(--u,.2) * 9.5px)}
++.pl-svg .tx.b{font-size:calc(var(--u,.2) * 9px)}
++.reduced .pl-svg .ln{stroke-dashoffset:0}
++.reduced .pl-svg .tx,.reduced .pl-svg .ar,.reduced .pl-svg .dt{opacity:1}
+diff --git a/src/styles/tokens.css b/src/styles/tokens.css
+index 40ce7dc..1e40a60 100644
+--- a/src/styles/tokens.css
++++ b/src/styles/tokens.css
+@@ -1,7 +1,29 @@
+ :root{
+   --paper:#F5F3EE; --card:#FFFFFF; --ink:#141412; --muted:#6E6C66;
+   --hairline:#E2DFD6; --fill:#EBE8E0; --accent:#A63D22; --accent-ink:#7E2C16;
+-  --radius:2px; --max:1200px; --font:"Inter Tight",-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",Arial,sans-serif;
+-  --mono:"IBM Plex Mono",SFMono-Regular,Menlo,Consolas,monospace;
+-  --ease-out:cubic-bezier(0.16,1,0.3,1); --ease-standard:cubic-bezier(0.22,1,0.36,1);
++  --graphite:#2E2D2B; --ink-55:rgba(20,20,18,.55);
++  --radius:2px; --max:1200px; --font:"Inter Tight","Inter Tight Fallback",-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",Arial,sans-serif;
++  --mono:"IBM Plex Mono","IBM Plex Mono Fallback",SFMono-Regular,Menlo,Consolas,monospace;
++  /* editorial serif — italic emphasis words only, never body copy */
++  --serif:"Instrument Serif","Instrument Serif Fallback","Iowan Old Style","Times New Roman",serif;
++
++  /* ---- motion tokens (mirrored in src/motion/math.ts) ---- */
++  --ease-out:cubic-bezier(0.16,1,0.3,1);        /* expo.out: reveals, rolls */
++  --ease-standard:cubic-bezier(0.22,1,0.36,1);  /* quint.out: UI state */
++  --ease-inout:cubic-bezier(0.76,0,0.24,1);     /* quart.inOut: wipes, curtains */
++  --ease-draw:cubic-bezier(0.65,0,0.35,1);      /* cubic.inOut: hairline / SVG draw-ons */
++  --ease-back:cubic-bezier(0.34,1.56,0.64,1);   /* magnetic release ONLY */
++  --t-hover:220ms; --t-ui:420ms; --t-reveal:1100ms; --t-wipe:1000ms; --t-draw:900ms;
++  --stagger:80ms;
++
++  /* ---- display type ---- */
++  --fs-h1:clamp(46px,min(6.7vw,11.6vh),116px);
++  --fs-h2:clamp(34px,4.3vw,62px);
++  --fs-h2-xl:clamp(40px,6.4vw,104px);
++  --lh-display:.94;
++  --tr-display:-0.038em;
++  --nav-h:64px;
++}
++@media (max-width:520px){
++  :root{ --nav-h:56px }
+ }
+diff --git a/src/three/experience.ts b/src/three/experience.ts
+index fb9c029..9369c5b 100644
+--- a/src/three/experience.ts
++++ b/src/three/experience.ts
+@@ -4,6 +4,7 @@ import { createStage, type Stage } from './stage'
+ import { loadAssembly, type Assembly } from './assembly'
+ import { sampleCam } from './cameraRig'
+ import type { FrameCtx, SceneModule } from './modules'
++import { beginLoadTracking } from '../fx/loadProgress'
+ import {
+   canvasDimF,
+   detailF,
+@@ -121,7 +122,12 @@ export class PencilExperience {
+ 
+   async init(): Promise<void> {
+     this.refreshViewport()
+-    this.stage = await createStage(this.canvas, this.cfg)
++    // real GLB/HDR byte progress -> bus 'load:progress' (preloader)
++    const endLoad = beginLoadTracking()
++    this.stage = await createStage(this.canvas, this.cfg).catch((e) => {
++      endLoad()
++      throw e
++    })
+     this.last = performance.now()
+     try {
+       this.asm = await loadAssembly(
+@@ -132,6 +138,8 @@ export class PencilExperience {
+     } catch (err) {
+       this.showFallback()
+       throw err
++    } finally {
++      endLoad()
+     }
+     document.querySelectorAll('.rv').forEach((el) => {
+       new IntersectionObserver((es, o) =>
+@@ -265,7 +273,8 @@ export class PencilExperience {
+     const asm = this.asm
+     const mob = this.mobEff
+     const edge = this.edgeK
+-    this.cur += (this.tgtP - this.cur) * (this.motionOK ? 1 - Math.exp(-4 * dt) : 1)
++    // λ=9 (was 4): Lenis already smooths the page; avoid double-damping lag
++    this.cur += (this.tgtP - this.cur) * (this.motionOK ? 1 - Math.exp(-9 * dt) : 1)
+     if (Math.abs(this.tgtP - this.cur) < 0.0004) this.cur = this.tgtP
+     const p = this.cur
+     const ctx = this.frameCtx(p, dt, now)
+@@ -305,7 +314,7 @@ export class PencilExperience {
+       this.camTgt.copy(this.vTgt)
+       this.firstFrame = false
+     }
+-    const k = this.motionOK ? 1 - Math.exp(-5 * dt) : 1
++    const k = this.motionOK ? 1 - Math.exp(-9 * dt) : 1 // λ=9 (was 5), see Lenis
+     // Lineup backdrop: tuck the spinning pencil behind/right and dolly out
+     // so the cards stay readable (no fade-out anymore). Applied to the
+     // FRESH per-frame targets (vPos/vTgt are reset by sampleCam every
