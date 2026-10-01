@@ -61,9 +61,13 @@ these:
 - **Lenis** smooth scroll (`autoRaf`), exposed as `window.__lenis`. Anything
   that jumps the scroll (ring detents, QA scripts) must go through
   `__lenis.scrollTo(y, {immediate:true})`.
-- Fonts are self-hosted with `@fontsource`: Inter Tight, IBM Plex Mono and
-  Instrument Serif italic for emphasis. Fallbacks are metric-matched, which
-  brings CLS to about 0.0001.
+- Fonts are self-hosted with `@fontsource`: Hanken Grotesk (display and
+  body), Newsreader italic for emphasis, and DM Mono. Fallbacks are
+  metric-matched (`base.css`, measured from the font files with fontTools),
+  which keeps CLS at about 0.0001.
+- Logo: the "Hex & lead" mark (`src/components/BrandMark.tsx`), a hex
+  outline with the lead dot in the accent colour. It is used in the nav, the
+  footer title block and the favicon.
 - No Tailwind, no UI kit, no animation library. CSS is hand-written:
   - `src/styles/*`: tokens, base, stage, nav, sections, lineup, buy,
     responsive

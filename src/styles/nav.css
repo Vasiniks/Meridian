@@ -9,7 +9,8 @@ header#nav::before{content:"";position:absolute;left:0;right:0;top:0;bottom:-28p
 header#nav.scrolled::before{opacity:0}
 header#nav.scrolled{background:rgba(245,243,238,.86);backdrop-filter:blur(12px) saturate(1.05);-webkit-backdrop-filter:blur(12px)}
 .nav-inner{width:100%;max-width:var(--max);margin:0 auto;padding:0 24px;display:flex;align-items:center;gap:22px}
-.brand{font-weight:700;letter-spacing:-0.02em;font-size:17px;text-decoration:none;white-space:nowrap}
+.brand{display:inline-flex;align-items:center;gap:.45em;font-weight:700;letter-spacing:-0.02em;font-size:17px;text-decoration:none;white-space:nowrap}
+.brand-mark{width:1.3em;height:1.3em;flex:none}
 .brand small{font-family:var(--mono);font-weight:400;font-size:11px;color:var(--muted);margin-left:8px;letter-spacing:.1em}
 
 /* SHEET 0X/09 — NAME */

@@ -70,7 +70,7 @@ h2{font-size:var(--fs-h2);font-weight:500;line-height:.98;letter-spacing:-0.036e
 .hero-grid{width:100%;display:grid;grid-template-columns:1.25fr .75fr;gap:40px;align-items:end}
 #hero h1{font-size:var(--fs-h1);font-weight:500;line-height:var(--lh-display);letter-spacing:var(--tr-display);
   max-width:5.3em}
-#hero h1 em{font-size:1.08em;letter-spacing:-0.018em}
+#hero h1 em{font-size:1.02em;letter-spacing:-0.02em}
 .hero-sub{margin-top:26px;color:var(--muted);font-size:18px;line-height:1.55;max-width:36ch}
 .hero-actions{margin-top:30px;display:flex;gap:26px;align-items:center}
 /* magnetic CTAs: the <a> is the still hit area; .mag (face) moves */
