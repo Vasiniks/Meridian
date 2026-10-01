@@ -282,7 +282,13 @@ export class PencilExperience {
       this.vTmp2.set(2.0 * fitMacro, 0.55, 2.4 * fitMacro).add(this.vTmp)
       this.vPos.lerp(this.vTmp2, mc)
       this.vTgt.lerp(this.vTmp, mc)
-      this.vTgt.x -= 0.25 * mc * edge
+      // editorial pan (camera-right of the 2.0/2.4 side view) so the
+      // mechanism sits clear of the pinned step list on wide screens
+      const pan = 0.6 * mc * edge
+      this.vPos.x -= 0.768 * pan
+      this.vPos.z += 0.64 * pan
+      this.vTgt.x -= 0.768 * pan
+      this.vTgt.z += 0.64 * pan
       this.camFov += (24 - this.camFov) * kf * mc
     }
     // Lineup + buy: blend into the ring's own framing (fresh targets only —

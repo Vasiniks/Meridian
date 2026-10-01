@@ -14,7 +14,7 @@ const SCROLL_SWEEP = 0.55 // Hero → Detail: highlight moves off the left facet
 const STREAK = 0.6
 const STREAK_DUR = 0.4
 const STREAK_RELAX = 0.75 // slow return to the tuned studio orientation
-const REASSEMBLED_AT = 0.585 // p where the shells are solid again
+const REASSEMBLED_AT = 0.545 // p where the shells are solid again
 
 /** Scroll-driven base yaw: up through Hero→Detail, home again for Exploded. */
 const baseYaw = (p: number): number =>
@@ -104,7 +104,7 @@ export class LightSweep implements SceneModule {
     const dt = ctx.dt * s.timeScale
 
     // reassembly completion → streak (re-armed once you scroll back up)
-    if (ctx.p < 0.55) this.armed = true
+    if (ctx.p < 0.51) this.armed = true
     if (this.armed && this.lastP < REASSEMBLED_AT && ctx.p >= REASSEMBLED_AT) {
       this.armed = false
       this.streak()

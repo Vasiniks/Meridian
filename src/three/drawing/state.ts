@@ -13,16 +13,16 @@ import { PART_GROUPS, type PartGroup } from '../../overlay/drawingCopy'
 export const SCAN = {
   inA: 0.285, inB: 0.33, // entry sweep: line top → bottom (x-ray + ink above)
   outA: 0.352, outB: 0.386, // ink retracts upward (3D stays x-ray)
-  endA: 0.522, endB: 0.562, // restore sweep: line top → bottom (solid above)
+  endA: 0.482, endB: 0.522, // restore sweep: line top → bottom (solid above)
 }
 export const DETAIL_ON = (p: number): boolean => p > 0.066 && p < 0.142
 /** Ø 0.50 lead callout: from the hero→detail move through Detail */
 export const TIP_ON = (p: number): boolean => p > 0.035 && p < 0.142
-export const REASSEMBLY_ON = (p: number): boolean => p > 0.572 && p < 0.626
+export const REASSEMBLY_ON = (p: number): boolean => p > 0.532 && p < 0.586
 /** mechanism step thresholds in p; index 0 = rest, 1..5 = the five moves */
-export const MECH_P0 = 0.452
+export const MECH_P0 = 0.412
 export const MECH_DP = 0.012
-export const MECH_END = 0.53
+export const MECH_END = 0.48
 export const mechStepAt = (p: number): number =>
   p < MECH_P0 || p > MECH_END ? 0 : Math.min(5, 1 + Math.floor((p - MECH_P0) / MECH_DP))
 
