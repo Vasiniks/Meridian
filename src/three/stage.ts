@@ -4,6 +4,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
 import { HDRLoader } from 'three/addons/loaders/HDRLoader.js'
 import type { QualityConfig } from './config'
+import { asset } from '../assetUrl'
 
 export interface Stage {
   renderer: THREE.WebGLRenderer
@@ -48,7 +49,7 @@ export async function createStage(
   // Falls back to the procedural card room if the file can't load.
   try {
     const hdr = await new HDRLoader().loadAsync(
-      '/environments/studio_small_09_1k.hdr',
+      asset('environments/studio_small_09_1k.hdr'),
     )
     scene.environment = pmrem.fromEquirectangular(hdr).texture
     hdr.dispose()

@@ -1,11 +1,12 @@
 import { useEffect, useRef } from 'react'
 import { KEYS } from '../data/scroll'
+import { asset } from '../assetUrl'
 
 const DESKTOP_COUNT = 80
 const MOBILE_COUNT = 60
 
 const frameUrl = (mobile: boolean, i: number): string =>
-  `/frames/${mobile ? 'mobile' : 'desktop'}/f${String(i).padStart(3, '0')}.jpg`
+  asset(`frames/${mobile ? 'mobile' : 'desktop'}/f${String(i).padStart(3, '0')}.jpg`)
 
 function driveDom(p: number): void {
   const fill = document.getElementById('progressFill')

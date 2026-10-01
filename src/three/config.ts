@@ -1,3 +1,4 @@
+import { asset } from '../assetUrl'
 import { FINISHES } from './finishes'
 
 export type Quality = 'high' | 'low'
@@ -23,8 +24,8 @@ export function detectConfig(): QualityConfig {
     dprCap: quality === 'high' ? 2 : 1.5,
     assetUrl:
       quality === 'high'
-        ? '/models/desktop/mechanical-pencil.glb'
-        : '/models/mobile/mechanical-pencil-mobile.glb',
+        ? asset('models/desktop/mechanical-pencil.glb')
+        : asset('models/mobile/mechanical-pencil-mobile.glb'),
     // AA investigation: native MSAA on the composer target (desktop only).
     // Post-process AA passes were rejected — double cost, softer facets.
     msaaSamples: quality === 'high' ? 4 : 0,

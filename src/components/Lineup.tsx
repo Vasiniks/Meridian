@@ -1,4 +1,5 @@
 import { lineupHint, lineupTitle, variants } from "../data/content";
+import { asset } from "../assetUrl";
 
 function colorToHex(colorHex: number): string {
   return "0x" + colorHex.toString(16).padStart(6, "0");
@@ -24,7 +25,7 @@ export default function Lineup() {
               <div className="shot">
                 <span className="dot">{v.dot}</span>
                 <img
-                  src={`/variants/${v.name.toLowerCase()}.png`}
+                  src={asset(`variants/${v.name.toLowerCase()}.png`)}
                   alt={`${v.name} variant render`}
                 />
               </div>
