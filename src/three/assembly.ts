@@ -3,19 +3,23 @@ import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js'
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js'
 import type { Quality } from './config'
 
-export type MechRole =
-  | 'static'
-  | 'button'
-  | 'stem'
-  | 'actuator'
-  | 'rod'
-  | 'clutch'
-  | 'jaw'
-  | 'springMain'
-  | 'springBtn'
-  | 'springStab'
-  | 'lead'
-  | 'sleeve'
+/**
+ * Mechanism roles (a real clutch pencil):
+ *  button — the cap; pushes the lead tube
+ *  tube   — lead tube + what rides on it (eraser holder, eraser, spare leads)
+ *  clutch — the brass collet, press-fit on the tube (its jaws are child nodes)
+ *  ring   — the clutch ring, floating 0.5 mm between seat and ring stop
+ *  spring — the return spring (seat end fixed, collet end moves)
+ *  lead   — the working lead
+ */
+export type MechRole = 'static' | 'button' | 'tube' | 'clutch' | 'ring' | 'spring' | 'lead'
+
+/** One collet jaw: a child node of `clutch` whose origin is its flex hinge. */
+export interface JawEntry {
+  node: THREE.Object3D
+  /** angle around the pencil axis (glTF XZ plane), radians */
+  angle: number
+}
 
 export interface PartEntry {
   node: THREE.Object3D
@@ -24,7 +28,6 @@ export interface PartEntry {
   explode: number
   kind: 'shell' | 'inner'
   mech: MechRole
-  jawAngle: number
 }
 
 export interface Assembly {
@@ -36,8 +39,12 @@ export interface Assembly {
   coreMat: THREE.MeshStandardMaterial | null
   springMats: THREE.MeshStandardMaterial[]
   brassMat: THREE.MeshStandardMaterial | null
+  /** graphite (working lead + spare leads): lifted in the x-ray */
+  leadMat: THREE.MeshStandardMaterial | null
   gripNode: THREE.Object3D | null
+  /** collet jaw child nodes (macro camera tracks jawNodes[0]) */
   jawNodes: THREE.Object3D[]
+  jaws: JawEntry[]
 }
 
 interface PartExtras {
@@ -47,7 +54,7 @@ interface PartExtras {
   jawAngle?: number
 }
 
-const NO_SHADOW = new Set(['returnSpring', 'buttonSpring', 'stabilizerSpring', 'lead'])
+const NO_SHADOW = new Set(['mainSpring', 'lead', 'spareLeads'])
 
 /**
  * LOOKDEV runtime overrides (materials arrive as MeshStandardMaterial from
@@ -86,7 +93,8 @@ const LOOK: Record<string, Look> = {
   steel: { metal: 1.0, rough: 0.34, env: 1.1, normal: 0.26 },
   // turned / bead-polished cone + rods: brightest, but never mirror
   polished: { metal: 1.0, rough: 0.27, env: 1.15, normal: 0.14 },
-  brass: { metal: 1.0, rough: 0.36, env: 1.0, normal: 0.26 },
+  // turned brass (collet, clutch ring, eraser holder): lathe marks, no frost
+  brass: { metal: 1.0, rough: 0.34, env: 1.0, normal: 0.14 },
   spring: { metal: 1.0, rough: 0.4, env: 0.9, normal: 0.18 },
   recess: { metal: 0.6, rough: 0.62, env: 0.6 },
   polymer: { metal: 0.0, rough: 0.5, env: 0.7 },
@@ -156,8 +164,10 @@ export async function loadAssembly(
   let barrelMat: THREE.MeshStandardMaterial | null = null
   let coreMat: THREE.MeshStandardMaterial | null = null
   let brassMat: THREE.MeshStandardMaterial | null = null
+  let leadMat: THREE.MeshStandardMaterial | null = null
   let gripNode: THREE.Object3D | null = null
   const jawNodes: THREE.Object3D[] = []
+  const jaws: JawEntry[] = []
 
   pencil.updateMatrixWorld(true)
   // NOTE: GLTFLoader parents each glTF mesh under its named node, so the
@@ -182,7 +192,6 @@ export async function loadAssembly(
       explode: extras.ex ?? 0,
       kind: extras.kind ?? 'inner',
       mech: extras.mech ?? 'static',
-      jawAngle: extras.jawAngle ?? 0,
     }
     parts.push(entry)
     byName.set(name, entry)
@@ -205,18 +214,21 @@ export async function loadAssembly(
       // barrelHex also carries the 'etch' lettering primitive: tint only
       // the anodized one
       if (name === 'barrelHex' && active.name === 'anodized') barrelMat = active
-      if (name === 'reservoirHex') coreMat = active
-      if (name === 'clutchHousing') brassMat = active
-      if (
-        name === 'returnSpring' ||
-        name === 'buttonSpring' ||
-        name === 'stabilizerSpring'
-      ) {
-        springMatSet.add(active)
-      }
+      if (name === 'leadTube') coreMat = active
+      if (name === 'clutch' && active.name === 'brass') brassMat = active
+      if (name === 'mainSpring') springMatSet.add(active)
+      if (name === 'lead') leadMat = active
     }
-    if (name === 'gripSleeve') gripNode = o
-    if (entry.mech === 'jaw') jawNodes.push(o)
+    if (name === 'grip') gripNode = o
+    if (entry.mech === 'clutch') {
+      o.traverse((c) => {
+        const a = (c.userData as PartExtras).jawAngle
+        if (c !== o && a !== undefined && !jawNodes.includes(c)) {
+          jawNodes.push(c)
+          jaws.push({ node: c, angle: a })
+        }
+      })
+    }
   })
 
   return {
@@ -228,7 +240,9 @@ export async function loadAssembly(
     coreMat,
     springMats: [...springMatSet],
     brassMat,
+    leadMat,
     gripNode,
     jawNodes,
+    jaws,
   }
 }

@@ -75,8 +75,10 @@ export class PencilExperience {
     this.mobEff = Math.max(base, fitM)
     // editorial off-center weight: full offset on landscape (text sits
     // clear of the product), fades to centered on portrait screens
-    const t = (this.aspect - 0.75) / (1.25 - 0.75)
-    this.edgeK = Math.min(1, Math.max(0, t * t * (3 - 2 * t)))
+    // (clamp t BEFORE the smoothstep: unclamped, any aspect > 1.25 gave a
+    // negative cubic and the offset silently collapsed to 0 on wide screens)
+    const t = Math.min(1, Math.max(0, (this.aspect - 0.75) / (1.25 - 0.75)))
+    this.edgeK = t * t * (3 - 2 * t)
   }
   private onResize = () => {
     if (!this.stage) return
@@ -308,13 +310,15 @@ export class PencilExperience {
       this.camFov += (31 - this.camFov) * kf * df
     }
     if (mc > 0.001 && asm.jawNodes.length > 0) {
+      // the clutch sits in the cone: a close side view (~14 mm field) so
+      // the 0.5 mm ring travel and the jaw opening read
       asm.jawNodes[0].getWorldPosition(this.vTmp)
-      this.vTmp2.set(2.0 * fitMacro, 0.55, 2.4 * fitMacro).add(this.vTmp)
+      this.vTmp2.set(1.25 * fitMacro, 0.35, 1.5 * fitMacro).add(this.vTmp)
       this.vPos.lerp(this.vTmp2, mc)
       this.vTgt.lerp(this.vTmp, mc)
-      // editorial pan (camera-right of the 2.0/2.4 side view) so the
+      // editorial pan (camera-right of the 1.25/1.5 side view) so the
       // mechanism sits clear of the pinned step list on wide screens
-      const pan = 0.6 * mc * edge
+      const pan = 0.22 * mc * edge
       this.vPos.x -= 0.768 * pan
       this.vPos.z += 0.64 * pan
       this.vTgt.x -= 0.768 * pan

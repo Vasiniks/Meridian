@@ -78,9 +78,9 @@ for validation renders.
 ```python
 part(name, parent, baseY, explode, kind, mech, extra)
 # kind: shell (fades in x-ray) | inner (stays lit)
-# mech: static | button | stem | actuator | rod | clutch | jaw |
-#        springMain | springBtn | springStab | lead | sleeve
-# extra: jawAngle etc.
+# mech: static | button | tube | clutch | ring | spring | lead
+#       (the Meridian clutch pencil; flexing jaws are child bodies of
+#        `clutch` with extras {jawAngle}, origin at the flex hinge)
 ```
 
 Adapt `mech` roles to your mechanism (e.g. watch: crown/stem/mainspring/
@@ -157,8 +157,12 @@ environment.
   assembly axis + staggered scalars from the registry. Tune scalars for
   readability (internals spread wider than shell), not physical accuracy.
 - **Mechanism animation** = small axial dives/compressions/openings driven by
-  the mechanism envelope: buttons/stems/rods dive, springs compress in Y,
-  jaws open radially, the working element (lead/hand/geartrain) advances.
+  the mechanism envelope, following the REAL sequence of the object (for a
+  clutch pencil: tube + clutch + lead forward, ring stops, jaws flex open,
+  spring returns while a retainer holds the lead, jaws regrip). Derive
+  dependent motion (ring, jaw opening, spring) from the driving part so no
+  frame is physically impossible. Never invent parts to have something
+  to animate.
   Keep amplitudes tiny (±0.1–0.3 units) — believable, not cartoonish.
 - Lineup: pinned horizontal section (height = 4× viewport, recomputed on
   resize), track translate by scroll fraction, live recolor of the hero

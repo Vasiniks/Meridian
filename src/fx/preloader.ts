@@ -71,8 +71,8 @@ function buildDrawing(svg: SVGSVGElement): { strokes: Stroke[]; g: SVGGElement }
   // parts, tip → button: [x0, x1, r0, r1?, hex?]
   type Part = [number, number, number, number?, boolean?]
   const parts: Part[] = [
-    [-4, 0, 0.25], // 0.5 lead
-    [0, 10, 0.5], // lead sleeve
+    [3.8, 5.5, 0.25], // 0.5 lead
+    [5.5, 10, 0.5], // fixed 4 mm lead sleeve
     [9, 12.4, 0.8], // nose tip
     [12.4, 26.6, 1.15, 4.2], // faceted nose (taper)
     [26.6, 28.6, 4.65], // grip ring
@@ -80,7 +80,7 @@ function buildDrawing(svg: SVGSVGElement): { strokes: Stroke[]; g: SVGGElement }
     [54.8, 57, 4.65], // grip ring
     [57, 118.6, 4.5, 4.5, true], // barrel (hex)
     [119, 125, 4.4], // top collar
-    [125, 130.8, 2.2], // eraser sleeve
+    [125, 130.8, 2.2], // eraser holder (top of the lead tube)
     [130.8, 142, 3.3, 3.3, true], // button (hex)
   ]
   const n = parts.length
@@ -148,7 +148,7 @@ function buildDrawing(svg: SVGSVGElement): { strokes: Stroke[]; g: SVGGElement }
     0.7,
   )
 
-  // VIEW A — end view at 2:1: hexagon (pointy top), A/F 8.0
+  // VIEW A — end view at 2:1: hexagon (pointy top), A/F 7.8
   const cx = 172
   const R = 9
   const hex = Array.from({ length: 6 }, (_, i) => {
@@ -176,20 +176,20 @@ function buildDrawing(svg: SVGSVGElement): { strokes: Stroke[]; g: SVGGElement }
     `M${x} ${y} L${x + dir * 2.2} ${y - 0.65} L${x + dir * 2.2} ${y + 0.65} Z`
   el('path', { d: arrow(cx - af, 14, 1) + arrow(cx + af, 14, -1), class: 'ar' }, g)
   strokes.push({ el: g.lastElementChild as SVGElement, a: 0.88, b: 0.94, kind: 'fade', last: -1 })
-  text(cx, 20.4, 'A/F 8.0', 0.9)
+  text(cx, 20.4, 'A/F 7.8', 0.9)
   text(cx, -14.5, 'View A  2:1', 0.86, 'middle', 'tx m')
 
-  // overall length L 142.0
-  line(`M0 ${0.8} L0 ${17} M142 ${3.9} L142 ${17}`, 0.72, 0.82, 'ln thin')
-  line(`M0 14.5 L60 14.5 M82 14.5 L142 14.5`, 0.8, 0.92, 'ln thin')
-  el('path', { d: arrow(0, 14.5, 1) + arrow(142, 14.5, -1), class: 'ar' }, g)
+  // overall length L 136.5 (sleeve end → cap crown)
+  line(`M5.5 ${0.8} L5.5 ${17} M142 ${3.9} L142 ${17}`, 0.72, 0.82, 'ln thin')
+  line(`M5.5 14.5 L63 14.5 M85 14.5 L142 14.5`, 0.8, 0.92, 'ln thin')
+  el('path', { d: arrow(5.5, 14.5, 1) + arrow(142, 14.5, -1), class: 'ar' }, g)
   strokes.push({ el: g.lastElementChild as SVGElement, a: 0.9, b: 0.96, kind: 'fade', last: -1 })
-  text(71, 15.6, 'L 142.0', 0.92)
+  text(74, 15.6, 'L 136.5', 0.92)
   // lead callout with leader + dot terminal
-  line(`M-3 0.4 L-8 -8 L-17 -8`, 0.82, 0.9, 'ln thin')
-  el('circle', { cx: -3, cy: 0.4, r: 0.45, class: 'dt' }, g)
+  line(`M4.4 0.4 L-0.6 -8 L-9.6 -8`, 0.82, 0.9, 'ln thin')
+  el('circle', { cx: 4.4, cy: 0.4, r: 0.45, class: 'dt' }, g)
   strokes.push({ el: g.lastElementChild as SVGElement, a: 0.82, b: 0.86, kind: 'fade', last: -1 })
-  text(-17, -9.4, 'Ø 0.5 lead', 0.88, 'start', 'tx m')
+  text(-9.6, -9.4, 'Ø 0.5 lead', 0.88, 'start', 'tx m')
   // balloon on the grip
   line(`M41.5 -3.2 L45 -11 L49 -11`, 0.84, 0.92, 'ln thin')
   el('circle', { cx: 51.6, cy: -11, r: 2.6, class: 'ln thin', pathLength: 1 }, g)

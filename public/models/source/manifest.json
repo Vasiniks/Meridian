@@ -2,265 +2,43 @@
  "generator": "scripts/asset-processing/blender/build_pencil.py (Blender 4.5.14 LTS)",
  "parts": [
   {
-   "name": "buttonHex",
+   "name": "cap",
    "parent": "Exterior",
    "baseY": 7.55,
-   "explode": 3.3,
+   "explode": 2.971,
    "kind": "shell",
    "mech": "button",
    "extra": {}
   },
   {
-   "name": "buttonStem",
-   "parent": "Exterior",
-   "baseY": 6.95,
-   "explode": 3.5,
-   "kind": "inner",
-   "mech": "stem",
-   "extra": {}
-  },
-  {
    "name": "eraser",
    "parent": "Exterior",
-   "baseY": 6.95,
-   "explode": 2.8,
-   "kind": "inner",
-   "mech": "static",
-   "extra": {}
-  },
-  {
-   "name": "eraserSleeve",
-   "parent": "Exterior",
    "baseY": 6.85,
-   "explode": 2.85,
+   "explode": 2.314,
    "kind": "inner",
-   "mech": "static",
+   "mech": "tube",
    "extra": {}
   },
   {
-   "name": "buttonSpring",
+   "name": "eraserHolder",
    "parent": "Exterior",
-   "baseY": 6.62,
-   "explode": 2.9,
+   "baseY": 6.7,
+   "explode": 1.071,
    "kind": "inner",
-   "mech": "springBtn",
+   "mech": "tube",
    "extra": {}
   },
   {
    "name": "topCollar",
    "parent": "Exterior",
    "baseY": 6.15,
-   "explode": 2.5,
+   "explode": 0.643,
    "kind": "shell",
-   "mech": "static",
-   "extra": {}
-  },
-  {
-   "name": "actuatorCone",
-   "parent": "Internal",
-   "baseY": 6.05,
-   "explode": 2.4,
-   "kind": "inner",
-   "mech": "actuator",
-   "extra": {}
-  },
-  {
-   "name": "actuatorSleeve",
-   "parent": "Internal",
-   "baseY": 5.85,
-   "explode": 2.3,
-   "kind": "inner",
-   "mech": "actuator",
-   "extra": {}
-  },
-  {
-   "name": "washerTop",
-   "parent": "Internal",
-   "baseY": 6.4,
-   "explode": 2.6,
-   "kind": "inner",
-   "mech": "static",
-   "extra": {}
-  },
-  {
-   "name": "feedRod",
-   "parent": "Internal",
-   "baseY": 3.9,
-   "explode": 1.3,
-   "kind": "inner",
-   "mech": "rod",
-   "extra": {}
-  },
-  {
-   "name": "shaftMid",
-   "parent": "Internal",
-   "baseY": 3.1,
-   "explode": 1.1,
-   "kind": "inner",
-   "mech": "rod",
-   "extra": {}
-  },
-  {
-   "name": "reservoirHex",
-   "parent": "Internal",
-   "baseY": 2.0,
-   "explode": 0.9,
-   "kind": "inner",
-   "mech": "static",
-   "extra": {}
-  },
-  {
-   "name": "resPlug",
-   "parent": "Internal",
-   "baseY": 3.6,
-   "explode": 1.15,
-   "kind": "inner",
-   "mech": "static",
-   "extra": {}
-  },
-  {
-   "name": "clutchHousing",
-   "parent": "Internal",
-   "baseY": 5.35,
-   "explode": 1.95,
-   "kind": "inner",
-   "mech": "clutch",
-   "extra": {}
-  },
-  {
-   "name": "jawA",
-   "parent": "Internal",
-   "baseY": 5.15,
-   "explode": 2.06,
-   "kind": "inner",
-   "mech": "jaw",
-   "extra": {
-    "jawAngle": 0.0
-   }
-  },
-  {
-   "name": "jawB",
-   "parent": "Internal",
-   "baseY": 5.15,
-   "explode": 2.2,
-   "kind": "inner",
-   "mech": "jaw",
-   "extra": {
-    "jawAngle": 2.0944
-   }
-  },
-  {
-   "name": "jawC",
-   "parent": "Internal",
-   "baseY": 5.15,
-   "explode": 2.34,
-   "kind": "inner",
-   "mech": "jaw",
-   "extra": {
-    "jawAngle": 4.1888
-   }
-  },
-  {
-   "name": "retainerHex",
-   "parent": "Internal",
-   "baseY": 5.42,
-   "explode": 2.25,
-   "kind": "inner",
-   "mech": "static",
-   "extra": {}
-  },
-  {
-   "name": "seatLow",
-   "parent": "Internal",
-   "baseY": 3.95,
-   "explode": 1.5,
-   "kind": "inner",
-   "mech": "static",
-   "extra": {}
-  },
-  {
-   "name": "returnSpring",
-   "parent": "Internal",
-   "baseY": 4.55,
-   "explode": 1.6,
-   "kind": "inner",
-   "mech": "springMain",
-   "extra": {}
-  },
-  {
-   "name": "seatUp",
-   "parent": "Internal",
-   "baseY": 5.15,
-   "explode": 1.9,
-   "kind": "inner",
-   "mech": "static",
-   "extra": {}
-  },
-  {
-   "name": "stabilizerSpring",
-   "parent": "Internal",
-   "baseY": 2.6,
-   "explode": 0.7,
-   "kind": "inner",
-   "mech": "springStab",
-   "extra": {}
-  },
-  {
-   "name": "guideTube",
-   "parent": "Internal",
-   "baseY": -1.6,
-   "explode": -0.3,
-   "kind": "inner",
-   "mech": "static",
-   "extra": {}
-  },
-  {
-   "name": "threadRing",
-   "parent": "Internal",
-   "baseY": -0.15,
-   "explode": 0.35,
-   "kind": "inner",
-   "mech": "static",
-   "extra": {}
-  },
-  {
-   "name": "spacerTube",
-   "parent": "Internal",
-   "baseY": 0.9,
-   "explode": 0.6,
-   "kind": "inner",
-   "mech": "static",
-   "extra": {}
-  },
-  {
-   "name": "noseWasher",
-   "parent": "Internal",
-   "baseY": -3.55,
-   "explode": -1.25,
-   "kind": "inner",
-   "mech": "static",
-   "extra": {}
-  },
-  {
-   "name": "stopCollar",
-   "parent": "Internal",
-   "baseY": 4.35,
-   "explode": 1.7,
-   "kind": "inner",
    "mech": "static",
    "extra": {}
   },
   {
    "name": "barrelHex",
-   "parent": "Exterior",
-   "baseY": 2.6,
-   "explode": 0.0,
-   "kind": "shell",
-   "mech": "static",
-   "extra": {}
-  },
-  {
-   "name": "barrelGrooves",
    "parent": "Exterior",
    "baseY": 2.6,
    "explode": 0.0,
@@ -296,37 +74,19 @@
    "extra": {}
   },
   {
-   "name": "gripSleeve",
-   "parent": "Exterior",
-   "baseY": -1.95,
-   "explode": -0.8,
-   "kind": "shell",
-   "mech": "static",
-   "extra": {}
-  },
-  {
-   "name": "gripUnderlay",
-   "parent": "Exterior",
-   "baseY": -1.95,
-   "explode": -0.8,
-   "kind": "shell",
-   "mech": "static",
-   "extra": {}
-  },
-  {
-   "name": "gripLattice",
-   "parent": "Exterior",
-   "baseY": -1.95,
-   "explode": -0.8,
-   "kind": "shell",
-   "mech": "static",
-   "extra": {}
-  },
-  {
    "name": "gripRingTop",
    "parent": "Exterior",
    "baseY": -0.45,
-   "explode": 0.6,
+   "explode": -0.36,
+   "kind": "shell",
+   "mech": "static",
+   "extra": {}
+  },
+  {
+   "name": "grip",
+   "parent": "Exterior",
+   "baseY": -1.95,
+   "explode": -0.79,
    "kind": "shell",
    "mech": "static",
    "extra": {}
@@ -335,7 +95,7 @@
    "name": "gripRingBot",
    "parent": "Exterior",
    "baseY": -3.3,
-   "explode": -1.0,
+   "explode": -1.07,
    "kind": "shell",
    "mech": "static",
    "extra": {}
@@ -344,7 +104,7 @@
    "name": "noseHex",
    "parent": "Exterior",
    "baseY": -4.85,
-   "explode": -1.6,
+   "explode": -6.286,
    "kind": "shell",
    "mech": "static",
    "extra": {}
@@ -353,8 +113,98 @@
    "name": "noseTip",
    "parent": "Exterior",
    "baseY": -5.0,
-   "explode": -2.2,
+   "explode": -6.286,
    "kind": "shell",
+   "mech": "static",
+   "extra": {}
+  },
+  {
+   "name": "leadTube",
+   "parent": "Internal",
+   "baseY": 1.8,
+   "explode": -2.857,
+   "kind": "inner",
+   "mech": "tube",
+   "extra": {}
+  },
+  {
+   "name": "spareLeads",
+   "parent": "Internal",
+   "baseY": 3.4,
+   "explode": -2.857,
+   "kind": "inner",
+   "mech": "tube",
+   "extra": {}
+  },
+  {
+   "name": "threadRing",
+   "parent": "Internal",
+   "baseY": -0.15,
+   "explode": -0.29,
+   "kind": "inner",
+   "mech": "static",
+   "extra": {}
+  },
+  {
+   "name": "mainSpring",
+   "parent": "Internal",
+   "baseY": -3.24,
+   "explode": -2.857,
+   "kind": "inner",
+   "mech": "spring",
+   "extra": {}
+  },
+  {
+   "name": "clutch",
+   "parent": "Internal",
+   "baseY": -3.3,
+   "explode": -2.857,
+   "kind": "inner",
+   "mech": "clutch",
+   "extra": {}
+  },
+  {
+   "name": "springSeat",
+   "parent": "Internal",
+   "baseY": -3.68,
+   "explode": -2.857,
+   "kind": "inner",
+   "mech": "static",
+   "extra": {}
+  },
+  {
+   "name": "clutchRing",
+   "parent": "Internal",
+   "baseY": -3.85,
+   "explode": -3.386,
+   "kind": "inner",
+   "mech": "ring",
+   "extra": {}
+  },
+  {
+   "name": "ringStop",
+   "parent": "Internal",
+   "baseY": -4.06,
+   "explode": -3.429,
+   "kind": "inner",
+   "mech": "static",
+   "extra": {}
+  },
+  {
+   "name": "noseWasher",
+   "parent": "Internal",
+   "baseY": -3.55,
+   "explode": -1.36,
+   "kind": "inner",
+   "mech": "static",
+   "extra": {}
+  },
+  {
+   "name": "leadRetainer",
+   "parent": "Internal",
+   "baseY": -4.37,
+   "explode": -3.543,
+   "kind": "inner",
    "mech": "static",
    "extra": {}
   },
@@ -362,7 +212,7 @@
    "name": "noseInsert",
    "parent": "Internal",
    "baseY": -4.75,
-   "explode": -2.2,
+   "explode": -7.314,
    "kind": "inner",
    "mech": "static",
    "extra": {}
@@ -371,21 +221,59 @@
    "name": "leadSleeve",
    "parent": "Internal",
    "baseY": -5.55,
-   "explode": -2.7,
+   "explode": -7.314,
    "kind": "inner",
-   "mech": "sleeve",
+   "mech": "static",
    "extra": {}
   },
   {
    "name": "lead",
    "parent": "Internal",
-   "baseY": -6.55,
-   "explode": -3.1,
+   "baseY": -4.22,
+   "explode": -2.357,
    "kind": "inner",
    "mech": "lead",
    "extra": {}
   }
  ],
+ "bodies": {
+  "barrelHex": [
+   {
+    "name": "barrelInlay",
+    "extra": {}
+   }
+  ],
+  "grip": [
+   {
+    "name": "gripKnurl",
+    "extra": {}
+   },
+   {
+    "name": "gripLiner",
+    "extra": {}
+   }
+  ],
+  "clutch": [
+   {
+    "name": "jawA",
+    "extra": {
+     "jawAngle": 0.0
+    }
+   },
+   {
+    "name": "jawB",
+    "extra": {
+     "jawAngle": 2.0944
+    }
+   },
+   {
+    "name": "jawC",
+    "extra": {
+     "jawAngle": 4.1888
+    }
+   }
+  ]
+ },
  "materials": {
   "anodized": {
    "metallic": 1.0,
@@ -417,10 +305,10 @@
   },
   "brass": {
    "metallic": 1.0,
-   "roughness": 0.34,
+   "roughness": 0.32,
    "alpha": "OPAQUE",
-   "normalMap": "grain",
-   "normalScale": 0.25
+   "normalMap": "turned",
+   "normalScale": 0.14
   },
   "spring": {
    "metallic": 1.0,
@@ -481,101 +369,81 @@
  },
  "tiers": {
   "mobile": {
-   "triangles": 41490,
-   "bytes": 1836672,
+   "triangles": 34950,
+   "bytes": 1578340,
    "meshopt": false,
    "partTriangles": {
-    "buttonHex": 2520,
-    "buttonStem": 360,
-    "eraser": 336,
-    "eraserSleeve": 384,
-    "buttonSpring": 852,
+    "cap": 2520,
+    "eraser": 240,
+    "eraserHolder": 624,
     "topCollar": 1296,
-    "actuatorCone": 432,
-    "actuatorSleeve": 432,
-    "washerTop": 480,
-    "feedRod": 288,
-    "shaftMid": 288,
-    "reservoirHex": 480,
-    "resPlug": 1188,
-    "clutchHousing": 672,
-    "jawA": 824,
-    "jawB": 824,
-    "jawC": 824,
-    "retainerHex": 672,
-    "seatLow": 384,
-    "returnSpring": 1356,
-    "seatUp": 384,
-    "stabilizerSpring": 1020,
-    "guideTube": 480,
-    "threadRing": 1670,
-    "spacerTube": 288,
-    "noseWasher": 264,
-    "stopCollar": 480,
     "barrelHex": 2908,
-    "barrelGrooves": 384,
+    "barrelInlay": 384,
     "clipBlade": 3752,
     "clipFoot": 76,
     "clipScrew": 348,
-    "gripSleeve": 780,
-    "gripUnderlay": 288,
-    "gripLattice": 7128,
     "gripRingTop": 384,
+    "grip": 780,
+    "gripKnurl": 7128,
+    "gripLiner": 288,
     "gripRingBot": 384,
-    "noseHex": 4500,
+    "noseHex": 4572,
     "noseTip": 432,
+    "leadTube": 288,
+    "spareLeads": 192,
+    "threadRing": 1670,
+    "mainSpring": 1524,
+    "clutch": 672,
+    "jawA": 720,
+    "jawB": 720,
+    "jawC": 720,
+    "springSeat": 384,
+    "clutchRing": 384,
+    "ringStop": 336,
+    "noseWasher": 264,
+    "leadRetainer": 288,
     "noseInsert": 396,
     "leadSleeve": 180,
-    "lead": 72
+    "lead": 96
    }
   },
   "desktop": {
-   "triangles": 90066,
-   "bytes": 3920984,
+   "triangles": 74166,
+   "bytes": 3372684,
    "meshopt": false,
    "partTriangles": {
-    "buttonHex": 5184,
-    "buttonStem": 720,
-    "eraser": 672,
-    "eraserSleeve": 768,
-    "buttonSpring": 2820,
+    "cap": 5088,
+    "eraser": 480,
+    "eraserHolder": 1248,
     "topCollar": 2592,
-    "actuatorCone": 864,
-    "actuatorSleeve": 864,
-    "washerTop": 960,
-    "feedRod": 576,
-    "shaftMid": 576,
-    "reservoirHex": 792,
-    "resPlug": 2736,
-    "clutchHousing": 1344,
-    "jawA": 1790,
-    "jawB": 1790,
-    "jawC": 1790,
-    "retainerHex": 1440,
-    "seatLow": 768,
-    "returnSpring": 4500,
-    "seatUp": 768,
-    "stabilizerSpring": 3380,
-    "guideTube": 960,
-    "threadRing": 3342,
-    "spacerTube": 576,
-    "noseWasher": 480,
-    "stopCollar": 960,
     "barrelHex": 5684,
-    "barrelGrooves": 768,
+    "barrelInlay": 768,
     "clipBlade": 7704,
     "clipFoot": 124,
     "clipScrew": 672,
-    "gripSleeve": 1572,
-    "gripUnderlay": 576,
-    "gripLattice": 11880,
     "gripRingTop": 672,
+    "grip": 1572,
+    "gripKnurl": 11880,
+    "gripLiner": 576,
     "gripRingBot": 672,
-    "noseHex": 13606,
+    "noseHex": 13750,
     "noseTip": 864,
+    "leadTube": 576,
+    "spareLeads": 288,
+    "threadRing": 3342,
+    "mainSpring": 5060,
+    "clutch": 1344,
+    "jawA": 1550,
+    "jawB": 1550,
+    "jawC": 1550,
+    "springSeat": 768,
+    "clutchRing": 768,
+    "ringStop": 672,
+    "noseWasher": 480,
+    "leadRetainer": 576,
     "noseInsert": 792,
     "leadSleeve": 360,
-    "lead": 108
+    "lead": 144
    }
   }
  }
