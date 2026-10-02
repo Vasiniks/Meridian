@@ -12,9 +12,7 @@ import {
   LINEUP_PIN,
   RING_IN,
   RING_MOVES,
-  RING_OUT,
   RING_RISE,
-  RING_SINK,
   ringIndex,
   ringMoving,
   ringTarget,
@@ -22,12 +20,16 @@ import {
 } from '../data/scroll'
 import {
   detentY,
-  gotoBuy,
   gotoDetent,
+  inFreeSpin,
   lineupTop,
   nav,
   releaseHold,
   scrollToY,
+  spin,
+  spinPos,
+  spinTick,
+  spinTo,
 } from '../components/lineupNav'
 
 /**
@@ -35,21 +37,20 @@ import {
  *
  * Four clones of the pencil (geometry merged per material once and shared;
  * materials cloned per pencil so each wears its full FINISHES entry) stand
- * upright on a vertical-axis ring. Scroll position is the single source of
- * truth: `ringTarget(u)` maps section-local scroll to a ring position with
- * dwell plateaus, a spring adds mass on top, and every interaction (click,
- * drag, dial, CTA) scrolls the page to a detent instead of owning state.
+ * upright on a vertical-axis ring. `ringTarget(u)` maps section-local scroll
+ * to a ring position with dwell plateaus, a spring adds mass on top, and in
+ * the first pass every interaction (click, drag, dial) scrolls the page to
+ * a detent. At the end of the page the ring is free: lineupNav `spin` adds
+ * an unbounded offset, so it can spin round indefinitely.
  *
  * Choreography (u = viewport heights from the moment #lineup pins):
  *   RING_IN    hero pencil (live asm.group) glides into the front slot while
  *              the camera pulls back; at the end it is swapped for the Core
  *              clone at an identical pose and finish (invisible swap)
  *   RING_RISE  the three siblings rise out of the paper fog, staggered
- *   0..PIN     detents: Core → Pro → Studio → Limited
- *   RING_SINK  unselected pencils sink back into the fog
- *   RING_OUT   the presenter (selected variant) flies into the Buy slot
- *              (#buyStage), locked to that DOM box; buy radios chase its
- *              finish there.
+ *   0..PIN     detents: Core → Pro → Studio → Limited → round to Core
+ *   FREE_SPIN_U..PIN  free spin: wheel/swipe past the bottom, drag, dial
+ *              and clicks spin the ring; the page ends here.
  */
 
 const STEP = (Math.PI * 2) / LINEUP_COUNT
@@ -82,27 +83,6 @@ export function applyFinish(mat: THREE.MeshStandardMaterial, f: Finish, envScale
   mat.roughness = f.roughness
   mat.metalness = f.metalness
   mat.envMapIntensity = f.envIntensity * envScale
-}
-
-interface FinishState {
-  color: THREE.Color
-  roughness: number
-  metalness: number
-  env: number
-}
-
-const finishState = (f: Finish): FinishState => ({
-  color: new THREE.Color().setHex(f.color),
-  roughness: f.roughness,
-  metalness: f.metalness,
-  env: f.envIntensity,
-})
-
-function setFinishState(s: FinishState, f: Finish): void {
-  s.color.setHex(f.color)
-  s.roughness = f.roughness
-  s.metalness = f.metalness
-  s.env = f.envIntensity
 }
 
 interface Member {
@@ -273,8 +253,6 @@ export class RingModule implements SceneModule {
   private camPosLive = new THREE.Vector3()
   private camTgtLive = new THREE.Vector3()
   private R = RADIUS
-  private lastOutCss = -1
-  private frontDist = 12
   private pxPerDetent = 260
 
   // per-frame state
@@ -282,17 +260,10 @@ export class RingModule implements SceneModule {
   private uR = -10
   private inW = 0
   private camW = 0
-  private outW = 0
-  private sinkW = 0
   private rho = 0
   private rhoV = 0
   private frontIdx = 0
   private emittedIdx = 0
-  private selected: VariantName = 'Core'
-  private presenter = -1
-  private chase: FinishState = finishState(FINISHES.Core)
-  private chaseTarget: Finish = FINISHES.Core
-  private chaseLive = false
   private active = false
   private ringVisible = false
   private lastRingCss = -1
@@ -305,14 +276,9 @@ export class RingModule implements SceneModule {
   private fogNear0 = 1e5
   private fogFar0 = 1e5 + 1
   private paper = new THREE.Color('#F5F3EE')
-  private buyEl: HTMLElement | null = null
   private pinEl: HTMLElement | null = null
   private sectionEl: HTMLElement | null = null
   private stageEl: HTMLElement | null = null
-  private buyPos = new THREE.Vector3()
-  private buyQuat = new THREE.Quaternion()
-  private buyScale = 0.3
-  private buySpin = 0
   private parentInv = new THREE.Matrix4()
 
   // pointer / picking
@@ -645,7 +611,6 @@ export class RingModule implements SceneModule {
     this.sectionEl = document.getElementById('lineup')
     this.pinEl = document.getElementById('lineupPin')
     this.stageEl = document.getElementById('ringStage')
-    this.buyEl = document.getElementById('buyStage')
     if (top !== null) this.secTop = top
     // the stage box as it sits while the section is pinned (pin top = 0)
     if (this.stageEl && this.pinEl) {
@@ -679,7 +644,6 @@ export class RingModule implements SceneModule {
     const rimPx = (r: number, d: number): number => (r * this.vh) / (2 * d * tanH)
     const needW = (d: number): number => 2 * rimPx(R * 1.28, d)
     if (needW(dist) > b.w * 0.98) dist = (R * 1.28 * this.vh) / (b.w * 0.98 * tanH)
-    this.frontDist = dist - R * Math.cos(az) * Math.cos(el)
     this.pxPerDetent = Math.max(90, rimPx(R, dist) * 1.15)
     const dir = tmpV.set(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el))
     // ring centre sits behind the front slot (front slot = world origin)
@@ -747,7 +711,7 @@ export class RingModule implements SceneModule {
         lastX: e.clientX,
         lastT: performance.now(),
         vx: 0,
-        base: nav.hold >= 0 ? nav.hold : ringTarget(this.uR),
+        base: (nav.hold >= 0 ? nav.hold : ringTarget(this.uR)) + spin.target,
         on: false,
       }
       this.suppressClick = false
@@ -760,10 +724,13 @@ export class RingModule implements SceneModule {
       if (d.on) {
         this.suppressClick = true
         const fling = (-d.vx * 0.25) / this.pxPerDetent
-        const idx = ringIndex(d.base + this.dragOffset + fling)
+        const land = Math.round(d.base + this.dragOffset + fling)
         // the spring keeps its current (dragged) position and swings on
         this.dragOffset = 0
-        gotoDetent(idx)
+        if (inFreeSpin()) {
+          spin.target = land - ringTarget(this.uR)
+          spin.lastInput = performance.now()
+        } else gotoDetent(ringIndex(land))
         this.setCursor(this.hover >= 0 ? 'view' : 'default')
         this.wake()
       }
@@ -774,9 +741,10 @@ export class RingModule implements SceneModule {
       this.drag = null
       pin.classList.remove('is-dragging')
       if (wasOn) {
-        const idx = ringIndex(ringTarget(this.uR) + this.dragOffset)
+        const land = Math.round(ringTarget(this.uR) + spin.target + this.dragOffset)
         this.dragOffset = 0
-        gotoDetent(idx)
+        if (inFreeSpin()) spin.target = land - ringTarget(this.uR)
+        else gotoDetent(ringIndex(land))
       }
       this.dragOffset = 0
     }
@@ -790,8 +758,12 @@ export class RingModule implements SceneModule {
       const hit = this.pick()
       if (hit < 0) return
       if (hit === this.frontIdx) {
+        // the pencil in front: hand focus to its Order button
         bus.emit('variant:select', { name: VARIANT_ORDER[hit], source: 'ring' })
-        gotoBuy(hit)
+        document.querySelector<HTMLElement>('#lineup .lu-cta')?.focus({ preventScroll: true })
+      } else if (inFreeSpin()) {
+        spinTo(hit)
+        this.wake()
       } else {
         gotoDetent(hit)
       }
@@ -844,7 +816,7 @@ export class RingModule implements SceneModule {
     let best = -1
     let bestD = Infinity
     for (const m of this.members) {
-      if (!m.visible || (this.outW > 0.5 && m.idx === this.presenter)) continue
+      if (!m.visible) continue
       m.proxy.updateMatrixWorld()
       const hits = this.raycaster.intersectObject(m.proxy, false)
       if (hits.length && hits[0].distance < bestD) {
@@ -856,12 +828,9 @@ export class RingModule implements SceneModule {
   }
 
   // ------------------------------------------------------------ API
-  /** Buy radio / ring CTA / experience.setVariant → selected finish. */
-  select(name: string, source: 'ring' | 'buy' | 'other' = 'other'): void {
+  /** Ring click / experience.setVariant → selected variant. */
+  select(name: string, source: 'ring' | 'other' = 'other'): void {
     if (!isVariantName(name)) return
-    this.selected = name
-    this.chaseTarget = FINISHES[name]
-    this.chaseLive = true
     if (source === 'ring') this.emittedIdx = VARIANT_ORDER.indexOf(name)
     this.wake()
   }
@@ -942,8 +911,6 @@ export class RingModule implements SceneModule {
     this.active = uS > RING_IN[0] - 0.02
     this.inW = sstep(RING_IN[0], RING_IN[1], uS)
     this.camW = this.inW
-    this.sinkW = sstep(RING_SINK[0], RING_SINK[1], uS)
-    this.outW = sstep(RING_OUT[0], RING_OUT[1], uS)
     // portrait: the ring rides up with its section while it scrolls in, so
     // it never crosses the incoming header (landscape keeps a fixed frame)
     const follow = this.portrait ? Math.max(0, -uS) * this.vh : 0
@@ -960,9 +927,9 @@ export class RingModule implements SceneModule {
       if (arrived || (now - nav.holdT > 2500 && idle > 600)) releaseHold()
     }
 
-    // ring position: scroll-mapped detents + spring mass
-    const target =
-      nav.hold >= 0 ? nav.hold : Math.min(LINEUP_COUNT - 1 + 0.3, Math.max(-0.3, ringTarget(this.uR) + this.dragOffset))
+    // ring position: scroll-mapped detents + free-spin offset + spring mass
+    spinTick(now)
+    const target = (nav.hold >= 0 ? nav.hold : ringTarget(this.uR) + this.dragOffset) + spinPos()
     if (!this.motionOK) {
       this.rho = ringIndex(target)
       this.rhoV = 0
@@ -982,15 +949,6 @@ export class RingModule implements SceneModule {
         this.rho = target
         this.rhoV = 0
       }
-    }
-
-    // presenter latch: whichever variant is selected when the exit starts
-    if (this.outW > 0 && this.presenter < 0) {
-      this.presenter = VARIANT_ORDER.indexOf(this.selected)
-      setFinishState(this.chase, FINISHES[this.selected])
-      this.chaseTarget = FINISHES[this.selected]
-    } else if (this.outW <= 0 && this.presenter >= 0) {
-      this.presenter = -1
     }
 
     this.computeSlots(ctx)
@@ -1019,17 +977,12 @@ export class RingModule implements SceneModule {
       m.quat.multiply(tmpQ)
       // slot midpoint on the rim; ring centre sits at (0,0,-R)
       m.pos.set(Math.sin(theta) * R, 0, Math.cos(theta) * R - R)
-      // entry rise (siblings) / exit sink (everyone but the presenter)
+      // entry rise (siblings)
       let off = 0
       if (m.idx !== 0) {
         const d = (Math.abs(Math.atan2(Math.sin(theta), Math.cos(theta))) / Math.PI) * 0.16
         const rise = sstep(RING_RISE[0] + d, RING_RISE[0] + d + (RING_RISE[1] - RING_RISE[0]) * 0.75, this.uS)
         off = Math.max(off, 1 - rise)
-      }
-      if (m.idx !== this.presenter || this.presenter < 0) {
-        const d = (m.focus > 0.5 ? 0.12 : 0) + (1 - Math.cos(theta)) * 0.03
-        const sink = sstep(RING_SINK[0] + d, RING_SINK[1] + d, this.uS)
-        off = Math.max(off, sink)
       }
       if (off > 0) {
         const o = off * off
@@ -1044,7 +997,7 @@ export class RingModule implements SceneModule {
     }
   }
 
-  update(ctx: FrameCtx): void {
+  update(_ctx: FrameCtx): void {
     if (!this.stage || !this.asm) return
     const stage = this.stage
     const anyRing = this.active
@@ -1062,92 +1015,40 @@ export class RingModule implements SceneModule {
       this.parentInv.copy(this.parent.matrixWorld).invert()
     }
 
-    // buy slot (live DOM box → world, at the front slot's depth)
-    if (this.outW > 0 && this.presenter >= 0) this.computeBuyPose(ctx)
-
-    // finish chase for the presenter (buy radios)
-    if (this.chaseLive) {
-      const k = this.motionOK ? 1 - Math.exp(-7 * ctx.dt) : 1
-      const t = this.chaseTarget
-      tmpColor.setHex(t.color)
-      this.chase.color.lerp(tmpColor, k)
-      this.chase.roughness += (t.roughness - this.chase.roughness) * k
-      this.chase.metalness += (t.metalness - this.chase.metalness) * k
-      this.chase.env += (t.envIntensity - this.chase.env) * k
-      const dc =
-        Math.abs(this.chase.color.r - tmpColor.r) +
-        Math.abs(this.chase.color.g - tmpColor.g) +
-        Math.abs(this.chase.color.b - tmpColor.b) +
-        Math.abs(this.chase.roughness - t.roughness) +
-        Math.abs(this.chase.metalness - t.metalness)
-      if (dc < 2e-4) {
-        setFinishState(this.chase, t)
-        this.chaseLive = false
-      }
-    }
-
     // Clones never cast into the key light's shadow map: grounding in the
     // lineup comes from the LOOK layer's contact shadows, and skipping it
     // saves a depth pass per pencil (plus a first-swing shader compile).
-    const outE = easeInOutCubic(this.outW)
     for (const m of this.members) {
-      const isPresenter = m.idx === this.presenter && this.outW > 0
-      let pos = m.pos
-      let quat = m.quat
-      let scale = m.scale
-      if (isPresenter) {
-        this.buySpin += this.motionOK ? ctx.dt * 0.5 : 0
-        tmpV.copy(m.pos).lerp(this.buyPos, outE)
-        tmpQ.copy(m.quat).slerp(this.buyQuat, outE)
-        pos = tmpV
-        quat = tmpQ
-        scale = m.scale + (this.buyScale - m.scale) * outE
-      }
       m.root.visible = m.visible
       if (!m.visible) continue
-      m.root.position.copy(pos)
-      m.root.quaternion.copy(quat)
-      m.root.scale.setScalar(scale)
+      m.root.position.copy(m.pos)
+      m.root.quaternion.copy(m.quat)
+      m.root.scale.setScalar(m.scale)
       // per-pencil light response: side/back pencils go quieter
-      const envK = isPresenter ? 1 : 0.5 + 0.5 * m.focus
+      const envK = 0.5 + 0.5 * m.focus
       const barrel = m.barrel
-      if (barrel) {
-        const own = FINISHES[m.name]
-        if (isPresenter) {
-          const w = sstep(0.0, 0.45, this.outW)
-          tmpColor.setHex(own.color).lerp(this.chase.color, w)
-          barrel.color.copy(tmpColor)
-          barrel.roughness = own.roughness + (this.chase.roughness - own.roughness) * w
-          barrel.metalness = own.metalness + (this.chase.metalness - own.metalness) * w
-          barrel.envMapIntensity = own.envIntensity + (this.chase.env - own.envIntensity) * w
-        } else if (barrel.userData.finishDirty !== false) {
-          applyFinish(barrel, own, envK)
-          barrel.userData.finishDirty = false
-        }
+      if (barrel && barrel.userData.finishDirty !== false) {
+        applyFinish(barrel, FINISHES[m.name], envK)
+        barrel.userData.finishDirty = false
       }
-      if (Math.abs(envK - m.envK) > 0.002 || isPresenter) {
+      if (Math.abs(envK - m.envK) > 0.002) {
         m.envK = envK
         for (let i = 0; i < m.mats.length; i++) {
           const mat = m.mats[i]
-          if (mat === barrel) {
-            if (!isPresenter) mat.envMapIntensity = FINISHES[m.name].envIntensity * envK
-          } else mat.envMapIntensity = m.baseEnv[i] * envK
+          if (mat === barrel) mat.envMapIntensity = FINISHES[m.name].envIntensity * envK
+          else mat.envMapIntensity = m.baseEnv[i] * envK
         }
       }
-      if (isPresenter && barrel) barrel.userData.finishDirty = true
     }
 
     this.updatePlate()
     this.updateFog()
 
-    // front variant → overlay + buy form (only while the ring is the story)
+    // front variant → overlay (only while the ring is the story)
     const fi = ringIndex(this.rho)
     this.frontIdx = fi
     if (this.uS > RING_IN[0] && this.uS < LINEUP_PIN + 0.15 && fi !== this.emittedIdx) {
       this.emittedIdx = fi
-      this.selected = VARIANT_ORDER[fi]
-      this.chaseTarget = FINISHES[this.selected]
-      this.chaseLive = true
       // Limited is the crescendo: a light streak across its facets as it
       // lands (LOOK layer's sweep, if present)
       if (fi === LINEUP_COUNT - 1 && this.motionOK && this.rhoV > 0) {
@@ -1158,7 +1059,6 @@ export class RingModule implements SceneModule {
     }
     this.updateLeader()
     this.writeRingCss(this.rho)
-    this.writeOutCss(sstep(LINEUP_PIN + 0.02, LINEUP_PIN + 0.38, this.uR))
 
     // hover pick (pointer moved since the last frame)
     if (this.needPick && !this.drag?.on && !pointer.coarse) {
@@ -1248,51 +1148,10 @@ export class RingModule implements SceneModule {
   }
   private leadDrawT = 0
 
-  private computeBuyPose(_ctx: FrameCtx): void {
-    if (!this.stage) return
-    const cam = this.stage.camera
-    let cx = 0.5
-    let cy = 0.5
-    let hPx = this.vh * 0.4
-    const el = this.buyEl && this.buyEl.isConnected ? this.buyEl : document.getElementById('buyStage')
-    this.buyEl = el
-    if (el) {
-      const r = el.getBoundingClientRect()
-      cx = (r.left + r.width / 2) / this.vw
-      cy = (r.top + r.height / 2) / this.vh
-      hPx = Math.min(r.height, r.width * 4)
-    } else {
-      cx = 0.25
-      cy = 0.6
-    }
-    // ray through the box centre, at the front slot's depth
-    tmpV2.set(cx * 2 - 1, -(cy * 2 - 1), 0.5).unproject(cam).sub(cam.position).normalize()
-    const fwd = tmpV.set(0, 0, -1).applyQuaternion(cam.quaternion)
-    const depth = this.frontDist / Math.max(0.2, tmpV2.dot(fwd))
-    this.buyPos.copy(cam.position).addScaledVector(tmpV2, depth)
-    // scale: the pencil spans ~88% of the box height at that depth
-    const visH = 2 * this.frontDist * Math.tan(THREE.MathUtils.degToRad(cam.fov / 2))
-    const worldLen = ((hPx * 0.88) / this.vh) * visH
-    this.buyScale = Math.max(0.02, worldLen / this.pencilLen0)
-    // upright turntable with the ring's lean
-    this.buyQuat.setFromAxisAngle(Z_AXIS, -LEAN * 0.6)
-    tmpQ.setFromAxisAngle(Y_AXIS, this.buySpin + 0.6)
-    this.buyQuat.multiply(tmpQ)
-    // centre the pencil's midpoint on the box centre
-    tmpV.set(0, this.pencilMidY * this.buyScale, 0).applyQuaternion(this.buyQuat)
-    this.buyPos.sub(tmpV)
-    // world → ring-parent space
-    if (this.parent && this.parent !== this.stage.scene) {
-      tmpM.compose(this.buyPos, this.buyQuat, tmpS.set(1, 1, 1)).premultiply(this.parentInv)
-      tmpM.decompose(this.buyPos, this.buyQuat, tmpS)
-    }
-  }
-
   private updatePlate(): void {
-    // draw on with the handoff, fade with the sink
+    // draws on with the handoff and stays to the end of the page
     const draw = sstep(RING_IN[0] + 0.25, RING_IN[1] + 0.1, this.uS)
-    const fade = 1 - this.sinkW
-    this.plate.visible = draw > 0.001 && fade > 0.001
+    this.plate.visible = draw > 0.001
     if (!this.plate.visible) return
     this.plate.position.set(0, -PENCIL_LEN * 0.5 - 0.28, -this.R)
     this.plate.scale.setScalar(this.R)
@@ -1305,20 +1164,19 @@ export class RingModule implements SceneModule {
       const cnt = Math.floor((n / 2) * t) * 2
       l.geometry.setDrawRange(0, cnt)
       const m = this.plateMats[i]
-      m.opacity = (m.userData.baseOpacity as number) * fade
+      m.opacity = m.userData.baseOpacity as number
     }
     if (this.indexMark) {
       const m = this.indexMark.material as THREE.MeshBasicMaterial
-      m.opacity = (m.userData.baseOpacity as number) * fade * sstep(0.6, 1, draw)
+      m.opacity = (m.userData.baseOpacity as number) * sstep(0.6, 1, draw)
     }
   }
 
   private updateFog(): void {
     const fog = this.fog
     if (!fog || !this.stage) return
-    // full strength until the sinkers are gone (the presenter flies at the
-    // front slot's depth, never inside the fog)
-    const w = this.inW * (1 - sstep(RING_SINK[1], RING_OUT[1], this.uS))
+    // full strength once the ring is in (it stays to the end of the page)
+    const w = this.inW
     if (w <= 0.001) {
       this.parkFog()
       return
@@ -1345,17 +1203,9 @@ export class RingModule implements SceneModule {
     }
   }
 
-  /** overlay dissolves as the ring collapses into Buy */
-  private writeOutCss(v: number): void {
-    const r = Math.round(v * 1000) / 1000
-    if (r === this.lastOutCss) return
-    this.lastOutCss = r
-    const sec = this.sectionEl ?? document.getElementById('lineup')
-    sec?.style.setProperty('--lu-out', String(r))
-  }
-
   private writeRingCss(v: number): void {
-    const r = Math.round(Math.min(LINEUP_COUNT - 1, Math.max(0, v)) * 1000) / 1000
+    // raw, unbounded position (the ring is a loop); CSS wraps it with mod()
+    const r = Math.round(v * 1000) / 1000
     if (r === this.lastRingCss) return
     this.lastRingCss = r
     const sec = this.sectionEl ?? document.getElementById('lineup')
@@ -1391,8 +1241,8 @@ export class RingModule implements SceneModule {
       this.wakeFlag = false
       return true
     }
-    if (this.rhoV !== 0 || this.chaseLive || nav.hold >= 0 || this.drag) return true
-    // turntables (front pencil, buy presenter) + snap watch while on screen
+    if (this.rhoV !== 0 || nav.hold >= 0 || this.drag) return true
+    // front-pencil turntable, free-spin settle and snap watch while on screen
     return this.motionOK && this.uS < LINEUP_PIN + 3
   }
 

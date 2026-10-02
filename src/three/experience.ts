@@ -208,9 +208,9 @@ export class PencilExperience {
     this.loop()
   }
 
-  /** Buy-form selection → the ring's presenter finish chase. */
+  /** External variant selection (debug / QA) → the ring. */
   setVariant(name: string): void {
-    this.ringModule()?.select(name, 'buy')
+    this.ringModule()?.select(name, 'other')
     this.lastY = -1
   }
 

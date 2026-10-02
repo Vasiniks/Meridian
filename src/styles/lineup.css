@@ -8,8 +8,11 @@
   grid-template-columns:minmax(0,.42fr) minmax(0,.58fr);grid-template-rows:auto minmax(0,1fr) auto;
   padding:104px var(--gut) 40px;column-gap:24px}
 .lu-head{grid-column:1;grid-row:1;position:relative;z-index:1}
-/* the overlay dissolves as the ring collapses into Buy (--lu-out 0→1) */
-.lu-head,.lu-info,.lu-dial{opacity:calc(1 - var(--lu-out,0))}
+/* --ring is the raw, unbounded ring position (the ring is a loop):
+   --ringw wraps it to 0..4 for the needle */
+#lineup{--ringw:mod(var(--ring),4)}
+/* invisible marker where the free spin begins (#order sheet + anchor) */
+.lu-order-mark{position:absolute;left:0;width:1px;height:1px;pointer-events:none}
 .lu-eyebrow{display:flex;align-items:baseline;gap:14px;color:var(--muted)}
 .lu-eyebrow>span:first-child::after{content:"";display:inline-block;width:28px;height:1px;background:var(--hairline);
   vertical-align:middle;margin-left:14px}
@@ -36,10 +39,18 @@
 .lu-cta:active{transform:scale(.98)}
 .lu-cta-a{display:inline-block;transition:transform .32s var(--ease-out)}
 .lu-cta:hover .lu-cta-a{transform:translateX(4px)}
+.lu-cta[data-done="true"]{background:var(--accent)}
+.lu-cta[data-done="true"] .lu-cta-a{transform:none}
+.lu-ship{margin-top:14px;color:var(--muted);font-size:10.5px;letter-spacing:.08em;white-space:nowrap}
+/* free spin (end of the page): a quiet instruction under the ring */
+.lu-hint{position:absolute;right:var(--gut);bottom:40px;z-index:1;margin:0;font-size:10.5px;letter-spacing:.1em;
+  color:var(--muted);opacity:0;transform:translateY(6px);transition:opacity .5s ease,transform .5s var(--ease-out);
+  pointer-events:none}
+#lineup[data-free] .lu-hint{opacity:1;transform:none}
 
 /* leader callout (ring.ts sets the endpoints + --lead-o) */
 .lu-leader{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:0;
-  opacity:calc(var(--lead-o,0) * (1 - var(--lu-out,0)))}
+  opacity:var(--lead-o,0)}
 .lu-leader line{stroke:var(--ink);stroke-opacity:.42;stroke-width:1;vector-effect:non-scaling-stroke}
 .lu-leader circle{fill:var(--accent);opacity:0;animation:lu-dot .3s ease .9s forwards}
 @keyframes lu-dot{to{opacity:1}}
@@ -79,7 +90,7 @@
     linear-gradient(var(--ink),var(--ink)) 100% 100% / 1px 12px no-repeat,
     repeating-linear-gradient(90deg,rgba(20,20,18,.32) 0 1px,transparent 1px calc(100% / 30)) 0 100% / 100% 5px no-repeat;
   border-bottom:1px solid var(--hairline)}
-.lu-needle{position:absolute;bottom:-1px;left:calc(var(--ring) / 3 * 100%);width:1px;height:22px;background:var(--accent);
+.lu-needle{position:absolute;bottom:-1px;left:calc(min(var(--ringw),3) / 3 * 100%);width:1px;height:22px;background:var(--accent);
   transform:translateX(-.5px)}
 .lu-needle::before{content:"";position:absolute;top:-5px;left:-3.5px;border:4px solid transparent;border-top:6px solid var(--accent);
   border-bottom:0}
@@ -106,8 +117,10 @@
 .lu-card{position:absolute;left:50%;top:50%;width:var(--cw);aspect-ratio:2.5;margin:0;
   border:1px solid var(--hairline);background:#F3F2EE;border-radius:var(--radius);overflow:hidden;
   backface-visibility:hidden;-webkit-backface-visibility:hidden;
-  transform:translate(-50%,-50%) rotateX(calc((var(--i) - var(--ring)) * -90deg)) translateZ(calc(var(--cw) / 5));
-  opacity:max(0,calc(1 - (var(--i) - var(--ring)) * (var(--i) - var(--ring)) * .6))}
+  /* --dc: this card's shortest signed distance from the front, -2..2 */
+  --dc:calc(mod(var(--i) - var(--ring) + 2,4) - 2);
+  transform:translate(-50%,-50%) rotateX(calc(var(--dc) * -90deg)) translateZ(calc(var(--cw) / 5));
+  opacity:max(0,calc(1 - var(--dc) * var(--dc) * .6))}
 .lu-card img{display:block;width:100%;height:100%;object-fit:cover}
 .lu-card figcaption{position:absolute;top:10px;left:12px;font-size:10.5px}
 @media (prefers-reduced-motion:reduce){
@@ -118,7 +131,7 @@
   .is-static #lineup{transition:none}
   .is-static .lu-prism{display:grid;grid-template-columns:1fr 1fr;align-content:center;gap:14px;transform:none;padding:0 var(--gut) 0 0}
   .is-static .lu-card{position:relative;left:auto;top:auto;width:auto;transform:none;
-    opacity:max(.4,calc(1 - (var(--i) - var(--ring)) * (var(--i) - var(--ring)) * .6))}
+    opacity:max(.4,calc(1 - var(--dc) * var(--dc) * .6))}
 }
 .reduced .roll .rc,.reduced .lu-desc,.reduced .lu-leader circle{animation:none !important}
 .reduced .lu-leader circle{opacity:1}
@@ -127,7 +140,7 @@
 .reduced.is-static #lineup{transition:none}
 .reduced.is-static .lu-prism{display:grid;grid-template-columns:1fr 1fr;align-content:center;gap:14px;transform:none;padding:0 var(--gut) 0 0}
 .reduced.is-static .lu-card{position:relative;left:auto;top:auto;width:auto;transform:none;
-  opacity:max(.4,calc(1 - (var(--i) - var(--ring)) * (var(--i) - var(--ring)) * .6))}
+  opacity:max(.4,calc(1 - var(--dc) * var(--dc) * .6))}
 
 /* ---------- small screens: ring on top, labels stacked below ---------- */
 @media (max-width:900px){
@@ -144,6 +157,8 @@
   .lu-price{font-size:20px}
   .lu-cta{padding:12px 16px;font-size:14px}
   .lu-dial{grid-column:1;grid-row:4;width:100%;margin-top:16px}
+  .lu-ship{margin-top:10px;white-space:normal}
+  .lu-hint{left:20px;right:20px;bottom:3px;text-align:center;font-size:9.5px}
   .lu-leader{display:none}
   .is-static .lu-prism{--cw:84vw}
 }

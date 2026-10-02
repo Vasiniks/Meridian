@@ -3,7 +3,7 @@ import type { VariantName } from '../three/finishes'
 /**
  * Tiny typed event bus shared by the DOM effects layer (src/fx) and the 3D
  * experience (src/three). Keeps the two sides decoupled: e.g. the 3D ring
- * announces the variant in front, the DOM overlay and buy form listen.
+ * announces the variant in front and the DOM overlay listens.
  */
 /**
  * Cursor states. `link` (alias `hover`): hairline ring; `drag`/`view`/`part`:
@@ -25,8 +25,8 @@ export interface BusEvents {
   cursor: { mode: CursorMode; label?: string }
   /** The variant currently presented (e.g. in front of the lineup ring). */
   'variant:active': { name: VariantName }
-  /** The user chose a variant (ring click, buy radio). */
-  'variant:select': { name: VariantName; source: 'ring' | 'buy' | 'other' }
+  /** The user chose a variant (ring click, Order button). */
+  'variant:select': { name: VariantName; source: 'ring' | 'other' }
   /** The user clicked the pencil — play a button click / lead advance. */
   'pencil:click': Record<string, never>
   /** Real asset load progress 0..1 (GLB / HDR bytes), emitted during experience.init. */

@@ -3,7 +3,7 @@ import { KEYS, LINEUP_PIN, RING_IN, ringIndex, ringTarget, sstep } from '../data
 import { asset } from '../assetUrl'
 import { bus } from '../fx/bus'
 import { VARIANT_ORDER } from '../three/finishes'
-import { sizeLineup } from './lineupNav'
+import { sizeLineup, spinPos, spinTick } from './lineupNav'
 
 const DESKTOP_COUNT = 80
 const MOBILE_COUNT = 60
@@ -31,21 +31,21 @@ function driveDom(p: number): void {
 }
 
 // ---- lineup (static mode) ----------------------------------------------
-// Same section-local mapping as the 3D ring: --ring drives the CSS prism of
-// renders + the dial, `variant:active` drives the overlay text and the buy
-// form. The pre-rendered frames show the old single pencil, so they fade
-// out while the prism (and the buy-slot render) take over.
+// Same section-local mapping as the 3D ring (scroll detents + free-spin
+// offset): --ring drives the CSS prism of renders + the dial,
+// `variant:active` drives the overlay text. The pre-rendered frames show
+// the single pencil, so they fade out while the prism takes over.
 let lastLineupIdx = 0
 function driveLineup(img: HTMLImageElement | null): void {
   const sec = document.getElementById('lineup')
   if (!sec) return
   const u = -sec.getBoundingClientRect().top / Math.max(1, window.innerHeight)
-  const pos = ringTarget(u)
+  spinTick()
+  const pos = ringTarget(u) + spinPos()
   const reduced =
     document.body.classList.contains('reduced') ||
     window.matchMedia('(prefers-reduced-motion: reduce)').matches
   sec.style.setProperty('--ring', String(reduced ? ringIndex(pos) : Math.round(pos * 1000) / 1000))
-  sec.style.setProperty('--lu-out', sstep(LINEUP_PIN + 0.02, LINEUP_PIN + 0.38, u).toFixed(3))
   const i = ringIndex(pos)
   if (u > RING_IN[0] && u < LINEUP_PIN + 0.15 && i !== lastLineupIdx) {
     lastLineupIdx = i
@@ -102,6 +102,17 @@ export default function FrameFallback({ reason = null }: { reason?: string | nul
       }
     }
 
+    // free spin changes the ring without scrolling: redraw on its input,
+    // and once more after the settle delay (lineupNav.spinTick)
+    let settleT = 0
+    const onSpinInput = (): void => {
+      onScroll()
+      window.clearTimeout(settleT)
+      settleT = window.setTimeout(onScroll, 220)
+    }
+    const spinEvents = ['wheel', 'touchmove', 'keydown', 'click', 'pointerup'] as const
+    spinEvents.forEach((t) => window.addEventListener(t, onSpinInput, { passive: true }))
+
     document.body.classList.add('is-static')
     sizeLineup()
     const onResize = (): void => {
@@ -130,6 +141,8 @@ export default function FrameFallback({ reason = null }: { reason?: string | nul
     document.getElementById('loader')?.classList.add('done')
     return () => {
       cancelAnimationFrame(raf)
+      window.clearTimeout(settleT)
+      spinEvents.forEach((t) => window.removeEventListener(t, onSpinInput))
       window.removeEventListener('scroll', onScroll)
       window.removeEventListener('resize', onResize)
       document.body.classList.remove('is-static')

@@ -12,7 +12,8 @@ As you scroll, the 42-part pencil:
 4. gets x-rayed by a scan line that turns the page to ink
 5. runs its click mechanism
 6. snaps back together
-7. hands off to a spinning ring of four variants and a buy form
+7. ends on a ring of the four variants that you can spin indefinitely, with an
+   Order button for the one in front
 
 ## Highlights
 
@@ -25,7 +26,8 @@ As you scroll, the 42-part pencil:
 - **Technical-drawing overlay.** SVG callouts are anchored to real 3D parts.
   You can pick parts in the exploded view, and the x-ray works as a scan.
 - **3D lineup ring.** Scroll spins the four variants (Core, Pro, Studio,
-  Limited) to the front, and the chosen one flies into the buy form.
+  Limited) to the front. The page ends on the ring: scrolling or swiping past
+  the bottom (or dragging) keeps it spinning, and scrolling up leaves at once.
 - **Effects.** Lenis smooth scroll, a graphite cursor trail, line-mask
   reveals, a preloader that drafts the pencil from real load progress, a
   pointer-driven light sweep, contact shadows, and subtle velocity post
@@ -88,12 +90,12 @@ npm run build:frames        # needs Playwright + Chromium
 
 ```
 src/
-  components/      page sections (Hero, Detail, Exploded, Xray, Mechanism, Lineup, Buy, ...)
+  components/      page sections (Hero, Detail, Exploded, Xray, Mechanism, Lineup, ...)
   data/            copy (content.ts) and scroll envelopes + camera keys (scroll.ts)
   three/           renderer, model loader, camera rig, frame loop
     look/          pointer rig, light sweep, contact shadows, post FX
     drawing/       SVG callouts, part picking, x-ray scan, mechanism
-    ring.ts        3D variant ring + buy pose
+    ring.ts        3D variant ring (scroll detents + free spin at the end)
     finishes.ts    per-variant barrel finishes
   fx/              cursor trail, reveals, preloader, Lenis, event bus
   overlay/         drawing + x-ray styles

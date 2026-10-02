@@ -8,8 +8,6 @@ import Mechanism from './components/Mechanism'
 import Reassembly from './components/Reassembly'
 import Philosophy from './components/Philosophy'
 import Lineup from './components/Lineup'
-import Buy from './components/Buy'
-import Footer from './components/Footer'
 import FrameFallback from './components/FrameFallback'
 import { PencilExperience } from './three/experience'
 import { registerModules } from './three/registerModules'
@@ -88,9 +86,7 @@ export default function App() {
         <Reassembly />
         <Philosophy />
         <Lineup />
-        <Buy onVariantChange={(v) => expRef.current?.setVariant(v)} />
       </main>
-      <Footer />
     </>
   )
 }
