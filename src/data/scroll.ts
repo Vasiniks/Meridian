@@ -42,35 +42,44 @@ export const canvasDimF = (_p: number): number => 1
 // ---- lineup ring mapping ----------------------------------------------
 // Everything below is SECTION-LOCAL so it survives resizes and layout
 // changes elsewhere on the page: `u` is the scroll distance from the
-// moment #lineup pins, in viewport heights (u<0 approaching, 0..PIN pinned,
-// >PIN unpinning into Buy). The 3D ring, the DOM overlay, the static
-// CSS ring and the dial all read these same numbers.
+// moment #lineup pins, in viewport heights (u<0 approaching, 0..PIN pinned).
+// The lineup is the last section: the page ends on the ring. The 3D ring,
+// the DOM overlay, the static CSS ring and the dial all read these numbers.
 
-/** #lineup height in viewport heights (kept at 4 so page-progress keys elsewhere stay put). */
-export const LINEUP_VH = 4
+/**
+ * #lineup height in viewport heights. The old Buy section + footer
+ * (~1.45 vh at desktop) were folded into the lineup, so the total page
+ * length, and with it every page-progress key above, stays put.
+ */
+export const LINEUP_VH = 5.45
 /** pinned scroll distance, in viewport heights */
 export const LINEUP_PIN = LINEUP_VH - 1
 export const LINEUP_COUNT = 4
 
 /**
  * Detent layout (u). The ring rests on a variant between moves and swings
- * to the next one inside each [start, end] window. The last move (into
- * Limited) is ~1.3x longer: the crescendo.
+ * to the next one inside each [start, end] window. The move into Limited is
+ * ~1.3x longer (the crescendo); the last move carries Limited on round to
+ * Core, where the page ends and the ring spins freely (FREE_SPIN_U).
  */
 export const RING_MOVES: ReadonlyArray<readonly [number, number]> = [
   [0.55, 0.91],
   [1.36, 1.72],
   [2.17, 2.64],
+  [3.2, 3.62],
 ]
-/** Plateau centres: where click / drag / dial navigation parks each variant. */
+/** Plateau centres: where click / drag / dial navigation parks each variant (first pass). */
 export const RING_SNAPS: readonly number[] = [0.34, 1.135, 1.945, 2.84]
+/**
+ * From here to the end of the page the ring is free: wheel / swipe past the
+ * bottom, drag, dial and clicks spin it indefinitely (lineupNav `spin`)
+ * instead of scrolling. Scrolling up leaves at once.
+ */
+export const FREE_SPIN_U = 3.72
 /** Handoff: hero pencil glides into the front slot, siblings rise in. */
 export const RING_IN: readonly [number, number] = [-0.62, 0.12]
 /** Siblings materialize window (staggered inside it). */
 export const RING_RISE: readonly [number, number] = [-0.42, 0.3]
-/** Exit: unselected pencils sink, the presenter flies into the Buy slot. */
-export const RING_SINK: readonly [number, number] = [2.96, 3.5]
-export const RING_OUT: readonly [number, number] = [3.0, 3.8]
 
 const easeInOutCubic = (t: number): number =>
   t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
@@ -87,9 +96,9 @@ export function ringTarget(u: number): number {
   return pos
 }
 
-/** Nearest resting ring index for a (possibly mid-swing) position. */
+/** Nearest resting variant index for a ring position (wraps: the ring is a loop). */
 export const ringIndex = (pos: number): number =>
-  Math.min(LINEUP_COUNT - 1, Math.max(0, Math.round(pos)))
+  ((Math.round(pos) % LINEUP_COUNT) + LINEUP_COUNT) % LINEUP_COUNT
 
 /** True while u sits inside a move window (the ring is between detents). */
 export function ringMoving(u: number): number {

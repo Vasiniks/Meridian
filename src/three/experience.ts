@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { detectConfig, type QualityConfig } from './config'
 import { createStage, type Stage } from './stage'
-import { loadAssembly, type Assembly } from './assembly'
+import { fetchGltf, loadAssembly, type Assembly } from './assembly'
 import { sampleCam } from './cameraRig'
 import type { FrameCtx, SceneModule } from './modules'
 import { beginLoadTracking } from '../fx/loadProgress'
@@ -121,27 +121,57 @@ export class PencilExperience {
     return this.modules.find((m) => m.name === name) as T | undefined
   }
 
+  /**
+   * Called once if the 3D view can't be shown (init error, lost context,
+   * render exception, or a blank first render). App swaps in the still
+   * frames so the page never sits on an empty canvas.
+   */
+  onFail: ((reason: string) => void) | null = null
+  private failed = false
+  private blankCheckIn = -1
+
+  private fail(reason: string, err?: unknown): void {
+    if (this.failed || this.disposed) return
+    this.failed = true
+    console.error('[meridian] 3D view unavailable:', reason, err ?? '')
+    this.dispose()
+    this.onFail?.(reason)
+  }
+
+  private onContextLost = (e: Event): void => {
+    e.preventDefault()
+    this.fail('WebGL context lost')
+  }
+
   async init(): Promise<void> {
     this.refreshViewport()
+    this.canvas.addEventListener('webglcontextlost', this.onContextLost)
     // real GLB/HDR byte progress -> bus 'load:progress' (preloader)
     const endLoad = beginLoadTracking()
-    this.stage = await createStage(this.canvas, this.cfg).catch((e) => {
+    // model download runs in parallel with renderer + HDRI setup
+    const gltfP = fetchGltf(this.cfg.assetUrl)
+    gltfP.catch(() => {}) // handled below; avoid an unhandled rejection meanwhile
+    try {
+      this.stage = await createStage(this.canvas, this.cfg)
+    } catch (err) {
       endLoad()
-      throw e
-    })
+      this.fail('WebGL setup failed', err)
+      return
+    }
     this.last = performance.now()
     try {
       this.asm = await loadAssembly(
-        this.cfg.assetUrl,
+        gltfP,
         this.stage.scene,
         this.cfg.quality,
       )
     } catch (err) {
-      this.showFallback()
-      throw err
+      this.fail('model failed to load', err)
+      return
     } finally {
       endLoad()
     }
+    if (this.disposed) return
     document.querySelectorAll('.rv').forEach((el) => {
       new IntersectionObserver((es, o) =>
         es.forEach((e) => {
@@ -167,13 +197,20 @@ export class PencilExperience {
     this.ready = true
     window.addEventListener('resize', this.onResize)
     document.addEventListener('visibilitychange', this.onVis)
-    this.stage.composer.render()
+    try {
+      this.stage.composer.render()
+    } catch (err) {
+      this.fail('render failed', err)
+      return
+    }
+    // verify the hero actually drew something a few frames in
+    this.blankCheckIn = 24
     this.loop()
   }
 
-  /** Buy-form selection → the ring's presenter finish chase. */
+  /** External variant selection (debug / QA) → the ring. */
   setVariant(name: string): void {
-    this.ringModule()?.select(name, 'buy')
+    this.ringModule()?.select(name, 'other')
     this.lastY = -1
   }
 
@@ -191,13 +228,6 @@ export class PencilExperience {
 
   isMotionOK(): boolean {
     return this.motionOK
-  }
-
-  private showFallback(): void {
-    const fb = document.getElementById('fallback')
-    if (fb) fb.style.display = 'flex'
-    this.canvas.style.display = 'none'
-    document.getElementById('loader')?.classList.add('done')
   }
 
   private readProgress(): boolean {
@@ -343,7 +373,16 @@ export class PencilExperience {
     this.stage.key.intensity = 3.2 + Math.sin(p * Math.PI * 2) * 0.25 + xr * 0.6
 
     for (const m of this.modules) m.update?.(ctx)
-    this.stage.composer.render()
+    try {
+      this.stage.composer.render()
+    } catch (err) {
+      this.fail('render failed', err)
+      return
+    }
+    if (this.blankCheckIn > 0 && --this.blankCheckIn === 0 && this.isBlank()) {
+      this.fail('scene rendered blank')
+      return
+    }
     const loadFill = document.getElementById('loadFill')
     if (loadFill) loadFill.style.width = '100%'
     const loader = document.getElementById('loader')
@@ -378,8 +417,34 @@ export class PencilExperience {
     return c
   }
 
+  /**
+   * True if the just-rendered frame has no visible pixels. Only judged on
+   * the hero (the pencil is always in frame there); elsewhere, or if the
+   * read itself fails, assume it drew. Must run right after render, before
+   * the browser composites (preserveDrawingBuffer is off).
+   */
+  private isBlank(): boolean {
+    if (this.cur > 0.06 || !this.stage) return false
+    try {
+      const r = this.stage.renderer
+      const gl = r.getContext()
+      r.setRenderTarget(null)
+      const w = gl.drawingBufferWidth
+      const h = gl.drawingBufferHeight
+      if (w < 2 || h < 2) return false
+      const buf = new Uint8Array(w * h * 4)
+      gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, buf)
+      for (let i = 3; i < buf.length; i += 4 * 7) if (buf[i] > 8) return false
+      return true
+    } catch {
+      return false
+    }
+  }
+
   dispose(): void {
+    if (this.disposed) return
     this.disposed = true
+    this.canvas.removeEventListener('webglcontextlost', this.onContextLost)
     for (const m of this.modules) m.dispose?.()
     cancelAnimationFrame(this.raf)
     window.removeEventListener('resize', this.onResize)

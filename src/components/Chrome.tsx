@@ -62,7 +62,7 @@ export default function Chrome({ motionPaused = false, onToggleMotion }: ChromeP
               </a>
             ))}
           </nav>
-          <a className="nav-cta" href="#buy" data-magnetic="0.3">
+          <a className="nav-cta" href="#order" data-magnetic="0.3">
             <span className="mag">Buy — $48+</span>
           </a>
           {/* accessible name = visible text (label-in-name); state is in the words */}

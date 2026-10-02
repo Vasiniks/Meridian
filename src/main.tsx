@@ -16,7 +16,6 @@ import './styles/stage.css'
 import './styles/nav.css'
 import './styles/sections.css'
 import './styles/lineup.css'
-import './styles/buy.css'
 import './styles/responsive.css'
 
 // NOTE: no React.StrictMode — it double-mounts effects in dev, which creates

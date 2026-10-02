@@ -25,7 +25,7 @@ export default function Hero() {
             {hero.sub}
           </p>
           <div className="hero-actions" data-reveal="fade" data-reveal-delay="680">
-            <a className="btn-solid" href="#buy" data-magnetic="0.28">
+            <a className="btn-solid" href="#order" data-magnetic="0.28">
               <span className="mag">
                 <span className="mag-label">{hero.ctaSolid}</span>
               </span>

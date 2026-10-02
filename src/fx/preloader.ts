@@ -238,8 +238,8 @@ export function startPreloader(): () => void {
   const t0 = performance.now()
   let doneAt = 0
   let phase: 'load' | 'hold' | 'exit' | 'gone' = 'load'
-  const MIN_DRAW = reduced ? 0 : short ? 0.5 : 1.35
-  const HOLD = short ? 120 : 260
+  const MIN_DRAW = reduced ? 0 : short ? 0.4 : 0.8
+  const HOLD = short ? 80 : 150
 
   const offProg = bus.on('load:progress', ({ p }) => {
     real = Math.max(real, p)
@@ -294,7 +294,7 @@ export function startPreloader(): () => void {
         loader.classList.add('pl-gone')
         html.classList.remove('pl-on')
       },
-      reduced ? 480 : 1060,
+      reduced ? 480 : 800,
     )
   }
 

@@ -66,10 +66,10 @@ these:
   metric-matched (`base.css`, measured from the font files with fontTools),
   which keeps CLS at about 0.0001.
 - Logo: the "Hex & lead" mark (`src/components/BrandMark.tsx`), a hex
-  outline with the lead dot in the accent colour. It is used in the nav, the
-  footer title block and the favicon.
+  outline with the lead dot in the accent colour. It is used in the nav and
+  the favicon.
 - No Tailwind, no UI kit, no animation library. CSS is hand-written:
-  - `src/styles/*`: tokens, base, stage, nav, sections, lineup, buy,
+  - `src/styles/*`: tokens, base, stage, nav, sections, lineup,
     responsive
   - `src/overlay/*.css`: drawing and x-ray
   - Visual language: warm paper `#F5F3EE`, near-black ink, hairline borders,
@@ -254,8 +254,9 @@ carries `p`, `rawP`, `scrollVel`, `dt`, `stage`, `asm`, `cfg` and
 - **lineup** (`ring.ts`):
   - the hero glides into the ring's front slot;
   - the 4 variants spin on scroll detents, with a dial, click and drag;
-  - finishes chase their targets (never snap);
-  - the presenter flies into the Buy slot.
+  - the page ends on the ring: past `FREE_SPIN_U` it spins indefinitely
+    (wheel, swipe or arrow-down past the bottom, drag, dial, clicks) and the
+    Order button sells the variant in front. There is no separate Buy section.
 
 Shared contracts:
 - `src/fx/bus.ts` is a typed event bus: `cursor`, `variant:active`,
@@ -322,13 +323,29 @@ section positions in a real browser and shift a whole block's constants
 together (camera key, envelope, drawing thresholds, light). Never move just
 one of them.
 
-**The lineup and buy mapping is section-local.** It uses `u` = viewport
-heights since `#lineup` pinned, so it survives layout changes. Constants:
-- `LINEUP_VH` 4
+**The lineup mapping is section-local.** It uses `u` = viewport heights
+since `#lineup` pinned, so it survives layout changes. Constants:
+- `LINEUP_VH` 5.45. The lineup is the last section; it absorbed the old Buy
+  section and footer so the total page length (and every page-progress key
+  above) stayed the same. Change the page length and every envelope moves.
 - `RING_MOVES` and `RING_SNAPS` (detents; the move into Limited is about
-  1.3× longer, the crescendo)
-- `RING_IN` (the hero handoff), `RING_RISE`, `RING_SINK` and `RING_OUT`
-  (the flight into Buy)
+  1.3× longer, the crescendo; a last move carries Limited round to Core)
+- `RING_IN` (the hero handoff) and `RING_RISE`
+- `FREE_SPIN_U` 3.72: from here to the end of the page the ring is free. The
+  `#order` marker (the ninth sheet, and the nav/hero CTA target) sits here.
+
+**Free spin** (`lineupNav.ts`): `spin.target` is an unbounded whole-detent
+offset added to the scroll mapping.
+- Wheel past the bottom steps one variant per ~90 px (one notch), at most one
+  every 160 ms.
+- A swipe steps one variant per ~70 px of upward finger travel, counted from
+  touchstart, so it doesn't depend on touchmove event rate.
+- Drag, dial and ring clicks set the offset directly; the dial takes the
+  shortest way round.
+- Scrolling up is never intercepted. Outside the free stretch the offset
+  resolves to a whole turn, so the scroll mapping shows the same variant.
+- `--ring` is written raw (unbounded); CSS wraps it with `mod()`, so a wrap
+  never animates backwards.
 
 The 3D ring, the DOM overlay, the static CSS ring and the dial all read the
 same numbers.
@@ -382,8 +399,10 @@ accumulated state. The one exception is the monotonic turntable spin.
 - **Production under the subpath:** `npx vite build --base /Meridian/ &&
   npx vite preview --base /Meridian/`. Expect no 404s and the 3D pencil, not
   the SVG fallback.
-- Variant switching (ring click, dial, buy radio) recolors the presenter
-  with a chase. The buy price follows.
+- The ring passes Core → Pro → Studio → Limited → Core on scroll. At the
+  bottom, single wheel notches and swipes keep spinning it, the first
+  wheel-up leaves at once, the dial spins without scrolling, and the Order
+  button confirms the variant in front.
 
 ## 8. Known traps (each burned us once)
 

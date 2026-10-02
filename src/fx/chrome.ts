@@ -22,7 +22,8 @@ export const SHEETS: readonly { id: string; name: string }[] = [
   { id: 'reassembly', name: 'Reassembly' },
   { id: 'philosophy', name: 'Principles' },
   { id: 'lineup', name: 'Lineup' },
-  { id: 'buy', name: 'Order' },
+  // #order marks the free-spin end of the lineup (Lineup.tsx)
+  { id: 'order', name: 'Order' },
 ]
 
 const pad2 = (n: number): string => (n < 10 ? '0' : '') + n
