@@ -10,9 +10,9 @@ export interface CamKey {
 export const KEYS: CamKey[] = [
   { p: 0.0, pos: [3.6, 1.6, 8.8], tgt: [0, 0, 0], fov: 35, label: '01 — Reveal' },
   { p: 0.08, pos: [1.5, -1.2, 3.4], tgt: [0, -1.7, 0], fov: 28, label: '02 — Detail' },
-  { p: 0.2, pos: [0, 0.7, 19.2], tgt: [0, 0.7, 0], fov: 40, label: '03 — Exploded' },
-  { p: 0.335, pos: [0, 0.7, 17.8], tgt: [0, 0.7, 0], fov: 40, label: '04 — X-Ray' },
-  { p: 0.4, pos: [2.2, 4.4, 2.6], tgt: [0, 3.9, 0], fov: 25, label: '05 — Mechanism' },
+  { p: 0.2, pos: [0, 0.3, 21.0], tgt: [0, 0.3, 0], fov: 40, label: '03 — Exploded' },
+  { p: 0.335, pos: [0, 0.35, 20.2], tgt: [0, 0.35, 0], fov: 40, label: '04 — X-Ray' },
+  { p: 0.4, pos: [0.53, -1.65, 1.86], tgt: [-0.72, -2.0, 0.36], fov: 25, label: '05 — Mechanism' },
   { p: 0.52, pos: [-3.4, 1.3, 6.4], tgt: [0, 0, 0], fov: 35, label: '06 — Reassembly' },
   { p: 0.63, pos: [2.8, 1.0, 5.8], tgt: [0, -0.1, 0], fov: 32, label: '07 — Object' },
   // Lineup + buy: the ring module (src/three/ring.ts) takes the camera over

@@ -8,6 +8,7 @@
  *
  * Usage: start `npx vite --port 8100`, then
  *   node scripts/frames/render-frames.cjs [baseUrl] [desktop|mobile|all]
+ * Resume a tier: FRAMES_TIER=desktop FRAMES_FROM=33 node ... (earlier frames kept)
  * Requires Playwright (globally installed in the cloud dev image).
  */
 const path = require('path')
@@ -43,7 +44,9 @@ async function renderTier(browser, base, name) {
   // Settled poses: no damping, no idle turntable drift between captures.
   await page.evaluate(() => window.__exp?.setMotionOK?.(false))
   const max = await page.evaluate(() => document.documentElement.scrollHeight - innerHeight)
-  for (let i = 0; i < t.count; i++) {
+  // FRAMES_FROM=n resumes a tier at frame n (earlier frames are kept)
+  const from = name === (process.env.FRAMES_TIER || name) ? Number(process.env.FRAMES_FROM || 0) : 0
+  for (let i = from; i < t.count; i++) {
     const p = (i + 0.5) / t.count
     // Lenis owns scrolling when present; jump it directly (no easing)
     await page.evaluate((y) => {
@@ -53,7 +56,16 @@ async function renderTier(browser, base, name) {
     }, Math.round(max * p))
     await page.waitForTimeout(t.settle)
     const file = path.join(ROOT, 'public', 'frames', name, `f${String(i).padStart(3, '0')}.jpg`)
-    await page.screenshot({ path: file, type: 'jpeg', quality: t.quality })
+    // software WebGL can stall a capture on heavy frames: long timeout, one retry
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await page.screenshot({ path: file, type: 'jpeg', quality: t.quality, timeout: 120000 })
+        break
+      } catch (e) {
+        if (attempt >= 1) throw e
+        await page.waitForTimeout(2000)
+      }
+    }
     process.stdout.write(`\r${name} ${i + 1}/${t.count}`)
   }
   process.stdout.write('\n')

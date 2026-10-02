@@ -330,7 +330,9 @@ export class XrayModule implements SceneModule {
     // internals lift so they read as x-ray (strongest on the ink sheet)
     const xr = st.xr
     const lift = xr * (0.6 + 0.4 * inkAlpha)
-    asm.coreMat?.emissive.setRGB(lift * 0.16, lift * 0.07, lift * 0.03)
+    // smoked lead tube + graphite would vanish on the ink sheet: lift them
+    asm.coreMat?.emissive.setRGB(lift * 0.34, lift * 0.3, lift * 0.26)
+    asm.leadMat?.emissive.setRGB(lift * 0.3, lift * 0.3, lift * 0.32)
     for (const m of asm.springMats) m.emissive.setRGB(lift * 0.12, lift * 0.12, lift * 0.13)
     asm.brassMat?.emissive.setRGB(lift * 0.12, lift * 0.07, lift * 0.02)
 

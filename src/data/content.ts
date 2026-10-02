@@ -13,14 +13,14 @@ export const hero: HeroContent = {
   eyebrow: "Precision mechanical pencil — Nº 01",
   titleA: "Precision you feel.",
   titleEm: "A mechanism you keep.",
-  sub: "Forty-two parts. One hex axis. Zero wobble. Machined to ±0.02 mm and balanced at the grip.",
+  sub: "Twenty-six parts. One hex axis. A brass clutch that feeds the lead 0.5 mm a click, behind a fixed 4 mm sleeve.",
   ctaSolid: "Buy — $48",
   ctaLine: "See it come apart",
   specs: [
     "Meridian 0.5 / Graphite",
     "Body — Hex 6061 · 18 g",
-    "Lead — 0.5 mm · Clutch feed",
-    "Tolerance — ±0.02 mm",
+    "Lead — 0.5 mm · Clutch feed",
+    "Feed — 0.5 mm per click",
   ],
   scrollCue: "Scroll",
 };
@@ -33,12 +33,12 @@ export interface DetailSpec {
 export const detailTitle = "The grip is the instrument.";
 
 export const detailLede =
-  "A 63 mm hexagonal grip, cut in an inverse-crisscross lattice deep enough to hold and crisp enough to read. The faceted nose tapers so the lead meets paper exactly where the eye expects it.";
+  "A 28 mm hexagonal grip, cut in a diamond knurl deep enough to hold and crisp enough to read. The turned cone tapers to a fixed 4 mm sleeve, so the lead meets paper exactly where the eye expects it.";
 
 export const detailSpecs: DetailSpec[] = [
-  { b: "Lattice depth", span: "0.22 mm" },
+  { b: "Knurl depth", span: "0.26 mm" },
   { b: "Hull section", span: "hex · 6061" },
-  { b: "Sleeve runout", span: "< 0.03 mm" },
+  { b: "Lead sleeve", span: "4 mm · fixed" },
 ];
 
 export const detailAnno =
@@ -52,18 +52,18 @@ export interface ExplodedLabel {
 export const explodedEyebrow = "Exploded view — every part on one axis";
 export const explodedTitle = "Comes apart on one axis.";
 export const explodedLede =
-  "No hidden clips. No glue. Each component slides off the central reservoir in assembly order. Servicing takes ninety seconds with no tools.";
+  "No glue. Unscrew the cone and the clutch, spring and lead tube slide out of the front in assembly order. Servicing takes ninety seconds with no tools.";
 
 export const explodedLabels: ExplodedLabel[] = [
-  { t: "Hex button + stem · eraser", d: "+3.3 / +2.8" },
-  { t: "Actuator · collar · springs", d: "+2.6 / +2.4" },
-  { t: "Clutch · 3 jaws · retainer", d: "+2.2 / +1.9" },
-  { t: "Return spring · seats · rods", d: "+1.6 / +1.1" },
-  { t: "Hex reservoir + plug", d: "+0.9" },
-  { t: "Hex hull · 6061 · clip", d: "datum" },
-  { t: "Grip · crisscross lattice", d: "−0.8" },
-  { t: "Faceted nose · insert", d: "−1.6 / −2.2" },
-  { t: "Lead sleeve · 0.5 lead", d: "−2.7 / −3.1" },
+  { t: "Cap · eraser · holder", d: "2.5 stroke" },
+  { t: "Hex barrel · collar · clip", d: "datum" },
+  { t: "Lead tube · 3 spare leads", d: "Ø 2.6" },
+  { t: "Knurled grip · ferrules", d: "28 mm" },
+  { t: "Return spring · seat", d: "stainless" },
+  { t: "Collet · 3 jaws", d: "C360 brass" },
+  { t: "Clutch ring · ring stop", d: "0.5 gap" },
+  { t: "Cone · lead retainer", d: "rubber" },
+  { t: "Lead sleeve · 0.5 lead", d: "4 mm steel" },
 ];
 
 export interface XrayContent {
@@ -76,7 +76,7 @@ export interface XrayContent {
 export const xray: XrayContent = {
   eyebrow: "Sheet 04 — X-ray",
   title: "The shell goes quiet.",
-  lede: "A scan passes down the body and the hull turns to glass. What remains is the working core: reservoir, spring, clutch and lead path, held on the same axis they run on.",
+  lede: "A scan passes down the body and the hull turns to glass. What remains is the working core: lead tube, return spring, brass clutch and the lead path to the tip, held on the same axis they run on.",
   anno: "02 / SECTION A–A — read straight through 6061. Nothing is hidden, nothing is faked.",
 };
 
@@ -89,11 +89,11 @@ export interface MechStep {
 export const mechanismTitle = "Five moves. One click.";
 
 export const mechSteps: MechStep[] = [
-  { n: "01", h: "Press", p: "One click engages the clutch." },
-  { n: "02", h: "Compress", p: "Spring stores controlled energy." },
-  { n: "03", h: "Release", p: "Jaws open with exact clearance." },
-  { n: "04", h: "Advance", p: "Lead feeds one precise increment." },
-  { n: "05", h: "Reset", p: "Clutch reseats. Zero wobble remains." },
+  { n: "01", h: "Press", p: "Tube, clutch and lead move forward as one." },
+  { n: "02", h: "Ring stops", p: "The clutch ring lands on its stop, 0.5 mm in." },
+  { n: "03", h: "Jaws open", p: "The jaws leave the ring and spring apart." },
+  { n: "04", h: "Release", p: "The spring returns. The retainer holds the lead." },
+  { n: "05", h: "Regrip", p: "The jaws close on the lead, 0.5 mm further out." },
 ];
 
 export interface ReassemblyContent {

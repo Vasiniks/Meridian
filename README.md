@@ -5,7 +5,7 @@ mechanical pencil, drawn in technical-drawing language.
 
 **Live:** https://vasiniks.github.io/Meridian/
 
-As you scroll, the 42-part pencil:
+As you scroll, the 26-part clutch pencil:
 1. reveals itself
 2. shows its grip in close-up
 3. comes apart
@@ -17,10 +17,12 @@ As you scroll, the 42-part pencil:
 
 ## Highlights
 
-- **Blender-built model.** 42 named parts with real bevels, a machined
-  diamond knurl, etched lettering, coil springs, toothed collet jaws and
-  frosted micro-grain textures. A desktop and a mobile tier are exported as
-  glTF.
+- **Blender-built model.** 26 named parts, each a real component of a
+  clutch-type drafting pencil: a slotted 3-jaw brass collet and clutch ring,
+  a closed and ground return spring, a lead tube from collet to eraser, a
+  rubber lead retainer and a fixed 4 mm sleeve. Real bevels, a machined
+  diamond knurl, etched lettering and frosted micro-grain textures. A
+  desktop and a mobile tier are exported as glTF.
 - **Scroll choreography.** Camera keyframes and smoothstep envelopes
   (explode, x-ray, mechanism) are timed to the copy they sit under.
 - **Technical-drawing overlay.** SVG callouts are anchored to real 3D parts.
@@ -70,12 +72,13 @@ npm run build:assets   # rebuild both GLB tiers + .blend + manifest, then valida
 ```
 
 - Build output:
-  - `public/models/desktop/mechanical-pencil.glb` (~90k tris, ~3.9 MB)
-  - `public/models/mobile/mechanical-pencil-mobile.glb` (~41k tris, ~1.8 MB)
+  - `public/models/desktop/mechanical-pencil.glb` (~74k tris, ~1.8 MB meshopt)
+  - `public/models/mobile/mechanical-pencil-mobile.glb` (~35k tris, ~0.8 MB meshopt)
   - `public/models/source/mechanical-pencil.blend` and `manifest.json`
-- `scripts/asset-processing/validate_glb.py` checks the 42-part contract
-  (hierarchy, extras, materials), mesh hygiene and size budgets. It exits
-  non-zero on failure.
+- `scripts/asset-processing/validate_glb.py` checks the 26-part contract
+  (hierarchy, extras, child bodies, materials) against the reference
+  registry in `scripts/asset-processing/build_pencil_glb.py`, mesh hygiene
+  and size budgets. It exits non-zero on failure.
 - `scripts/asset-processing/blender/render_views.py` renders the variant
   cards in `public/variants/` with Cycles.
 

@@ -1,16 +1,22 @@
 """Meridian Hex — part registry + per-part geometry (Blender space, +Z axis).
 
 The registry is the LOAD-BEARING contract with the site (exploded view,
-x-ray, mechanism, lineup): 42 part nodes, their parent group, base height,
-explode scalar, kind (shell|inner), mechanism role and jawAngle extras.
-Values are identical to the legacy numpy builder's define_assembly().
+x-ray, mechanism, lineup): 26 part nodes = 26 real components of a
+clutch-type drafting pencil, with their parent group, base height, explode
+scalar, kind (shell|inner) and mechanism role. A component made of several
+meshes (the collet and its three flexing jaws, the grip and its knurl, the
+barrel and its groove inlay) is ONE part node with child body nodes.
+scripts/asset-processing/build_pencil_glb.py holds the same table as the
+reference registry the validator compares against.
 
 Each builder returns a Geo in ASSEMBLED coordinates (the pencil as it sits
-fully assembled, axis = +Z, tip at z~-7.2, crown at z~+8.1). The build script
-subtracts the node location to obtain node-local geometry, so every mating
-surface is authored once, in one frame, and parts fit by construction.
+fully assembled, axis = +Z, lead tip at z~-5.7, crown at z~+8.1). The build
+script subtracts the node (or body) origin to obtain local geometry, so
+every mating surface is authored once, in one frame, and parts fit by
+construction.
 
-Units: 1 unit = 10 mm of real pencil (barrel across-flats 7.8 mm).
+Units: 1 unit = 10 mm of real pencil (barrel across-flats 7.8 mm, lead
+Ø 0.50 mm, 136.5 mm from crown to sleeve).
 """
 import math
 
@@ -22,6 +28,26 @@ from mh_geom import (A, C, Geo, H, HEX_COS, TAU, catmull, clip_poly, helix_sprin
 
 # ----------------------------------------------------------------- registry
 PARTS = []
+# Child bodies of a part node: separate meshes (own finish pipeline) that
+# belong to ONE real component, e.g. the three flexing jaws of the collet or
+# the knurl of the grip. {part: [{"name", "origin" (Blender xyz), "extra"}]}
+BODIES = {}
+
+JAW_ANGLES = (0.0, 2.0944, 4.1888)
+
+# ---- clutch / collet geometry (assembled, Blender z = pencil axis) --------
+# 1 unit = 10 mm. Real clutch-pencil proportions (Pentel P205 / Rotring 600
+# class): 0.5 mm lead, Ø 2.7 mm clutch ring, 2.5 mm button stroke of which
+# 0.5 mm is ring travel (= lead advance per click).
+JAW_MOUTH = -4.04      # collet mouth (front end of the jaws) at rest
+JAW_HINGE = -3.70      # slot root: the jaws flex about this station
+JAW_HINGE_R = 0.080    # outer radius of the jaw at the root
+RING_Z0, RING_Z1 = -3.98, -3.7205   # clutch ring at rest (rear face on the seat)
+SEAT_Z0, SEAT_Z1 = -3.72, -3.64     # body-fixed spring seat (= ring rear stop)
+STOP_Z0, STOP_Z1 = -4.0905, -4.03   # body-fixed ring stop washer (0.5 mm ahead of the ring)
+SPRING_Z0, SPRING_Z1 = -3.64, -2.84  # return spring, installed
+TUBE_Z0, TUBE_Z1 = -2.74, 6.40       # lead tube
+LEAD_TIP, LEAD_TOP = -5.72, -2.72    # working lead (30 mm stub)
 
 
 def part(name, parent, base_y, explode, kind, mech="static", extra=None):
@@ -30,52 +56,59 @@ def part(name, parent, base_y, explode, kind, mech="static", extra=None):
                   "extra": extra or {}})
 
 
+def body(part_name, name, origin=(0.0, 0.0, None), extra=None):
+    BODIES.setdefault(part_name, []).append({"name": name, "origin": origin, "extra": extra or {}})
+
+
 def define_assembly():
+    """26 real components, tip-to-crown order inside each group.
+
+    explode = axial offset in the exploded view / 0.7 (runtime scale).
+    mech roles: static | button | tube | clutch | ring | spring | lead.
+    The cap pushes the lead tube; the tube carries the eraser holder, the
+    eraser, the spare leads and (press-fit on its front end) the brass
+    collet. The clutch ring floats between the spring seat and the ring
+    stop. Only the collet's jaws flex (child bodies, see BODIES)."""
     PARTS.clear()
+    BODIES.clear()
     # ---- Exterior -------------------------------------------------
-    part("buttonHex", "Exterior", 7.55, 3.3, "shell", "button")
-    part("buttonStem", "Exterior", 6.95, 3.5, "inner", "stem")
-    part("eraser", "Exterior", 6.95, 2.8, "inner", "static")
-    part("eraserSleeve", "Exterior", 6.85, 2.85, "inner", "static")
-    part("buttonSpring", "Exterior", 6.62, 2.9, "inner", "springBtn")
-    part("topCollar", "Exterior", 6.15, 2.5, "shell", "static")
-    part("actuatorCone", "Internal", 6.05, 2.4, "inner", "actuator")
-    part("actuatorSleeve", "Internal", 5.85, 2.3, "inner", "actuator")
-    part("washerTop", "Internal", 6.40, 2.6, "inner", "static")
-    part("feedRod", "Internal", 3.90, 1.3, "inner", "rod")
-    part("shaftMid", "Internal", 3.10, 1.1, "inner", "rod")
-    part("reservoirHex", "Internal", 2.00, 0.9, "inner", "static")
-    part("resPlug", "Internal", 3.60, 1.15, "inner", "static")
-    part("clutchHousing", "Internal", 5.35, 1.95, "inner", "clutch")
-    part("jawA", "Internal", 5.15, 2.06, "inner", "jaw", {"jawAngle": 0.0})
-    part("jawB", "Internal", 5.15, 2.20, "inner", "jaw", {"jawAngle": 2.0944})
-    part("jawC", "Internal", 5.15, 2.34, "inner", "jaw", {"jawAngle": 4.1888})
-    part("retainerHex", "Internal", 5.42, 2.25, "inner", "static")
-    part("seatLow", "Internal", 3.95, 1.5, "inner", "static")
-    part("returnSpring", "Internal", 4.55, 1.6, "inner", "springMain")
-    part("seatUp", "Internal", 5.15, 1.9, "inner", "static")
-    part("stabilizerSpring", "Internal", 2.60, 0.7, "inner", "springStab")
-    part("guideTube", "Internal", -1.60, -0.3, "inner", "static")
-    part("threadRing", "Internal", -0.15, 0.35, "inner", "static")
-    part("spacerTube", "Internal", 0.90, 0.6, "inner", "static")
-    part("noseWasher", "Internal", -3.55, -1.25, "inner", "static")
-    part("stopCollar", "Internal", 4.35, 1.7, "inner", "static")
-    # ---- shell ----------------------------------------------------
+    part("cap", "Exterior", 7.55, 2.971, "shell", "button")
+    part("eraser", "Exterior", 6.85, 2.314, "inner", "tube")
+    part("eraserHolder", "Exterior", 6.70, 1.071, "inner", "tube")
+    part("topCollar", "Exterior", 6.15, 0.643, "shell", "static")
     part("barrelHex", "Exterior", 2.60, 0.0, "shell", "static")
-    part("barrelGrooves", "Exterior", 2.60, 0.0, "shell", "static")
     part("clipBlade", "Exterior", 0.0, 0.15, "shell", "static")
     part("clipFoot", "Exterior", 5.75, 0.3, "shell", "static")
     part("clipScrew", "Exterior", 5.75, 0.55, "inner", "static")
-    part("gripSleeve", "Exterior", -1.95, -0.8, "shell", "static")
-    part("gripUnderlay", "Exterior", -1.95, -0.8, "shell", "static")
-    part("gripLattice", "Exterior", -1.95, -0.8, "shell", "static")
-    part("gripRingTop", "Exterior", -0.45, 0.6, "shell", "static")
-    part("gripRingBot", "Exterior", -3.30, -1.0, "shell", "static")
-    part("noseHex", "Exterior", -4.85, -1.6, "shell", "static")
-    part("noseTip", "Exterior", -5.00, -2.2, "shell", "static")
-    part("noseInsert", "Internal", -4.75, -2.2, "inner", "static")
-    part("leadSleeve", "Internal", -5.55, -2.7, "inner", "sleeve")
-    part("lead", "Internal", -6.55, -3.1, "inner", "lead")
+    part("gripRingTop", "Exterior", -0.45, -0.36, "shell", "static")
+    part("grip", "Exterior", -1.95, -0.79, "shell", "static")
+    part("gripRingBot", "Exterior", -3.30, -1.07, "shell", "static")
+    part("noseHex", "Exterior", -4.85, -6.286, "shell", "static")
+    part("noseTip", "Exterior", -5.00, -6.286, "shell", "static")
+    # ---- Internal -------------------------------------------------
+    part("leadTube", "Internal", 1.80, -2.857, "inner", "tube")
+    part("spareLeads", "Internal", 3.40, -2.857, "inner", "tube")
+    part("threadRing", "Internal", -0.15, -0.29, "inner", "static")
+    part("mainSpring", "Internal", -3.24, -2.857, "inner", "spring")
+    part("clutch", "Internal", -3.30, -2.857, "inner", "clutch")
+    part("springSeat", "Internal", -3.68, -2.857, "inner", "static")
+    part("clutchRing", "Internal", -3.85, -3.386, "inner", "ring")
+    part("ringStop", "Internal", -4.06, -3.429, "inner", "static")
+    part("noseWasher", "Internal", -3.55, -1.36, "inner", "static")
+    part("leadRetainer", "Internal", -4.37, -3.543, "inner", "static")
+    part("noseInsert", "Internal", -4.75, -7.314, "inner", "static")
+    part("leadSleeve", "Internal", -5.55, -7.314, "inner", "static")
+    part("lead", "Internal", -4.22, -2.357, "inner", "lead")
+    # ---- child bodies (one component, several meshes) -------------
+    body("barrelHex", "barrelInlay")
+    body("grip", "gripKnurl")
+    body("grip", "gripLiner")
+    for nm, a in zip(("jawA", "jawB", "jawC"), JAW_ANGLES):
+        # origin = the jaw's flex hinge (slot root, outer radius) so the
+        # runtime opens a jaw by rotating it about its local tangent axis
+        phi = -a  # glTF (cos a, sin a) in XZ -> Blender angle -a
+        body("clutch", nm, (JAW_HINGE_R * math.cos(phi), JAW_HINGE_R * math.sin(phi), JAW_HINGE),
+             {"jawAngle": a})
     return PARTS
 
 
@@ -116,13 +149,13 @@ TIERS = {
                    jaw_seg=5, small_seg=18),
 }
 
-# Per-part finishing: pipeline 'bevel' (width, segments) or 'explicit'.
+# Per-part (and per-body) finishing: 'bevel' (width), 'explicit', 'smooth', 'flat'.
 FINISH = {
     "barrelHex": ("bevel", 0.032),
-    "barrelGrooves": ("explicit", 0),
-    "gripSleeve": ("bevel", 0.03),
-    "gripLattice": ("flat", 0),
-    "gripUnderlay": ("explicit", 0),
+    "barrelInlay": ("explicit", 0),
+    "grip": ("bevel", 0.03),
+    "gripKnurl": ("flat", 0),
+    "gripLiner": ("explicit", 0),
     "gripRingTop": ("bevel", 0.03),
     "gripRingBot": ("bevel", 0.03),
     "noseWasher": ("bevel", 0.02),
@@ -132,31 +165,21 @@ FINISH = {
     "leadSleeve": ("explicit", 0),
     "lead": ("explicit", 0),
     "topCollar": ("bevel", 0.03),
-    "buttonHex": ("bevel", 0.024),
-    "buttonStem": ("explicit", 0),
+    "cap": ("bevel", 0.024),
     "eraser": ("explicit", 0),
-    "eraserSleeve": ("explicit", 0),
-    "buttonSpring": ("explicit", 0),
-    "returnSpring": ("explicit", 0),
-    "stabilizerSpring": ("explicit", 0),
-    "washerTop": ("explicit", 0),
-    "actuatorCone": ("explicit", 0),
-    "actuatorSleeve": ("explicit", 0),
-    "clutchHousing": ("explicit", 0),
-    "jawA": ("bevel", 0.008),
-    "jawB": ("bevel", 0.008),
-    "jawC": ("bevel", 0.008),
-    "retainerHex": ("bevel", 0.008),
-    "seatUp": ("explicit", 0),
-    "seatLow": ("explicit", 0),
-    "stopCollar": ("explicit", 0),
-    "feedRod": ("explicit", 0),
-    "shaftMid": ("explicit", 0),
-    "resPlug": ("bevel", 0.012),
-    "reservoirHex": ("bevel", 0.006),
-    "spacerTube": ("explicit", 0),
+    "eraserHolder": ("explicit", 0),
+    "leadTube": ("explicit", 0),
+    "spareLeads": ("explicit", 0),
+    "mainSpring": ("explicit", 0),
+    "clutch": ("explicit", 0),
+    "jawA": ("bevel", 0.006),
+    "jawB": ("bevel", 0.006),
+    "jawC": ("bevel", 0.006),
+    "clutchRing": ("explicit", 0),
+    "springSeat": ("explicit", 0),
+    "ringStop": ("explicit", 0),
+    "leadRetainer": ("explicit", 0),
     "threadRing": ("explicit", 0),
-    "guideTube": ("explicit", 0),
     "clipBlade": ("smooth", 0),
     "clipFoot": ("bevel", 0.022),
     "clipScrew": ("explicit", 0),
@@ -459,7 +482,7 @@ def etched_face(g, q, n, t, apo, z0, z1, R):
 
 def build_barrel_grooves(q):
     # dark inlay rings seated in the two turned grooves (stop 0.01 below flats)
-    g = Geo("barrelGrooves")
+    g = Geo("barrelInlay")
     g.uv_rref = seamless_rref(0.38)
     for zc in (4.90, 5.06):
         lathe(g, tube([C(zc - 0.0155, 0.381, 0.0), C(zc + 0.0155, 0.381)],
@@ -494,7 +517,7 @@ KNURL_DEPTH = 0.026
 
 
 def build_grip_sleeve(q):
-    g = Geo("gripSleeve")
+    g = Geo("grip")
     g.uv_rref = seamless_rref(APO_GRIP)
     zc0, zc1 = GRIP_Z0 + 0.03, GRIP_Z1 - 0.03
     prof = tube([H(GRIP_Z0, 0.41, 0.3), H(zc0, R_GRIP, 0.3), H(GRIP_V0, R_GRIP), H(GRIP_V1, R_GRIP),
@@ -533,7 +556,7 @@ def build_grip_lattice(q):
     """Diamond knurl cut into a pocket on each hex face: truncated pyramids
     (small flats on top, sharp V grooves), clipped exactly to the pocket
     rectangle so the cut cells terminate against vertical pocket walls."""
-    g = Geo("gripLattice")
+    g = Geo("gripKnurl")
     g.uv_mode = "box"
     U = R_GRIP / 2 - GRIP_LAND
     nu = q["knurl_nu"]
@@ -628,7 +651,7 @@ def build_grip_lattice(q):
 
 
 def build_grip_underlay(q):
-    g = Geo("gripUnderlay")
+    g = Geo("gripLiner")
     g.uv_rref = seamless_rref(0.32)
     lathe(g, tube([C(-3.27, 0.322), C(-3.25, 0.333), C(-0.54, 0.333), C(-0.52, 0.322)],
                   [C(-0.52, 0.300), C(-3.27, 0.300)]),
@@ -730,7 +753,8 @@ def build_nose(q):
           "polished", ns, explicit=True)
     thread(g, "polished", NOSE_TOP + 0.04, -3.06, spig_r - 0.016, spig_r, 0.05, ts)
     lathe(g, [C(-3.06, spig_r - 0.016, n=ts), C(-3.03, spig_r - 0.016, n=ts), C(-3.02, spig_r - 0.03, n=ts),
-              C(-3.02, 0.205, n=ts), C(-4.30, 0.205, n=ts), C(-4.30, 0.0725), C(NOSE_BOT, 0.0725)],
+              C(-3.02, 0.205, n=ts), C(-4.09, 0.205, n=ts), C(-4.09, 0.150, n=ts),
+              C(-4.30, 0.150, n=ts), C(-4.30, 0.0725), C(NOSE_BOT, 0.0725)],
           "polished", ns, explicit=True)
     bot = rows[0]
     ring_b = [g.v((0.0725 * math.cos(th), 0.0725 * math.sin(th), NOSE_BOT)) for th in angs]
@@ -742,12 +766,14 @@ def build_nose(q):
 
 
 def build_nose_insert(q):
+    """Brass sleeve bush pressed into the cone's front bore: carries the
+    steel lead sleeve, and its top face backs the lead retainer."""
     g = Geo("noseInsert")
     g.uv_rref = seamless_rref(0.07)
     lathe(g, tube([C(-5.10, 0.054), C(-4.905, 0.054), C(-4.905, 0.072), C(-4.900, 0.078),
-                   C(-4.856, 0.078), C(-4.851, 0.072), C(-4.851, 0.0705), C(-4.405, 0.0705),
-                   C(-4.40, 0.066)],
-                  [C(-4.40, 0.0435), C(-5.10, 0.0435)]),
+                   C(-4.856, 0.078), C(-4.851, 0.072), C(-4.851, 0.0705), C(-4.456, 0.0705),
+                   C(-4.451, 0.066)],
+                  [C(-4.451, 0.0435), C(-5.10, 0.0435)]),
           "brass", q["small_seg"], closed=True, explicit=True)
     return g
 
@@ -763,36 +789,60 @@ def build_nose_tip(q):
 
 
 def build_lead_sleeve(q):
+    """Fixed drafting sleeve: Ø 0.84 / 0.57 mm steel tube, 4.0 mm proud of
+    the cone tip (it guides the lead along a straightedge)."""
     g = Geo("leadSleeve")
     g.uv_rref = seamless_rref(0.04)
-    lathe(g, tube([C(-6.05, 0.036), C(-6.042, 0.042), C(-5.05, 0.042)],
-                  [C(-5.05, 0.0285), C(-6.05, 0.0285)]),
+    lathe(g, tube([C(-5.55, 0.036), C(-5.542, 0.042), C(-5.06, 0.042)],
+                  [C(-5.06, 0.0285), C(-5.55, 0.0285)]),
           "steel", q["small_seg"], closed=True, explicit=True)
     return g
 
 
 def build_lead(q):
+    """The working lead: Ø 0.50 mm, a 30 mm piece running from 1.7 mm past
+    the sleeve, through the retainer and the collet jaws, into the tube."""
     g = Geo("lead")
-    lathe(g, [A(-7.20), C(-7.20, 0.017), C(-7.188, 0.025), C(-5.90, 0.025), A(-5.90)],
+    lathe(g, [A(LEAD_TIP), C(LEAD_TIP, 0.016), C(LEAD_TIP + 0.014, 0.025), C(LEAD_TOP - 0.006, 0.025),
+              C(LEAD_TOP, 0.021), A(LEAD_TOP)],
           "lead", max(12, q["small_seg"] // 2), explicit=True)
+    return g
+
+
+def build_spare_leads(q):
+    """Three spare 60 mm leads lying in the lead tube."""
+    g = Geo("spareLeads")
+    seg = max(8, q["small_seg"] // 3)
+    for k, (z0, ang) in enumerate(((0.40, 90.0), (0.55, 210.0), (0.47, 330.0))):
+        z1 = z0 + 5.85
+        s = Geo("tmp")
+        lathe(s, [A(z0), C(z0, 0.021), C(z0 + 0.004, 0.025), C(z1 - 0.004, 0.025), C(z1, 0.021), A(z1)],
+              "lead", seg, explicit=True, phase=0.3 * k)
+        a = math.radians(ang)
+        s.translate((0.052 * math.cos(a), 0.052 * math.sin(a), 0.0))
+        g.extend(s)
     return g
 
 
 # --------------------------------------------------------------- top end
 def build_top_collar(q):
+    """Hex collar at the top of the barrel; its bore guides the eraser
+    holder (the top of the lead tube) through the 2.5 mm stroke."""
     g = Geo("topCollar")
     g.uv_rref = seamless_rref(APO_BAR)
     prof = tube([H(5.752, 0.420, 0.2), H(5.797, R_BAR, 0.45),
                  H(5.985, R_BAR, 0.22), C(5.985, 0.373), C(6.015, 0.373), H(6.015, R_BAR, 0.22),
                  H(6.105, R_BAR, 0.22), C(6.105, 0.373), C(6.135, 0.373), H(6.135, R_BAR, 0.22),
                  H(6.375, R_BAR, 0.45), H(6.43, 0.395, 0.2)],
-                [C(6.43, 0.330, 0.1), C(6.338, 0.330), C(6.338, 0.302), C(5.752, 0.302, 0.1)])
+                [C(6.43, 0.330, 0.1), C(6.338, 0.330), C(6.338, 0.200), C(5.752, 0.200, 0.1)])
     lathe(g, prof, "dlc", q["nseg"], closed=True, arris=1.0)
     return g
 
 
-def build_button(q):
-    g = Geo("buttonHex")
+def build_cap(q):
+    """Push-button / eraser cap. Pressed onto the eraser holder (its inner
+    step seats on the holder rim), so a press drives the lead tube."""
+    g = Geo("cap")
     g.uv_rref = seamless_rref(0.3)
     Rb = 0.33
     grooves = []
@@ -800,111 +850,80 @@ def build_button(q):
     for _ in range(5):
         grooves += [H(z, Rb, 0.25), C(z, 0.272), C(z + 0.026, 0.272), H(z + 0.026, Rb, 0.25)]
         z += 0.058
-    prof = ([C(6.89, 0.246, 0.15), H(6.89, 0.31, 0.5), H(6.915, Rb, 0.5)] + grooves +
+    prof = ([C(6.89, 0.196, 0.15), H(6.89, 0.31, 0.5), H(6.915, Rb, 0.5)] + grooves +
             [H(7.86, Rb, 0.5), H(7.915, 0.292, 0.5), C(7.915, 0.232, 0.3), C(8.065, 0.232, 0.6),
              C(8.10, 0.205, 0.6), C(8.096, 0.13), C(8.090, 0.05), A(8.089),
-             A(7.555), C(7.555, 0.246, 0.15)])
+             A(7.30), C(7.30, 0.180), C(7.214, 0.180), C(7.214, 0.196)])
     lathe(g, prof, "steel", q["nseg"], closed=True, arris=1.0)
-    return g
-
-
-def build_button_stem(q):
-    g = Geo("buttonStem")
-    lathe(g, [A(6.435), C(6.435, 0.055), C(6.445, 0.068), C(6.50, 0.068), C(6.50, 0.105),
-              C(6.508, 0.112), C(6.552, 0.112), C(6.56, 0.105), C(6.56, 0.068), C(7.392, 0.068),
-              C(7.40, 0.058), A(7.40)],
-          "steel", q["small_seg"], explicit=True)
     return g
 
 
 def build_eraser(q):
     g = Geo("eraser")
-    lathe(g, tube([C(6.645, 0.165), C(6.655, 0.171), C(7.215, 0.171), C(7.245, 0.160), C(7.262, 0.135)],
-                  [C(7.262, 0.074), C(6.645, 0.074)]),
-          "eraser", q["nseg"], closed=True, explicit=True)
+    lathe(g, [A(6.412), C(6.412, 0.165), C(6.42, 0.1745), C(7.215, 0.1745), C(7.245, 0.163),
+              C(7.262, 0.138), A(7.262)],
+          "eraser", q["nseg"], explicit=True)
     return g
 
 
-def build_eraser_sleeve(q):
-    g = Geo("eraserSleeve")
+def build_eraser_holder(q):
+    """Brass ferrule pressed onto the top of the lead tube; holds the
+    eraser and takes the cap."""
+    g = Geo("eraserHolder")
     g.uv_rref = seamless_rref(0.18)
-    lathe(g, tube([C(6.458, 0.186), C(6.47, 0.19), C(7.19, 0.19), C(7.197, 0.194), C(7.207, 0.194),
-                   C(7.212, 0.188)],
-                  [C(7.212, 0.176), C(6.458, 0.176)]),
+    lathe(g, tube([C(6.20, 0.139), C(6.208, 0.146), C(6.385, 0.146), C(6.41, 0.186), C(6.47, 0.19),
+                   C(7.19, 0.19), C(7.197, 0.194), C(7.207, 0.194), C(7.212, 0.188)],
+                  [C(7.212, 0.1765), C(6.41, 0.1765), C(6.41, 0.1305), C(6.20, 0.1305)]),
           "brass", q["nseg"], closed=True, explicit=True)
     return g
 
 
-def build_washer_top(q):
-    g = Geo("washerTop")
-    g.uv_rref = seamless_rref(0.3)
-    lathe(g, tube([C(6.338, 0.312), C(6.346, 0.320), C(6.448, 0.320), C(6.455, 0.313),
-                   C(6.455, 0.244), C(6.372, 0.244), C(6.372, 0.188), C(6.455, 0.188)],
-                  [C(6.455, 0.082), C(6.338, 0.082)]),
-          "mechdark", q["nseg"], closed=True, explicit=True)
+# --------------------------------------------------------------- mechanism
+def build_lead_tube(q):
+    """Lead tube (reservoir): smoked polymer, Ø 2.6 / 2.1 mm, continuous
+    from the collet socket to the eraser holder."""
+    g = Geo("leadTube")
+    g.uv_rref = seamless_rref(0.12)
+    lathe(g, tube([C(TUBE_Z0, 0.124), C(TUBE_Z0 + 0.006, 0.130), C(TUBE_Z1 - 0.006, 0.130), C(TUBE_Z1, 0.124)],
+                  [C(TUBE_Z1, 0.105), C(TUBE_Z0, 0.105)]),
+          "reservoir", q["nseg"], closed=True, explicit=True)
     return g
 
 
-def build_actuator_cone(q):
-    g = Geo("actuatorCone")
-    lathe(g, tube([C(5.752, 0.112), C(5.762, 0.122), C(6.17, 0.142), C(6.24, 0.282), C(6.248, 0.290),
-                   C(6.322, 0.290), C(6.330, 0.282)],
-                  [C(6.330, 0.080), C(5.752, 0.080)]),
-          "mechdark", q["nseg"], closed=True, explicit=True)
-    return g
-
-
-def build_actuator_sleeve(q):
-    g = Geo("actuatorSleeve")
-    lathe(g, tube([C(5.482, 0.182), C(5.49, 0.189), C(6.112, 0.189), C(6.112, 0.226), C(6.12, 0.232),
-                   C(6.172, 0.232), C(6.18, 0.224)],
-                  [C(6.18, 0.151), C(5.482, 0.151)]),
-          "mechdark", q["nseg"], closed=True, explicit=True)
-    return g
-
-
-def build_clutch_housing(q):
-    g = Geo("clutchHousing")
-    g.uv_rref = seamless_rref(0.2)
-    lathe(g, tube([C(5.222, 0.160), C(5.232, 0.170), C(5.300, 0.170), C(5.306, 0.200),
-                   C(5.312, 0.206), C(5.69, 0.206), C(5.70, 0.214), C(5.73, 0.214), C(5.735, 0.206),
-                   C(5.77, 0.200)],
-                  [C(5.77, 0.196), C(5.45, 0.196), C(5.45, 0.156), C(5.222, 0.156)]),
+def build_collet(q):
+    """Brass collet body: shank (through the spring and the seat), the
+    flange the return spring pushes on, and the socket crimped onto the
+    lead tube. The three jaws are child bodies (they flex)."""
+    g = Geo("clutch")
+    g.uv_rref = seamless_rref(0.12)
+    zh = JAW_HINGE
+    lathe(g, tube([C(zh, 0.0745), C(SPRING_Z1 - 0.005, 0.0745), C(SPRING_Z1, 0.142), C(SPRING_Z1 + 0.005, 0.150),
+                   C(-2.62, 0.150), C(-2.615, 0.145), C(-2.605, 0.145), C(-2.60, 0.150),
+                   C(-2.505, 0.150), C(-2.50, 0.144)],
+                  [C(-2.50, 0.1315), C(TUBE_Z0, 0.1315), C(TUBE_Z0, 0.034), C(zh, 0.034)]),
           "brass", q["nseg"], closed=True, explicit=True)
-    return g
-
-
-def build_retainer(q):
-    g = Geo("retainerHex")
-    g.uv_rref = seamless_rref(0.22)
-    # end chamfers stay outside the bore at mid-flat (apothem 0.213 > 0.2075)
-    lathe(g, tube([H(5.322, 0.246, 0.3), H(5.334, 0.252, 0.5), H(5.506, 0.252, 0.5), H(5.518, 0.246, 0.3)],
-                  [C(5.518, 0.2075, 0.2), C(5.322, 0.2075, 0.2)]),
-          "mechdark", q["nseg"], closed=True, arris=1.0)
     return g
 
 
 def build_jaw(q, name, jaw_angle):
-    """One of three collet jaws: a 110-degree sector of a turned collet head
-    (gripping lip with three internal teeth, conical head the clutch ring
-    rides on, short shank). Built where it sits assembled: the runtime puts
-    the node at radius 0.11 along jawAngle, so geometry is offset back."""
+    """One of the collet's three jaws: a 104-degree sector (16-degree slots)
+    from the mouth to the slot root. Outside: the cone the clutch ring wedges
+    on (wider at the mouth). Inside: three gripping serrations on Ø 0.50."""
     g = Geo(name)
     g.uv_mode = "box"
     phi = -jaw_angle  # glTF (cos a, sin a) in XZ -> Blender angle -a
-    half = math.radians(56.0)
+    half = math.radians(52.0)
     ns = q["jaw_seg"]
-    outer = [C(5.092, 0.088, 0.6), C(5.10, 0.098, 0.6), C(5.142, 0.146, 0.6), C(5.165, 0.146, 0.6),
-             C(5.205, 0.118, 0.6), C(5.212, 0.112, 0.6), C(5.232, 0.112, 0.6)]
-    inner = [C(5.232, 0.052, 0.6), C(5.152, 0.052, 0.4), C(5.146, 0.036, 0.3)]
-    zt = 5.146
-    for k in range(3):  # teeth
-        inner += [C(zt - 0.012, 0.036), C(zt - 0.016, 0.029), C(zt - 0.020, 0.036)]
-        zt -= 0.016
-    inner += [C(5.098, 0.036, 0.3), C(5.092, 0.042, 0.6)]
-    prof = outer + inner
-    loops = lathe(g, prof, "brass", 0, closed=True, sector=(phi - half, phi + half, ns))
-    # side (slot) faces: polygon of the profile at each sector end
+    zm, zt = JAW_MOUTH, JAW_HINGE + 0.004
+    outer = [C(zm, 0.084, 0.6), C(zm + 0.012, 0.094, 0.6), C(RING_Z0, 0.0852, 0.3),
+             C(-3.88, 0.0810, 0.3), C(zt, JAW_HINGE_R, 0.6)]
+    inner = [C(zt, 0.034, 0.6), C(zm + 0.11, 0.034, 0.4), C(zm + 0.10, 0.0262, 0.3)]
+    zz = zm + 0.10
+    for _ in range(3):  # serrations
+        inner += [C(zz - 0.012, 0.0252), C(zz - 0.018, 0.0292), C(zz - 0.026, 0.0252)]
+        zz -= 0.028
+    inner += [C(zm + 0.010, 0.0258, 0.3), C(zm, 0.033, 0.6)]
+    loops = lathe(g, outer + inner, "brass", 0, closed=True, sector=(phi - half, phi + half, ns))
     for end, sgn in ((0, -1), (-1, 1)):
         ids = [lp[0][end] for lp in loops]
         ang = phi + sgn * half
@@ -912,75 +931,56 @@ def build_jaw(q, name, jaw_angle):
         g.f(ids, "brass", out=out)
         for m in range(len(ids)):
             g.bw(ids[m], ids[(m + 1) % len(ids)], 0.6)
-    off = Vector((0.11 * math.cos(phi), 0.11 * math.sin(phi), 0.0))
-    g.translate(-off)
     return g
 
 
-def build_seat(q, name, z0, z1, r_in):
-    g = Geo(name)
-    g.uv_rref = seamless_rref(0.26)
-    lathe(g, tube([C(z0, 0.292), C(z0 + 0.008, 0.300), C(z1 - 0.008, 0.300), C(z1, 0.292)],
-                  [C(z1, r_in + 0.006), C(z1 - 0.006, r_in), C(z0 + 0.006, r_in), C(z0, r_in + 0.006)]),
-          "mechdark", q["nseg"], closed=True, explicit=True)
-    return g
-
-
-def build_stop_collar(q):
-    g = Geo("stopCollar")
-    lathe(g, tube([C(4.262, 0.188), C(4.27, 0.198), C(4.33, 0.198), C(4.33, 0.186), C(4.37, 0.186),
-                   C(4.37, 0.198), C(4.43, 0.198), C(4.438, 0.188)],
-                  [C(4.438, 0.153), C(4.262, 0.153)]),
+def build_clutch_ring(q):
+    """Brass clutch ring, Ø 2.7 / 1.7 mm x 2.6 mm. Wedged on the jaw cone it
+    closes the jaws; it floats 0.5 mm between the seat and the ring stop."""
+    g = Geo("clutchRing")
+    g.uv_rref = seamless_rref(0.13)
+    lathe(g, tube([C(RING_Z0, 0.128), C(RING_Z0 + 0.006, 0.135), C(RING_Z1 - 0.006, 0.135), C(RING_Z1, 0.128)],
+                  [C(RING_Z1, 0.0905), C(RING_Z1 - 0.005, 0.085), C(RING_Z0 + 0.005, 0.085), C(RING_Z0, 0.0905)]),
           "brass", q["nseg"], closed=True, explicit=True)
     return g
 
 
-def build_feed_rod(q):
-    g = Geo("feedRod")
-    g.uv_rref = seamless_rref(0.15)
-    lathe(g, tube([C(3.352, 0.142), C(3.36, 0.150), C(4.49, 0.150), C(4.50, 0.141)],
-                  [C(4.50, 0.120), C(3.352, 0.120)]),
+def build_spring_seat(q):
+    """Body-fixed steel washer pressed into the cone bore: the return
+    spring bears on its top face, the clutch ring's rear face on its bottom."""
+    g = Geo("springSeat")
+    g.uv_rref = seamless_rref(0.2)
+    lathe(g, tube([C(SEAT_Z0, 0.198), C(SEAT_Z0 + 0.006, 0.2035), C(SEAT_Z1 - 0.006, 0.2035), C(SEAT_Z1, 0.198)],
+                  [C(SEAT_Z1, 0.091), C(SEAT_Z1 - 0.006, 0.085), C(SEAT_Z0 + 0.006, 0.085), C(SEAT_Z0, 0.091)]),
           "polished", q["nseg"], closed=True, explicit=True)
     return g
 
 
-def build_shaft_mid(q):
-    g = Geo("shaftMid")
-    lathe(g, [A(2.552), C(2.552, 0.095), C(2.56, 0.108), C(2.86, 0.108), C(2.86, 0.118),
-              C(2.94, 0.118), C(2.94, 0.108), C(3.642, 0.108), C(3.65, 0.098), A(3.65)],
-          "steel", q["small_seg"], explicit=True)
+def build_ring_stop(q):
+    """Body-fixed hardened stop washer seated on a step in the cone bore.
+    The clutch ring lands on its top face; the jaws pass through its Ø 2.36
+    bore and open in the free space below it."""
+    g = Geo("ringStop")
+    g.uv_rref = seamless_rref(0.2)
+    lathe(g, tube([C(STOP_Z0, 0.2035), C(STOP_Z1 - 0.006, 0.2035), C(STOP_Z1, 0.1975)],
+                  [C(STOP_Z1, 0.124), C(STOP_Z1 - 0.006, 0.118), C(STOP_Z0 + 0.004, 0.118), C(STOP_Z0, 0.122)]),
+          "polished", q["nseg"], closed=True, explicit=True)
     return g
 
 
-def build_res_plug(q):
-    g = Geo("resPlug")
-    g.uv_rref = seamless_rref(0.25)
-    lathe(g, tube([H(3.432, 0.268, 0.4), H(3.44, 0.276, 0.4), H(3.50, 0.276, 0.4), H(3.50, 0.31, 0.5),
-                   H(3.62, 0.31, 0.5), C(3.62, 0.205, 0.3), C(3.765, 0.205, 0.4), C(3.772, 0.196, 0.4)],
-                  [C(3.772, 0.153, 0.2), C(3.432, 0.153, 0.2)]),
-          "mechdark", q["nseg"], closed=True, arris=1.0)
-    return g
-
-
-def build_reservoir(q):
-    g = Geo("reservoirHex")
-    g.uv_rref = seamless_rref(0.26)
-    lathe(g, tube([H(0.50, 0.29, 0.5), H(0.512, 0.30, 0.5), H(3.488, 0.30, 0.5), H(3.50, 0.29, 0.5)],
-                  [H(3.50, 0.272), H(0.50, 0.272)]),
-          "reservoir", q["nseg"], closed=True, arris=1.0)
-    return g
-
-
-def build_spacer(q):
-    g = Geo("spacerTube")
-    g.uv_rref = seamless_rref(0.33)
-    lathe(g, tube([C(0.452, 0.337), C(0.46, 0.345), C(1.34, 0.345), C(1.348, 0.337)],
-                  [C(1.348, 0.312), C(0.452, 0.312)]),
-          "mechdark", q["nseg"], closed=True, explicit=True)
+def build_lead_retainer(q):
+    """Rubber lead retainer: its Ø 0.49 bore grips the Ø 0.50 lead by
+    friction, so the lead stays put while the open jaws slide back."""
+    g = Geo("leadRetainer")
+    g.uv_rref = seamless_rref(0.06)
+    lathe(g, tube([C(-4.445, 0.066), C(-4.44, 0.0715), C(-4.305, 0.0715), C(-4.30, 0.066)],
+                  [C(-4.30, 0.030), C(-4.31, 0.0245), C(-4.435, 0.0245), C(-4.445, 0.030)]),
+          "polymer", q["small_seg"], closed=True, explicit=True)
     return g
 
 
 def build_thread_ring(q):
+    """Brass thread insert joining the grip to the barrel."""
     g = Geo("threadRing")
     g.uv_rref = seamless_rref(0.32)
     seg = q["thread_seg"]
@@ -989,16 +989,6 @@ def build_thread_ring(q):
     lathe(g, [C(z1 - 0.06, 0.318), C(z1 - 0.012, 0.318), C(z1, 0.306), C(z1, 0.205),
               C(z0, 0.205), C(z0, 0.306), C(z0 + 0.012, 0.318), C(z0 + 0.06, 0.318)],
           "brass", seg, explicit=True)
-    return g
-
-
-def build_guide_tube(q):
-    g = Geo("guideTube")
-    g.uv_rref = seamless_rref(0.12)
-    lathe(g, tube([C(-2.40, 0.150), C(-2.37, 0.160), C(-2.34, 0.160), C(-2.34, 0.118),
-                   C(-0.86, 0.118), C(-0.86, 0.160), C(-0.83, 0.160), C(-0.80, 0.150)],
-                  [C(-0.80, 0.082), C(-2.40, 0.082)]),
-          "brass", q["nseg"], closed=True, explicit=True)
     return g
 
 
@@ -1170,45 +1160,39 @@ def build_spring(q, name, zc, R, wire, half_len, coils):
 
 BUILDERS = {
     "barrelHex": build_barrel,
-    "barrelGrooves": build_barrel_grooves,
+    "barrelInlay": build_barrel_grooves,
     "gripRingTop": lambda q: build_ring("gripRingTop", -0.57, -0.35, 0.4515),
     "gripRingBot": lambda q: build_ring("gripRingBot", -3.40, -3.20, 0.4415),
     "noseWasher": build_nose_washer,
-    "gripSleeve": build_grip_sleeve,
-    "gripLattice": build_grip_lattice,
-    "gripUnderlay": build_grip_underlay,
+    "grip": build_grip_sleeve,
+    "gripKnurl": build_grip_lattice,
+    "gripLiner": build_grip_underlay,
     "noseHex": build_nose,
     "noseInsert": build_nose_insert,
     "noseTip": build_nose_tip,
     "leadSleeve": build_lead_sleeve,
     "lead": build_lead,
+    "spareLeads": build_spare_leads,
     "topCollar": build_top_collar,
-    "buttonHex": build_button,
-    "buttonStem": build_button_stem,
+    "cap": build_cap,
     "eraser": build_eraser,
-    "eraserSleeve": build_eraser_sleeve,
-    "washerTop": build_washer_top,
-    "actuatorCone": build_actuator_cone,
-    "actuatorSleeve": build_actuator_sleeve,
-    "clutchHousing": build_clutch_housing,
-    "retainerHex": build_retainer,
-    "jawA": lambda q: build_jaw(q, "jawA", 0.0),
-    "jawB": lambda q: build_jaw(q, "jawB", 2.0944),
-    "jawC": lambda q: build_jaw(q, "jawC", 4.1888),
-    "seatUp": lambda q: build_seat(q, "seatUp", 5.11, 5.19, 0.176),
-    "seatLow": lambda q: build_seat(q, "seatLow", 3.91, 3.99, 0.158),
-    "stopCollar": build_stop_collar,
-    "feedRod": build_feed_rod,
-    "shaftMid": build_shaft_mid,
-    "resPlug": build_res_plug,
-    "reservoirHex": build_reservoir,
-    "spacerTube": build_spacer,
+    "eraserHolder": build_eraser_holder,
+    "leadTube": build_lead_tube,
+    "clutch": build_collet,
+    "jawA": lambda q: build_jaw(q, "jawA", JAW_ANGLES[0]),
+    "jawB": lambda q: build_jaw(q, "jawB", JAW_ANGLES[1]),
+    "jawC": lambda q: build_jaw(q, "jawC", JAW_ANGLES[2]),
+    "clutchRing": build_clutch_ring,
+    "springSeat": build_spring_seat,
+    "ringStop": build_ring_stop,
+    "leadRetainer": build_lead_retainer,
     "threadRing": build_thread_ring,
-    "guideTube": build_guide_tube,
     "clipBlade": build_clip,
     "clipFoot": build_clip_foot,
     "clipScrew": build_clip_screw,
-    "buttonSpring": lambda q: build_spring(q, "buttonSpring", 6.62, 0.215, 0.022, 0.25, 5),
-    "returnSpring": lambda q: build_spring(q, "returnSpring", 4.55, 0.245, 0.029, 0.58, 8),
-    "stabilizerSpring": lambda q: build_spring(q, "stabilizerSpring", 2.60, 0.325, 0.020, 0.40, 6),
+    # return spring: 0.32 mm wire, 2.1 mm mean diameter, 8 mm installed,
+    # 9 coils with closed + ground ends. Centred on its node origin (the
+    # runtime scales node Y and slides it so the seat end stays put).
+    "mainSpring": lambda q: build_spring(q, "mainSpring", 0.5 * (SPRING_Z0 + SPRING_Z1), 0.105, 0.016,
+                                         0.5 * (SPRING_Z1 - SPRING_Z0), 9),
 }

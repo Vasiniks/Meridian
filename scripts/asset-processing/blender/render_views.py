@@ -27,7 +27,7 @@ import mh_materials  # noqa: E402
 from mh_parts import PARTS  # noqa: E402
 
 ROOT = build_pencil.ROOT
-HDRI = os.path.join(ROOT, "public", "environments", "studio_small_09_1k.hdr")
+HDRI = os.path.join(ROOT, "public", "environments", "studio_small_09_512.hdr")
 PAPER = (0xF5, 0xF3, 0xEE)
 
 FINISHES_TS = os.path.join(ROOT, "src", "three", "finishes.ts")
@@ -159,34 +159,48 @@ def add_camera(loc, target, lens=50.0, ortho=None, roll=0.0):
     return ob
 
 
-def pose(ex=0.0, mc=0.0, explode_scale=0.7):
-    """Mirror experience.ts part animation (Blender Z = glTF Y; glTF Z = -Blender Y)."""
+# Mechanism poses, mirrored from src/three/drawing/mechanism.ts POSES
+# (units: 1 = 10 mm; tube/ring/lead = axial offsets; ring = max(tube, -0.05)
+# and the jaw opening follows ring - tube, as in the runtime).
+JAW_OPEN = 0.05  # rad: jaw mouth swings ~0.2 mm out about the slot root
+MECH_POSES = [
+    dict(tube=0.0, ring=0.0, lead=0.0),       # rest
+    dict(tube=-0.05, ring=-0.05, lead=0.05),  # 01 press
+    dict(tube=-0.12, ring=-0.05, lead=0.05),  # 02 ring stops
+    dict(tube=-0.25, ring=-0.05, lead=0.05),  # 03 jaws open
+    dict(tube=-0.13, ring=-0.05, lead=0.05),  # 04 release
+    dict(tube=0.0, ring=0.0, lead=0.05),      # 05 regrip
+]
+
+
+def pose(ex=0.0, step=0, explode_scale=0.7):
+    """Mirror the runtime part animation (Blender Z = glTF Y)."""
+    m = MECH_POSES[step]
+    opening = min(1.0, max(0.0, (m["ring"] - m["tube"] - 0.03) / 0.17))  # as the runtime
     for spec in PARTS:
         ob = bpy.data.objects[spec["name"]]
         base = build_pencil.blender_location(spec)
         z = base[2] + spec["explode"] * ex * explode_scale
-        m = spec["mech"]
-        if m == "jaw":
-            a = spec["extra"]["jawAngle"]
-            r = 0.11 + mc * 0.16 + ex * 0.1
-            ob.location = (math.cos(a) * r, -math.sin(a) * r, z - 0.12 * mc)
-            continue
-        if m in ("button", "stem"):
-            z += -0.22 * mc
-        if m == "actuator":
-            z += -0.18 * mc
-        if m == "rod":
-            z += -0.14 * mc
-        if m == "clutch":
-            z += -0.06 * mc
-        if m in ("springMain", "springBtn", "springStab"):
-            c = 0.32 if m == "springBtn" else 0.28
-            ob.scale = (1, 1, 1 - mc * c)
-        if m == "lead":
-            z += 0.34 * mc
-        if m == "sleeve":
-            z += 0.1 * mc
+        role = spec["mech"]
+        ob.scale = (1, 1, 1)
+        if role in ("button", "tube", "clutch"):
+            z += m["tube"]
+        elif role == "ring":
+            z += m["ring"]
+        elif role == "lead":
+            z += m["lead"]
+        elif role == "spring":
+            # seat end fixed: scale about the centre, slide by half the travel
+            zs = [v[2] for v in ob.bound_box]
+            half = 0.5 * (max(zs) - min(zs))
+            ob.scale = (1, 1, 1 + m["tube"] / (2 * half))
+            z += 0.5 * m["tube"]
         ob.location = (base[0], base[1], z)
+        for child in ob.children:
+            if "jawAngle" in child:
+                phi = -float(child["jawAngle"])
+                child.rotation_mode = 'AXIS_ANGLE'
+                child.rotation_axis_angle = (opening * JAW_OPEN, math.sin(phi), -math.cos(phi), 0.0)
 
 
 def set_finish(variant):
@@ -207,7 +221,7 @@ def xray(alpha=0.15):
         if spec["kind"] != "shell":
             continue
         ob = bpy.data.objects[spec["name"]]
-        for slot in ob.material_slots:
+        for slot in [sl for o in [ob, *ob.children] for sl in o.material_slots]:
             m = slot.material
             key = m.name + "_xray"
             mx = bpy.data.materials.get(key)
@@ -297,11 +311,32 @@ def exploded(a):
 
 @view
 def mechanism(a):
-    pose(mc=1.0)
+    pose(step=3)
     xray()
     root_transform(spin=math.radians(-20))
-    add_camera((2.6, -3.6, 5.6), (0, 0, 5.0), lens=70)
+    add_camera((1.3, -2.2, -3.1), (0, 0, -3.75), lens=80)
     render(os.path.join(a.out, "mechanism.png"))
+
+
+@view
+def clutch(a):
+    """Internals only (shells hidden), the five mechanism steps."""
+    for spec in PARTS:
+        if spec["kind"] == "shell" or spec["name"] in ("noseWasher", "threadRing"):
+            ob = bpy.data.objects[spec["name"]]
+            ob.hide_render = True
+            for c in ob.children:
+                c.hide_render = True
+    root_transform(spin=math.radians(-20))
+    add_camera((1.1, -1.9, -3.7), (0, 0, -3.95), lens=70)
+    for k in range(6):
+        pose(step=k)
+        render(os.path.join(a.out, f"clutch_{k}.png"))
+    for spec in PARTS:
+        ob = bpy.data.objects[spec["name"]]
+        ob.hide_render = False
+        for c in ob.children:
+            c.hide_render = False
 
 
 @view
@@ -398,7 +433,7 @@ def main():
         for spec in PARTS:
             ob = bpy.data.objects[spec["name"]]
             ob.scale = (1, 1, 1)
-            for slot in ob.material_slots:
+            for slot in [sl for o in [ob, *ob.children] for sl in o.material_slots]:
                 if slot.link == 'OBJECT':
                     slot.material = None
                     slot.link = 'DATA'

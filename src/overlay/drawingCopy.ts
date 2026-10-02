@@ -19,25 +19,25 @@ export interface PartGroup {
   mobile: boolean
 }
 
-/** Nine groups = the nine rows of the Exploded component list. */
+/** Nine groups = the nine rows of the Exploded component list (top → tip). */
 export const PART_GROUPS: PartGroup[] = [
-  { n: 1, name: 'Hex button', sub: 'POM · stem · eraser', anchor: 'buttonHex', mobile: true,
-    nodes: ['buttonHex', 'buttonStem', 'eraser', 'eraserSleeve'] },
-  { n: 2, name: 'Actuator', sub: 'collar · 2 springs', anchor: 'actuatorCone', mobile: false,
-    nodes: ['topCollar', 'actuatorCone', 'actuatorSleeve', 'washerTop', 'buttonSpring'] },
-  { n: 3, name: 'Clutch jaw', sub: 'C360 brass · ×3', anchor: 'clutchHousing', mobile: true,
-    nodes: ['clutchHousing', 'jawA', 'jawB', 'jawC', 'retainerHex'] },
-  { n: 4, name: 'Return spring', sub: '17-7 PH · feed rod', anchor: 'returnSpring', mobile: false,
-    nodes: ['returnSpring', 'seatUp', 'seatLow', 'stopCollar', 'feedRod', 'shaftMid'] },
-  { n: 5, name: 'Reservoir', sub: 'hex · 12 leads', anchor: 'reservoirHex', mobile: false,
-    nodes: ['reservoirHex', 'resPlug', 'stabilizerSpring', 'spacerTube', 'threadRing'] },
-  { n: 6, name: 'Hull', sub: '6061-T6 · clip', anchor: 'barrelHex', mobile: true,
-    nodes: ['barrelHex', 'barrelGrooves', 'clipBlade', 'clipFoot', 'clipScrew'] },
-  { n: 7, name: 'Grip', sub: 'crisscross lattice', anchor: 'gripSleeve', mobile: true,
-    nodes: ['gripSleeve', 'gripUnderlay', 'gripLattice', 'gripRingTop', 'gripRingBot', 'guideTube'] },
-  { n: 8, name: 'Nose', sub: 'faceted · insert', anchor: 'noseHex', mobile: false,
-    nodes: ['noseHex', 'noseTip', 'noseInsert', 'noseWasher'] },
-  { n: 9, name: 'Lead sleeve', sub: 'Ø 0.50 · steel', anchor: 'leadSleeve', mobile: true,
+  { n: 1, name: 'Cap', sub: 'steel · eraser · holder', anchor: 'cap', mobile: true,
+    nodes: ['cap', 'eraser', 'eraserHolder'] },
+  { n: 2, name: 'Barrel', sub: '6061 hex · collar · clip', anchor: 'barrelHex', mobile: true,
+    nodes: ['topCollar', 'barrelHex', 'clipBlade', 'clipFoot', 'clipScrew'] },
+  { n: 3, name: 'Lead tube', sub: 'Ø 2.6 · 3 spare leads', anchor: 'leadTube', mobile: false,
+    nodes: ['leadTube', 'spareLeads'] },
+  { n: 4, name: 'Grip', sub: 'knurled · 2 ferrules', anchor: 'grip', mobile: true,
+    nodes: ['grip', 'gripRingTop', 'gripRingBot', 'threadRing'] },
+  { n: 5, name: 'Return spring', sub: 'stainless · seat', anchor: 'mainSpring', mobile: false,
+    nodes: ['mainSpring', 'springSeat'] },
+  { n: 6, name: 'Clutch', sub: 'C360 brass · 3 jaws', anchor: 'clutch', mobile: true,
+    nodes: ['clutch'] },
+  { n: 7, name: 'Clutch ring', sub: 'brass · ring stop', anchor: 'clutchRing', mobile: false,
+    nodes: ['clutchRing', 'ringStop'] },
+  { n: 8, name: 'Cone', sub: 'turned hex · retainer', anchor: 'noseHex', mobile: false,
+    nodes: ['noseHex', 'noseTip', 'noseWasher', 'noseInsert', 'leadRetainer'] },
+  { n: 9, name: 'Lead sleeve', sub: '4 mm steel · Ø 0.5', anchor: 'leadSleeve', mobile: true,
     nodes: ['leadSleeve', 'lead'] },
 ]
 
@@ -47,9 +47,9 @@ export const cursorLabel = (g: PartGroup): string =>
 
 /** Nominal dimensions (drawing values; geometry comes from the model). */
 export const DIM = {
-  acrossFlats: 'A/F 8.00',
-  lead: 'Ø 0.50 ±0.02',
-  length: 'L 142.0',
+  acrossFlats: 'A/F 7.80',
+  lead: 'Ø 0.50',
+  length: 'L 136.5',
   sectionGrip: 'SECTION B–B',
   sectionScale: 'SCALE 4:1',
 }
@@ -62,18 +62,18 @@ export interface XrayLabel {
   mobile: boolean
 }
 export const XRAY_LABELS: XrayLabel[] = [
-  { node: 'clutchHousing', text: 'Clutch', sub: '3 jaws · C360', mobile: true },
-  { node: 'returnSpring', text: 'Return spring', sub: '17-7 PH', mobile: false },
-  { node: 'reservoirHex', text: 'Reservoir', sub: '12 × 0.5', mobile: true },
-  { node: 'guideTube', text: 'Guide tube', sub: 'brass', mobile: false },
-  { node: 'leadSleeve', text: 'Lead path', sub: 'Ø 0.50', mobile: true },
+  { node: 'leadTube', text: 'Lead tube', sub: '3 spare leads', mobile: true },
+  { node: 'mainSpring', text: 'Return spring', sub: 'stainless', mobile: false },
+  { node: 'clutch', text: 'Clutch', sub: '3 jaws · brass', mobile: true },
+  { node: 'leadRetainer', text: 'Lead retainer', sub: 'rubber', mobile: false },
+  { node: 'leadSleeve', text: 'Lead sleeve', sub: 'Ø 0.50 · 4 mm', mobile: true },
 ]
 
 /** Mechanism step names (the five moves of Mechanism.tsx). */
 export const MECH_STEPS = [
-  { h: 'Press', d: 'Button −2.2' },
-  { h: 'Compress', d: 'Spring −28%' },
-  { h: 'Release', d: 'Jaws +1.6' },
-  { h: 'Advance', d: 'Lead +0.5' },
-  { h: 'Reset', d: 'Clutch seated' },
+  { h: 'Press', d: 'All forward 0.5 mm' },
+  { h: 'Ring stops', d: 'Ring travel 0.5 mm' },
+  { h: 'Jaws open', d: 'Stroke 2.5 mm' },
+  { h: 'Release', d: 'Retainer holds lead' },
+  { h: 'Regrip', d: 'Lead +0.5 per click' },
 ]

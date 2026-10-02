@@ -2,14 +2,17 @@
 """Validate the Meridian pencil GLBs against the runtime contract.
 
 Checks (each GLB given on the command line, default = both tiers):
-  * root `Pencil` -> `Exterior` / `Internal` -> exactly 42 named part nodes,
-    names/parents matching public/models/source/manifest.json, and the
-    manifest registry itself identical to define_assembly() in the reference
+  * root `Pencil` -> `Exterior` / `Internal` -> exactly N named part nodes
+    (N = len(define_assembly()) = 26 real components), names/parents matching
+    public/models/source/manifest.json, and the manifest registry (parts +
+    child bodies) itself identical to define_assembly() in the reference
     scripts/asset-processing/build_pencil_glb.py
-  * extras {ex, kind, mech[, jawAngle]} equal to the manifest registry
+  * extras {ex, kind, mech} equal to the manifest registry; child body
+    nodes (collet jaws, grip knurl/liner, barrel inlay) present under their
+    part, the jaws carrying {jawAngle}
   * translation [0, baseY, 0] (clip parts: their special offsets), no
     rotation / scale on part nodes
-  * springs centred on their node origin (runtime scales node Y)
+  * the return spring centred on its node origin (runtime scales node Y)
   * barrelHex carries the `anodized` material (variant tint target)
   * material names drawn from the role set
   * mesh hygiene: no degenerate (zero-area) triangles, no vertex normal
@@ -32,12 +35,12 @@ from pygltflib import GLTF2
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 MANIFEST = os.path.join(ROOT, "public", "models", "source", "manifest.json")
 TIERS = {
-    "desktop": (os.path.join(ROOT, "public", "models", "desktop", "mechanical-pencil.glb"), 150_000, 6.0e6),
-    "mobile": (os.path.join(ROOT, "public", "models", "mobile", "mechanical-pencil-mobile.glb"), 60_000, 2.5e6),
+    "desktop": (os.path.join(ROOT, "public", "models", "desktop", "mechanical-pencil.glb"), 150_000, 2.6e6),
+    "mobile": (os.path.join(ROOT, "public", "models", "mobile", "mechanical-pencil-mobile.glb"), 60_000, 1.25e6),
 }
 ROLES = {"anodized", "dlc", "steel", "polished", "brass", "spring", "recess", "polymer",
          "mechdark", "reservoir", "eraser", "lead", "etch"}
-SPRINGS = {"buttonSpring", "returnSpring", "stabilizerSpring"}
+SPRINGS = {"mainSpring"}
 CLIP = {"clipBlade": [0.0, 4.85, 0.0], "clipFoot": [0.0, 5.75, 0.42], "clipScrew": [0.0, 5.75, 0.50]}
 
 
@@ -75,7 +78,7 @@ def decoded(path):
     return out
 
 
-def validate(path, tier=None, parts=None):
+def validate(path, tier=None, parts=None, bodies=None):
     g = GLTF2().load(decoded(path))
     R = Reader(g)
     errs, notes = [], []
@@ -92,12 +95,30 @@ def validate(path, tier=None, parts=None):
     groups = sorted(g.nodes[c].name for c in g.nodes[pi].children or [])
     if groups != ["Exterior", "Internal"]:
         errs.append(f"Pencil children {groups}")
+    N = len(parts) if parts else 0
     part_nodes = [i for i, n in enumerate(g.nodes) if n.extras and "mech" in n.extras]
-    if len(part_nodes) != 42:
-        errs.append(f"{len(part_nodes)} part nodes with extras (want 42)")
+    if len(part_nodes) != N:
+        errs.append(f"{len(part_nodes)} part nodes with extras (want {N})")
     grp_kids = [c for gname in ("Exterior", "Internal") if gname in by for c in g.nodes[by[gname]].children or []]
-    if len(grp_kids) != 42:
-        errs.append(f"Exterior+Internal have {len(grp_kids)} children (want 42)")
+    if len(grp_kids) != N:
+        errs.append(f"Exterior+Internal have {len(grp_kids)} children (want {N})")
+    for pname, bl in (bodies or {}).items():
+        if pname not in by:
+            continue
+        kids = {g.nodes[c].name: g.nodes[c] for c in g.nodes[by[pname]].children or []}
+        for b in bl:
+            k = kids.get(b["name"])
+            if k is None:
+                errs.append(f"{pname}: missing child body {b['name']}")
+                continue
+            for ek, ev in b["extra"].items():
+                got = (k.extras or {}).get(ek)
+                if got is None or abs(float(got) - ev) > 1e-6:
+                    errs.append(f"{b['name']}: extras.{ek}={got} != {ev}")
+            if k.mesh is None:
+                errs.append(f"{b['name']}: no mesh")
+            if k.extras and "mech" in k.extras:
+                errs.append(f"{b['name']}: a child body must not carry `mech`")
     want = {p["name"]: p for p in parts} if parts else {}
     names = {g.nodes[i].name for i in part_nodes}
     if want and names != set(want):
@@ -126,13 +147,23 @@ def validate(path, tier=None, parts=None):
             continue
         tris = 0
         lo, hi = np.full(3, np.inf), np.full(3, -np.inf)
-        for pr in g.meshes[n.mesh].primitives:
+        # the part's own mesh + its child bodies (hygiene checked on all;
+        # the centring bounds use the part's own mesh only)
+        prims = [(pr, True) for pr in g.meshes[n.mesh].primitives]
+        stack = list(n.children or [])
+        while stack:
+            c = g.nodes[stack.pop()]
+            stack.extend(c.children or [])
+            if c.mesh is not None:
+                prims += [(pr, False) for pr in g.meshes[c.mesh].primitives]
+        for pr, own in prims:
             P = R.acc(pr.attributes.POSITION).astype(np.float64)
             N = R.acc(pr.attributes.NORMAL).astype(np.float64) if pr.attributes.NORMAL is not None else None
             I = R.acc(pr.indices).ravel().astype(np.int64) if pr.indices is not None else np.arange(len(P))
             T = I.reshape(-1, 3)
             tris += len(T)
-            lo, hi = np.minimum(lo, P.min(0)), np.maximum(hi, P.max(0))
+            if own:
+                lo, hi = np.minimum(lo, P.min(0)), np.maximum(hi, P.max(0))
             A, B, C = P[T[:, 0]], P[T[:, 1]], P[T[:, 2]]
             cr = np.cross(B - A, C - A)
             dbl = np.linalg.norm(cr, axis=1)
@@ -185,29 +216,33 @@ def validate(path, tier=None, parts=None):
     return errs, notes, stats
 
 
-def check_registry(parts):
-    """Manifest registry == the authoritative define_assembly()."""
+def check_registry(parts, bodies):
+    """Manifest registry (parts + child bodies) == the authoritative
+    define_assembly()."""
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import build_pencil_glb as ref
-    ref.PARTS.clear()
     ref.define_assembly()
     want = {p["name"]: p for p in ref.PARTS}
     got = {p["name"]: p for p in parts}
     bad = [n for n in sorted(set(want) | set(got)) if want.get(n) != got.get(n)]
-    print(f"== registry: manifest {len(got)} parts vs define_assembly() {len(want)} parts: "
-          f"{'PASS' if not bad and len(want) == 42 else 'FAIL ' + str(bad)}")
-    return not bad and len(want) == 42
+    if bodies != ref.BODIES:
+        bad.append(f"bodies {bodies} != {ref.BODIES}")
+    print(f"== registry: manifest {len(got)} parts vs define_assembly() {len(want)} parts, "
+          f"{sum(len(v) for v in ref.BODIES.values())} child bodies: "
+          f"{'PASS' if not bad and len(want) == len(got) else 'FAIL ' + str(bad)}")
+    return not bad
 
 
 def main():
     with open(MANIFEST) as f:
-        parts = json.load(f)["parts"]
-    failed = not check_registry(parts)
+        man = json.load(f)
+    parts, bodies = man["parts"], man.get("bodies", {})
+    failed = not check_registry(parts, bodies)
     args = sys.argv[1:]
     jobs = [(a, next((t for t, v in TIERS.items() if os.path.abspath(a) == v[0]), None)) for a in args] \
         or [(v[0], t) for t, v in TIERS.items()]
     for path, tier in jobs:
-        errs, notes, st = validate(path, tier, parts)
+        errs, notes, st = validate(path, tier, parts, bodies)
         print(f"== {tier or ''} {os.path.relpath(path, ROOT)}")
         if st:
             print(f"   {st['tris']} triangles, {st['bytes'] / 1e6:.2f} MB, {st['images']} images, "
@@ -216,7 +251,7 @@ def main():
             print("   heaviest: " + ", ".join(f"{k}={v}" for k, v in st["heaviest"]))
         for n in notes:
             print(("   WARN " + n[5:]) if n.startswith("warn ") else ("   ok   " + n))
-        print(f"   hierarchy Pencil -> Exterior/Internal -> 42 parts, extras + translations vs manifest: "
+        print(f"   hierarchy Pencil -> Exterior/Internal -> {len(parts)} parts, extras + translations vs manifest: "
               f"{'FAIL' if errs else 'PASS'}")
         for e in errs:
             print("   ERR " + e)
