@@ -50,18 +50,33 @@ class Reader:
         a = self.g.accessors[i]
         bv = self.g.bufferViews[a.bufferView]
         nc = {"SCALAR": 1, "VEC2": 2, "VEC3": 3, "VEC4": 4}[a.type]
-        dt = {5126: np.float32, 5125: np.uint32, 5123: np.uint16, 5121: np.uint8}[a.componentType]
+        dt = {5126: np.float32, 5125: np.uint32, 5123: np.uint16, 5121: np.uint8, 5122: np.int16, 5120: np.int8}[a.componentType]
         off = (bv.byteOffset or 0) + (a.byteOffset or 0)
         item = np.dtype(dt).itemsize * nc
         st = bv.byteStride or item
         raw = np.frombuffer(self.blob, np.uint8, count=st * (a.count - 1) + item, offset=off)
         if st != item:
             raw = np.lib.stride_tricks.as_strided(raw, (a.count, item), (st, 1)).copy()
-        return np.frombuffer(raw.tobytes(), dt)[: a.count * nc].reshape(a.count, nc)
+        out = np.frombuffer(raw.tobytes(), dt)[: a.count * nc].reshape(a.count, nc)
+        if a.normalized and dt in (np.int8, np.int16, np.uint8, np.uint16):
+            out = np.maximum(out / float(np.iinfo(dt).max), -1.0)  # glTF normalized integers
+        return out
+
+
+def decoded(path):
+    """Meshopt-compressed GLBs are decoded to a temp copy for inspection."""
+    g = GLTF2().load(path)
+    if "EXT_meshopt_compression" not in (g.extensionsUsed or []):
+        return path
+    import subprocess, tempfile
+    out = os.path.join(tempfile.mkdtemp(), os.path.basename(path))
+    here = os.path.dirname(os.path.abspath(__file__))
+    subprocess.run(["node", os.path.join(here, "compress_glb.mjs"), "--decode", path, out], check=True)
+    return out
 
 
 def validate(path, tier=None, parts=None):
-    g = GLTF2().load(path)
+    g = GLTF2().load(decoded(path))
     R = Reader(g)
     errs, notes = [], []
     by = {n.name: i for i, n in enumerate(g.nodes)}

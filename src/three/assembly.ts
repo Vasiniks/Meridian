@@ -1,5 +1,6 @@
 import * as THREE from 'three'
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js'
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js'
 import type { Quality } from './config'
 
 export type MechRole =
@@ -122,12 +123,20 @@ function tuneLookdev(mat: THREE.MeshStandardMaterial): void {
  * Loads the external GLB asset and maps named nodes into a stable,
  * name-keyed product hierarchy. No fragile array indexes.
  */
+/**
+ * Download + decode the GLB (geometry is meshopt-compressed). Independent of
+ * the renderer, so experience.init starts it in parallel with stage setup.
+ */
+export function fetchGltf(url: string): Promise<GLTF> {
+  return new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(url)
+}
+
 export async function loadAssembly(
-  url: string,
+  source: string | Promise<GLTF>,
   scene: THREE.Scene,
   quality: Quality,
 ): Promise<Assembly> {
-  const gltf = await new GLTFLoader().loadAsync(url)
+  const gltf = await (typeof source === 'string' ? fetchGltf(source) : source)
   const group = new THREE.Group()
   group.name = 'Pencil'
   const pencil = gltf.scene.getObjectByName('Pencil') ?? gltf.scene

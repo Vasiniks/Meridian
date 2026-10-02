@@ -34,7 +34,8 @@ function useStaticMode(): boolean {
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const expRef = useRef<PencilExperience | null>(null)
-  const [staticMode] = useState(useStaticMode)
+  const [staticMode, setStaticMode] = useState(useStaticMode)
+  const [failReason, setFailReason] = useState<string | null>(null)
   const [motionPaused, setMotionPaused] = useState(
     () =>
       typeof window !== 'undefined' &&
@@ -53,13 +54,14 @@ export default function App() {
     ;(window as unknown as { __exp?: unknown }).__exp = exp
     setMotionPaused(!exp.isMotionOK())
     if (!exp.isMotionOK()) document.body.classList.add('reduced')
-    let cancelled = false
-    exp.init().catch(() => {
-      /* fallback poster is shown by the experience itself */
-    })
+    // 3D unavailable on this device → still frames instead of a blank canvas
+    exp.onFail = (reason) => {
+      setFailReason(reason)
+      setStaticMode(true)
+    }
+    void exp.init()
     return () => {
-      cancelled = true
-      void cancelled
+      exp.onFail = null
       exp.dispose()
       if (expRef.current === exp) expRef.current = null
     }
@@ -76,7 +78,7 @@ export default function App() {
   return (
     <>
       <Chrome motionPaused={motionPaused} onToggleMotion={toggleMotion} />
-      {staticMode && <FrameFallback />}
+      {staticMode && <FrameFallback reason={failReason} />}
       <main id="main">
         <Hero />
         <Detail />

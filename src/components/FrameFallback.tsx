@@ -59,7 +59,7 @@ function driveLineup(img: HTMLImageElement | null): void {
  * Used when WebGL is unavailable, on very weak hardware, or ?static=1.
  * All DOM content stays live — only the 3D canvas is replaced.
  */
-export default function FrameFallback() {
+export default function FrameFallback({ reason = null }: { reason?: string | null }) {
   const imgRef = useRef<HTMLImageElement | null>(null)
   const tierRef = useRef({ mobile: false, count: DESKTOP_COUNT })
 
@@ -137,6 +137,7 @@ export default function FrameFallback() {
   }, [])
 
   return (
+    <>
     <img
       ref={imgRef}
       id="frameFallback"
@@ -154,5 +155,11 @@ export default function FrameFallback() {
         pointerEvents: 'none',
       }}
     />
+    {reason && (
+      <p className="ff-note mono" role="status">
+        Still frames · 3D view unavailable here ({reason})
+      </p>
+    )}
+    </>
   )
 }

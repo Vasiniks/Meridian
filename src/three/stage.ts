@@ -55,7 +55,7 @@ export async function createStage(
   // Falls back to the procedural card room if the file can't load.
   try {
     const hdr = await new HDRLoader().loadAsync(
-      asset('environments/studio_small_09_1k.hdr'),
+      asset('environments/studio_small_09_512.hdr'),
     )
     scene.environment = pmrem.fromEquirectangular(hdr).texture
     hdr.dispose()

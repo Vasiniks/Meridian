@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "build:assets": "python3 scripts/asset-processing/blender/build_pencil.py && python3 scripts/asset-processing/validate_glb.py",
+    "build:assets": "python3 scripts/asset-processing/blender/build_pencil.py && node scripts/asset-processing/compress_glb.mjs && python3 scripts/asset-processing/validate_glb.py",
     "build:frames": "node scripts/frames/render-frames.cjs"
   },
   "dependencies": {
@@ -20,10 +20,14 @@
     "three": "0.184.0"
   },
   "devDependencies": {
+    "@gltf-transform/core": "^4.5.1",
+    "@gltf-transform/extensions": "^4.5.1",
+    "@gltf-transform/functions": "^4.5.1",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "@types/three": "^0.186.0",
     "@vitejs/plugin-react": "^5.0.0",
+    "meshoptimizer": "^1.3.0",
     "typescript": "^5.8.3",
     "vite": "^7.0.0"
   }
