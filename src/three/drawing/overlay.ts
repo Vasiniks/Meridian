@@ -92,13 +92,13 @@ interface XLabel {
  * The technical-drawing layer: a fixed full-viewport SVG between the canvas
  * and the copy, anchored to the pencil's part nodes every frame.
  *  Detail      — cutting plane B–B on the grip + hatched SECTION B–B inset
- *                with the A/F 8.00 across-flats dimension; Ø 0.50 tip callout
+ *                with the A/F 7.80 across-flats dimension; Ø 0.50 tip callout
  *  Exploded    — numbered balloons ①–⑨ with leaders, hover/tap highlight,
- *                cursor label `PART 03 · CLUTCH JAW`; giant outlined "9"
+ *                cursor label `PART 06 · CLUTCH`; giant outlined "9"
  *  X-ray       — accent scan hairline with a live axial station readout;
  *                paper-coloured internals labels developed by the scan
  *  Mechanism   — step counter callout on the clutch (01/05 … 05/05)
- *  Reassembly  — L 142.0 overall-length dimension + centre line, drawn once
+ *  Reassembly  — L 136.5 overall-length dimension + centre line, drawn once
  * Plus pencil picking: hover affordance + click → bus 'pencil:click'.
  */
 export class OverlayModule implements SceneModule {
@@ -367,7 +367,7 @@ export class OverlayModule implements SceneModule {
       this.mech.sub.at(0, 27)
     }
 
-    // ---- reassembly: side elevation + L 142.0 (camera-independent inset)
+    // ---- reassembly: side elevation + L 136.5 (camera-independent inset)
     {
       const c = new Callout(this.gPaper, 'dr-re')
       const inset = new Anchor(c.g)
@@ -695,7 +695,7 @@ export class OverlayModule implements SceneModule {
   private updateDetail(p: number): void {
     const d = this.detail
     const st = this.st
-    const grip = st.byName.get('gripLattice') ?? st.byName.get('gripSleeve')
+    const grip = st.byName.get('grip')
     const on = DETAIL_ON(p) && !!grip
     if (!grip) {
       d.c.set(false)
@@ -814,7 +814,10 @@ export class OverlayModule implements SceneModule {
       for (let k = 0; k < 8 && !found; k++) {
         const info = k < 4 ? (lead ?? sleeve)! : (sleeve ?? lead)!
         const f = (k % 4) / 3
-        const y = info.box.min.y + (info.box.max.y - info.box.min.y) * f * 0.92
+        // the lead runs up inside the body: only its first ~1.7 mm (past the
+        // sleeve) is visible, so only sample that stretch of it
+        const span = info === lead ? Math.min(0.17, info.box.max.y - info.box.min.y) : (info.box.max.y - info.box.min.y) * 0.92
+        const y = info.box.min.y + span * f
         this.axisPt(info, y, this.t1)
         this.proj(this.t1, this.pB)
         found = this.onScreen(this.pB, -40)
@@ -1035,7 +1038,7 @@ export class OverlayModule implements SceneModule {
     b[0] = vp.left; b[1] = y; b[2] = vp.left + vp.w; b[3] = y
     s.line.set(b, 4)
     // pencil axis: button top → lead tip (current, possibly exploded) positions
-    const topN = st.byName.get('buttonHex') ?? st.nodes[0]
+    const topN = st.byName.get('cap') ?? st.nodes[0]
     const botN = st.byName.get('lead') ?? st.nodes[st.nodes.length - 1]
     this.proj(this.axisPt(topN, topN.box.max.y, this.t1), this.pA)
     this.proj(this.axisPt(botN, botN.box.min.y, this.t2), this.pB)
@@ -1071,7 +1074,7 @@ export class OverlayModule implements SceneModule {
     const mc = mechF(p)
     const on = mc > 0.3 && st.step >= 1
     if (!on && !m.c.on) return
-    const clutch = st.byName.get('clutchHousing') ?? st.groups.find((g) => g.def.n === 3)?.anchor
+    const clutch = st.byName.get('clutch') ?? st.groups.find((g) => g.def.n === 6)?.anchor
     if (!clutch) return
     const f = this.frame(clutch, clutch.center.y, clutch.radius, this.pA)
     const vis = this.onScreen(this.pA, -10)
@@ -1130,7 +1133,7 @@ export class OverlayModule implements SceneModule {
     }
   }
 
-  // ---- reassembly: side elevation + L 142.0, drawn once -------------------
+  // ---- reassembly: side elevation + L 136.5, drawn once -------------------
   // The reassembly camera is a close-up (both ends of the pencil are out of
   // frame), so the overall length lives on a drawn elevation in the margin,
   // sliced from the real meshes at load (see profile.ts).
