@@ -20,8 +20,10 @@ Run:
   /Applications/Blender.app/Contents/MacOS/Blender --background \
       --python scripts/asset-processing/build_grip_blender.py
 
-Output: public/models/source/grip_lattice.glb (single joined mesh). The
-asset builder imports this file for the `gripLattice` part.
+Output: public/models/source/grip_lattice.glb (single joined mesh).
+Legacy experiment: nothing imports it any more. The shipping knurl is the
+`gripKnurl` body of the `grip` part, built by build_grip_lattice() in
+scripts/asset-processing/blender/mh_parts.py.
 """
 import math
 import os

@@ -14,14 +14,12 @@ GLB = os.path.join(ROOT, "public", "models", "desktop", "mechanical-pencil.glb")
 BLEND = os.path.join(ROOT, "public", "models", "source", "mechanical-pencil.blend")
 
 SHELL = {
-    "buttonHex", "topCollar", "barrelHex", "barrelGrooves", "clipBlade",
-    "clipFoot", "gripSleeve", "gripUnderlay", "gripLattice",
+    "cap", "topCollar", "barrelHex", "clipBlade", "clipFoot", "grip",
     "gripRingTop", "gripRingBot", "noseHex", "noseTip",
 }
 MECH = {
-    "buttonHex", "buttonStem", "actuatorCone", "actuatorSleeve",
-    "feedRod", "shaftMid", "jawA", "jawB", "jawC",
-    "returnSpring", "buttonSpring", "stabilizerSpring", "lead",
+    "cap", "eraser", "eraserHolder", "leadTube", "spareLeads", "clutch",
+    "jawA", "jawB", "jawC", "clutchRing", "mainSpring", "lead",
 }
 
 bpy.ops.wm.read_factory_settings(use_empty=True)

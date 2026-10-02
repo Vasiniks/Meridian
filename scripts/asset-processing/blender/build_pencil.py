@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Meridian Hex — Blender source of truth for the product model.
 
-Builds the 42-part hexagonal mechanical pencil in Blender (bpy, headless),
+Builds the 26-part hexagonal clutch pencil in Blender (bpy, headless),
 with real bevels + hardened normals, a machined diamond knurl, turned-hex
-nose, laser-etched lettering, formed spring-steel clip, closed/ground coil
-springs, toothed collet jaws, helical threads, and frosted (bead-blasted)
-micro-grain textures. Exports:
+nose, laser-etched lettering, formed spring-steel clip, a closed/ground
+return spring, a slotted 3-jaw brass collet, helical threads, and frosted
+(bead-blasted) micro-grain textures. Exports:
 
   public/models/desktop/mechanical-pencil.glb        (full tessellation, 1024 maps)
   public/models/mobile/mechanical-pencil-mobile.glb  (reduced, 512 maps)
@@ -32,9 +32,12 @@ collinear-free polylines. scripts/asset-processing/validate_glb.py fails on
 zero-area triangles or flipped vertex normals.
 
 Contract (verified at the end of every build): glTF root `Pencil` ->
-`Exterior` / `Internal` -> 42 named part nodes, each with extras
-{ex, kind, mech[, jawAngle]} and translation [0, baseY, 0] (clip parts keep
-their special translations); pencil axis = glTF +Y.
+`Exterior` / `Internal` -> 26 named part nodes, each with extras
+{ex, kind, mech} and translation [0, baseY, 0] (clip parts keep their
+special translations); pencil axis = glTF +Y. Multi-mesh components carry
+child body nodes (no `mech`): the collet's jaws jawA/B/C (extras
+{jawAngle}, origin at the jaw's flex hinge), gripKnurl/gripLiner and
+barrelInlay.
 """
 import argparse
 import json
@@ -51,7 +54,7 @@ import bpy  # noqa: E402
 
 import mh_materials  # noqa: E402
 import mh_parts  # noqa: E402
-from mh_parts import BUILDERS, FINISH, PARTS, TIERS, blender_location, define_assembly, gltf_translation  # noqa: E402
+from mh_parts import BODIES, BUILDERS, FINISH, PARTS, TIERS, blender_location, define_assembly, gltf_translation  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
 OUT = {
@@ -66,6 +69,58 @@ def reset():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     for c in list(bpy.data.collections):
         bpy.data.collections.remove(c)
+
+
+SRC_TRIS = {}
+
+
+def make_object(name, q, loc, parent, sc):
+    """Build one mesh object (a part node or a child body) at Blender
+    location `loc` with its finish pipeline (bevel / triangulate / normals)."""
+    g = BUILDERS[name](q)
+    g.translate((-loc[0], -loc[1], -loc[2]))
+    slots = []
+    for m in g.FM:
+        if m not in slots:
+            slots.append(m)
+    me = g.to_mesh(slots)
+    me.name = name
+    ob = bpy.data.objects.new(name, me)
+    sc.collection.objects.link(ob)
+    ob.parent = parent
+    ob.location = loc
+    SRC_TRIS[name] = g.tri_count()
+    mode, width = FINISH[name]
+    if mode == "bevel":
+        # harden_normals: flat faces keep their exact face normal, only
+        # the new bevel facets are smoothed. (A FACE_AREA WeightedNormal
+        # pass mixed the long bevel strips into the narrow lettering
+        # panel strips and tilted their corner normals by ~7 deg: a
+        # visible wedge-shaped gradient along the panel.)
+        bev = ob.modifiers.new("Bevel", 'BEVEL')
+        bev.limit_method = 'WEIGHT'
+        bev.width = width
+        bev.segments = q["bevel_seg"]
+        bev.profile = 0.5
+        bev.use_clamp_overlap = True
+        bev.miter_outer = 'MITER_ARC'
+        bev.harden_normals = True
+    # Triangulate in Blender (BEAUTY = polyfill + edge-flip beautify)
+    # BEFORE normals are finalised. Left to the glTF exporter, n-gons
+    # with collinear runs (bevelled hex strips, lands, jaw sides) were
+    # split into zero-area triangles carrying garbage normals.
+    tri = ob.modifiers.new("Triangulate", 'TRIANGULATE')
+    tri.quad_method = 'BEAUTY'
+    tri.ngon_method = 'BEAUTY'
+    tri.min_vertices = 4
+    tri.keep_custom_normals = True  # 'explicit' parts: analytic normals
+    if mode == "smooth":
+        wn = ob.modifiers.new("WeightedNormal", 'WEIGHTED_NORMAL')
+        wn.mode = 'FACE_AREA'
+        wn.weight = 50
+        wn.keep_sharp = True
+        wn.thresh = 0.01
+    return ob
 
 
 def build_scene(tier, tmpdir):
@@ -86,55 +141,23 @@ def build_scene(tier, tmpdir):
     stats = {}
     for spec in PARTS:
         name = spec["name"]
-        g = BUILDERS[name](q)
         loc = blender_location(spec)
-        g.translate((-loc[0], -loc[1], -loc[2]))
-        slots = []
-        for m in g.FM:
-            if m not in slots:
-                slots.append(m)
-        me = g.to_mesh(slots)
-        me.name = name
-        ob = bpy.data.objects.new(name, me)
-        sc.collection.objects.link(ob)
-        ob.parent = groups[spec["parent"]]
-        ob.location = loc
+        ob = make_object(name, q, loc, groups[spec["parent"]], sc)
         ob["ex"] = float(spec["explode"])
         ob["kind"] = spec["kind"]
         ob["mech"] = spec["mech"]
         for k, v in spec["extra"].items():
             ob[k] = float(v)
-        mode, width = FINISH[name]
-        if mode == "bevel":
-            # harden_normals: flat faces keep their exact face normal, only
-            # the new bevel facets are smoothed. (A FACE_AREA WeightedNormal
-            # pass mixed the long bevel strips into the narrow lettering
-            # panel strips and tilted their corner normals by ~7 deg: a
-            # visible wedge-shaped gradient along the panel.)
-            bev = ob.modifiers.new("Bevel", 'BEVEL')
-            bev.limit_method = 'WEIGHT'
-            bev.width = width
-            bev.segments = q["bevel_seg"]
-            bev.profile = 0.5
-            bev.use_clamp_overlap = True
-            bev.miter_outer = 'MITER_ARC'
-            bev.harden_normals = True
-        # Triangulate in Blender (BEAUTY = polyfill + edge-flip beautify)
-        # BEFORE normals are finalised. Left to the glTF exporter, n-gons
-        # with collinear runs (bevelled hex strips, lands, jaw sides) were
-        # split into zero-area triangles carrying garbage normals.
-        tri = ob.modifiers.new("Triangulate", 'TRIANGULATE')
-        tri.quad_method = 'BEAUTY'
-        tri.ngon_method = 'BEAUTY'
-        tri.min_vertices = 4
-        tri.keep_custom_normals = True  # 'explicit' parts: analytic normals
-        if mode == "smooth":
-            wn = ob.modifiers.new("WeightedNormal", 'WEIGHTED_NORMAL')
-            wn.mode = 'FACE_AREA'
-            wn.weight = 50
-            wn.keep_sharp = True
-            wn.thresh = 0.01
-        stats[name] = {"source_tris": g.tri_count()}
+        stats[name] = {"source_tris": SRC_TRIS[name]}
+        for b in BODIES.get(name, []):
+            o = b["origin"]
+            bl = (o[0], o[1], loc[2] if o[2] is None else o[2])
+            child = make_object(b["name"], q, bl, ob, sc)
+            # parent has identity rotation/scale: local = world offset
+            child.location = (bl[0] - loc[0], bl[1] - loc[1], bl[2] - loc[2])
+            for k, v in b["extra"].items():
+                child[k] = float(v)
+            stats[b["name"]] = {"source_tris": SRC_TRIS[b["name"]]}
     return stats
 
 
@@ -203,8 +226,13 @@ def postprocess_and_validate(path, tier):
             errors.append(f"{spec['name']} has no mesh")
         extras_nodes += 1
     allx = sum(1 for n in g.nodes if n.extras and "mech" in n.extras)
-    if allx != 42 or extras_nodes != 42:
-        errors.append(f"extras nodes {allx}/{extras_nodes} != 42")
+    if allx != len(PARTS) or extras_nodes != len(PARTS):
+        errors.append(f"extras nodes {allx}/{extras_nodes} != {len(PARTS)}")
+    for pname, bodies in BODIES.items():
+        pkids = {g.nodes[c].name for c in (g.nodes[by_name[pname]].children or [])}
+        for b in bodies:
+            if b["name"] not in pkids:
+                errors.append(f"{pname} lacks child body {b['name']}")
     mats = sorted({m.name for m in g.materials})
     tris = 0
     for me in g.meshes:
@@ -320,6 +348,7 @@ def write_manifest(report):
     data = {
         "generator": "scripts/asset-processing/blender/build_pencil.py (Blender %s)" % bpy.app.version_string,
         "parts": PARTS,
+        "bodies": {k: [{"name": b["name"], "extra": b["extra"]} for b in v] for k, v in BODIES.items()},
         "materials": mats,
         "tiers": {t: {"triangles": r["tris"], "bytes": r["bytes"], "meshopt": r["meshopt"],
                       "partTriangles": r["part_tris"]} for t, r in report.items()},
